@@ -1,14 +1,14 @@
 # Kiln agent instructions
 
 Kiln runs code from trusted local agents. Do not accept code from strangers.
-Artifacts become public only when the user asks you to publish them.
+Every successful MCP create or update immediately commits and pushes artifact changes to GitHub.
 Do not put secrets, private data, or credentials in artifacts.
 
 ## Authoring
 
 1. Call `list_artifacts` before you choose a slug.
 2. Call `create_or_update_artifact` with `slug`, `title`, `framework`, and `code`.
-3. Give the user the returned `local_url`.
+3. Give the user the returned `local_url` and public links from `publication`.
 4. Open the preview and exercise its controls before you report success.
 5. If the tool rejects the code, fix the reported error and call it again.
 
@@ -31,9 +31,10 @@ Use sample data only when the user does not provide data. Label sample data clea
 
 ## Publishing
 
-Call `publish_artifacts` only after the user asks to publish.
-This tool publishes all pending artifact changes, not just the last edited artifact.
-Describe that scope before you publish if several artifacts changed.
+`create_or_update_artifact` automatically publishes all pending artifact changes, not just the last edited artifact.
+Do not offer a local-only MCP creation mode. Warn the user that artifact source and pages are public.
+If publication fails, the tool reports an error and preserves the local artifact. Fix the cause and retry with `publish_artifacts`.
+Use `publish_artifacts` to publish direct file edits or retry a failed push.
 A successful push starts deployment. It does not prove that the public site is ready.
 Do not claim a deployment succeeded until GitHub Actions reports success.
 Latest links change with edits. Revision links preserve a particular source revision.

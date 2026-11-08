@@ -18,7 +18,8 @@ npm run dev
 ```
 
 Open http://localhost:4321/ for the gallery. Keep the development server running while your agent creates artifacts.
-The agent receives a preview URL after Kiln accepts its code.
+Each successful MCP create or update saves the artifact, commits pending artifact changes, and immediately pushes to GitHub.
+The response includes local preview links and a `publication` result with public links and deployment status.
 Kiln checks types and builds a temporary copy before it replaces the latest revision.
 This validation takes longer than the browser refresh. The refresh target is not a timing guarantee.
 
@@ -42,12 +43,15 @@ The `KILN_ROOT` variable makes the server independent of the agent's working dir
 ```
 
 Ask the agent to read `AGENTS.md`. Then ask it to create an artifact with Kiln.
-For example: “Use Kiln to make an interactive expense dashboard. Keep it local until I approve publication.”
+For example: “Use Kiln to make and publish an interactive expense dashboard.”
 Your agent decides how to write the interface. Kiln handles files, validation, preview routes, and publishing.
 
 ## Tools
 
 `create_or_update_artifact` accepts `slug`, `title`, `framework`, `code`, and optional `metadata`.
+Creation and updates automatically publish all pending artifact changes. There is no local-only mode for this MCP tool.
+If publication fails, the tool returns an error with the saved artifact details. The local artifact remains available.
+Fix the publishing error, then retry `publish_artifacts`. Invalid code is rejected before any save or push.
 The framework is `react`, `vue`, `svelte`, or `html`.
 Metadata supports a description and an array of tags.
 React code exports a default component. Vue and Svelte use complete single-file components.
@@ -65,8 +69,9 @@ Components can import installed packages. They cannot depend on sibling files.
 ```
 
 `list_artifacts` returns the current artifacts and their local preview links.
-`publish_artifacts` accepts a `commit_message`. It builds the site, commits artifact changes, and pushes to `origin/main`.
-It preserves unrelated staged files. A push starts deployment but does not prove that deployment succeeded.
+`publish_artifacts` accepts a `commit_message`. Use it to retry failed publication or publish direct file edits.
+Both publication paths build the site, commit pending artifact changes, and push to `origin/main`.
+They preserve unrelated staged files. A push starts deployment but does not prove that deployment succeeded.
 
 ## Revisions
 
@@ -88,7 +93,7 @@ The repository needs an initial commit on `main` that contains the complete Kiln
 The publishing tool only commits files under `artifacts/`. Commit intentional changes to the project code separately.
 Enable GitHub Pages with GitHub Actions as its build source.
 Free Pages hosting generally requires a public repository. A public repository exposes artifact source as well as the rendered pages.
-Publishing is explicit. Local edits do not trigger a push.
+MCP creates and updates publish automatically. Direct file edits do not trigger a push until you call `publish_artifacts`.
 
 The workflow builds on pushes to `main`. It calculates the site origin and repository base path through GitHub Pages.
 Use the workflow link returned by the publishing tool to inspect deployment status.
