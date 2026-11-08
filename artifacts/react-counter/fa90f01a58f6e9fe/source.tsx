@@ -1,0 +1,1 @@
+import { useState } from "react"; export default function Counter(){const [count,setCount]=useState(0);return <main className="min-h-screen bg-slate-950 text-white p-10"><h1 className="text-3xl mb-6">React workshop</h1><button className="rounded-xl bg-lime-300 text-black p-4" onClick={()=>setCount(count+1)}>Count: {count}</button></main>}

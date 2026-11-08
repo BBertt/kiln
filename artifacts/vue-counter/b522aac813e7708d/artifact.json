@@ -1,0 +1,12 @@
+{
+  "slug": "vue-counter",
+  "title": "Vue counter",
+  "framework": "vue",
+  "metadata": {
+    "tags": [
+      "example"
+    ]
+  },
+  "revision": "b522aac813e7708d",
+  "updated_at": "2026-11-08T10:05:54.792Z"
+}

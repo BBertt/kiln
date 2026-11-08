@@ -1,0 +1,18 @@
+---
+import '../styles/artifact.css';
+interface Props { title: string; description?: string }
+const { title, description } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {description && <meta name="description" content={description} />}
+    <title>{title} · Kiln</title>
+  </head>
+  <body>
+    <slot />
+    <noscript><div class="artifact-status">Enable JavaScript to view this artifact.</div></noscript>
+  </body>
+</html>

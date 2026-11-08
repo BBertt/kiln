@@ -1,0 +1,1 @@
+<script>let count = $state(0);</script><main style="padding:3rem"><h1>Svelte workshop</h1><button onclick={() => count++}>Count: {count}</button></main>

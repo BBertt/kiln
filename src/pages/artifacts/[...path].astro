@@ -1,0 +1,55 @@
+---
+import ArtifactLayout from '../../layouts/ArtifactLayout.astro';
+import ReactArtifact from '../../components/ReactArtifact';
+import VueArtifact from '../../components/VueArtifact.vue';
+import SvelteArtifact from '../../components/SvelteArtifact.svelte';
+import { getLatestArtifacts, getRevisions, type ArtifactRecord } from '../../components/catalog';
+
+export function getStaticPaths() {
+  return [
+    ...getLatestArtifacts().map((artifact) => ({ params: { path: artifact.slug }, props: { artifact } })),
+    ...getRevisions().map((artifact) => ({
+      params: { path: `${artifact.slug}/revisions/${artifact.revision}` },
+      props: { artifact },
+    })),
+  ];
+}
+
+interface Props { artifact: ArtifactRecord }
+const { artifact } = Astro.props;
+const extension = { react: 'tsx', vue: 'vue', svelte: 'svelte', html: 'html' }[artifact.framework];
+const source = `/artifacts/${artifact.slug}/${artifact.revision}/source.${extension}`;
+const htmlSources = import.meta.glob<string>('/artifacts/**/source.html', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+const html = artifact.framework === 'html' ? htmlSources[source] : undefined;
+---
+<ArtifactLayout title={artifact.title} description={artifact.metadata.description}>
+  {artifact.framework === 'react' && <ReactArtifact source={source} client:load />}
+  {artifact.framework === 'vue' && <VueArtifact source={source} client:only="vue">
+    <div slot="fallback" class="artifact-status" role="status"><span class="artifact-spinner"></span>Loading artifact…</div>
+  </VueArtifact>}
+  {artifact.framework === 'svelte' && <SvelteArtifact source={source} client:only="svelte">
+    <div slot="fallback" class="artifact-status" role="status"><span class="artifact-spinner"></span>Loading artifact…</div>
+  </SvelteArtifact>}
+  {artifact.framework === 'html' && (html !== undefined
+    ? <iframe class="artifact-html" title={artifact.title} data-html-source={html} sandbox="allow-scripts allow-same-origin" allow="fullscreen" />
+    : <div class="artifact-status artifact-status--error" role="alert">The HTML source is missing.</div>)}
+</ArtifactLayout>
+
+<script>
+  document.querySelectorAll<HTMLIFrameElement>('[data-html-source]').forEach((frame) => {
+    const source = frame.dataset.htmlSource!;
+    const documentSource = new DOMParser().parseFromString(source, 'text/html');
+    const sharedStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map((style) => {
+      const clone = style.cloneNode(true) as HTMLElement;
+      if (style instanceof HTMLLinkElement) clone.setAttribute('href', style.href);
+      return clone;
+    });
+    documentSource.head.prepend(...sharedStyles);
+    frame.srcdoc = `<!doctype html>\n${documentSource.documentElement.outerHTML}`;
+    delete frame.dataset.htmlSource;
+  });
+</script>

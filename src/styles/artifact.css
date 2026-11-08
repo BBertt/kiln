@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+@source '../../artifacts';
+
+html, body { margin: 0; min-height: 100%; }
+body { min-height: 100vh; }
+.artifact-html { display: block; width: 100%; min-height: 100vh; border: 0; background: white; }
+.artifact-status { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 100vh; padding: 32px; background: #191917; color: #bcb9af; font: 14px/1.6 ui-sans-serif, system-ui, sans-serif; text-align: center; }
+.artifact-status--error { color: #f0c8b6; }
+.artifact-status strong { font-size: 17px; font-weight: 600; }
+.artifact-status pre { max-width: min(680px, 100%); overflow-wrap: anywhere; white-space: pre-wrap; text-align: left; font: 12px/1.7 ui-monospace, monospace; }
+.artifact-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #444239; border-top-color: #f38a59; border-radius: 50%; animation: artifact-spin .8s linear infinite; }
+@keyframes artifact-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .artifact-spinner { animation: none; } }

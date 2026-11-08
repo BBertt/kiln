@@ -1,0 +1,14 @@
+{
+  "slug": "welcome",
+  "title": "Welcome to Kiln",
+  "framework": "html",
+  "metadata": {
+    "description": "A working HTML artifact created through MCP.",
+    "tags": [
+      "welcome",
+      "interactive"
+    ]
+  },
+  "revision": "0f157877640c8c41",
+  "updated_at": "2026-11-08T10:05:41.143Z"
+}

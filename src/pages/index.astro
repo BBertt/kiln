@@ -1,0 +1,207 @@
+---
+import { ArrowDownUp, ArrowUpRight, Box, Check, ChevronDown, Code2, Flame, Layers3, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import GalleryLayout from '../layouts/GalleryLayout.astro';
+import { artifactUrl, getLatestArtifacts, homeUrl } from '../components/catalog';
+
+const artifacts = getLatestArtifacts();
+const frameworks = ['html', 'react', 'vue', 'svelte'] as const;
+const labels = { html: 'HTML', react: 'React', vue: 'Vue', svelte: 'Svelte' };
+const tags = [...new Set(artifacts.flatMap((artifact) => artifact.metadata.tags ?? []))].sort();
+const plural = (count: number) => count === 1 ? 'artifact' : 'artifacts';
+---
+<GalleryLayout>
+  <div class="workshop">
+    <header class="site-header">
+      <a class="brand" href={homeUrl()} aria-label="Kiln home"><span class="brand-icon"><Flame size={23} strokeWidth={1.8} /></span><span>kiln<span class="brand-period">.</span></span></a>
+      <span class="header-divider" aria-hidden="true"></span>
+      <span class="header-label">THE ARTIFACT WORKSHOP</span>
+      <div class="header-status"><span class="status-dot"></span>Your personal collection</div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div class="intro-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span>A PLACE FOR THINGS YOU MAKE</div>
+          <h1 id="page-title">Small ideas.<br /><span>Real possibilities.</span></h1>
+          <p>Your experiments, interfaces, and happy accidents.<br class="desktop-break" /> Fresh from the kiln. Ready to explore.</p>
+        </div>
+        <aside class="workshop-note">
+          <div class="note-icon"><Sparkles size={20} strokeWidth={1.5} /></div>
+          <p>Make something<br /><em>worth opening.</em></p>
+          <span>BUILT WITH YOUR AGENT. KEPT BY YOU.</span>
+          <div class="note-corner" aria-hidden="true"></div>
+        </aside>
+      </section>
+
+      <section class="collection" aria-labelledby="collection-heading">
+        <div class="collection-heading">
+          <div class="collection-title"><Layers3 size={18} /><h2 id="collection-heading">The collection</h2><span class="total-count">{artifacts.length.toString().padStart(2, '0')}</span></div>
+          <span class="collection-hint">A little curiosity goes a long way.</span>
+        </div>
+        <div class="filter-bar">
+          <div class="framework-filters" role="group" aria-label="Filter by framework">
+            <button class="framework-filter is-active" data-framework="all" aria-pressed="true">All work<span>{artifacts.length}</span></button>
+            {frameworks.map((framework) => <button class="framework-filter" data-framework={framework} aria-pressed="false"><span class:list={['framework-dot', framework]}></span>{labels[framework]}</button>)}
+          </div>
+          <label class="search-field"><Search size={16} /><span class="sr-only">Search artifacts</span><input id="artifact-search" type="search" placeholder="Find something good…" autocomplete="off" /><kbd aria-hidden="true">/</kbd></label>
+        </div>
+        <div class="collection-tools">
+          <p id="result-count" role="status" aria-live="polite">{artifacts.length} {plural(artifacts.length)}<span> · always something to build on</span></p>
+          <div class="tool-controls">
+            {tags.length > 0 && <details class="tag-filter"><summary><SlidersHorizontal size={13} />Tags<span id="tag-count"></span><ChevronDown size={12} /></summary><div class="tag-menu"><span class="tag-menu-label">FILTER BY TAG</span>{tags.map((tag) => <button class="tag-option" data-tag={tag} aria-pressed="false"><span>{tag}</span><Check size={13} /></button>)}<button id="clear-tags" class="clear-tags">Clear tags</button></div></details>}
+            <label class="sort-control"><ArrowDownUp size={13} /><span class="sr-only">Sort artifacts</span><select id="artifact-sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select><ChevronDown size={12} /></label>
+          </div>
+        </div>
+
+        <div class="artifact-grid" id="artifact-grid">
+          {artifacts.map((artifact) => <article class="artifact-card" data-framework={artifact.framework} data-title={artifact.title} data-search={[artifact.title, artifact.slug, artifact.metadata.description ?? '', ...(artifact.metadata.tags ?? [])].join(' ').toLowerCase()} data-tags={JSON.stringify(artifact.metadata.tags ?? [])} data-updated={artifact.updated_at}>
+            <div class="card-preview" data-preview>
+              <iframe data-src={artifactUrl(artifact)} title={`Preview of ${artifact.title}`} sandbox="allow-scripts allow-same-origin" tabindex="-1" loading="lazy" aria-label={`Interactive preview of ${artifact.title}`} />
+              <div class="preview-loading" role="status"><span class="preview-spinner"></span><span>Warming things up…</span></div>
+              <div class="preview-error" hidden><Box size={22} /><span>Preview couldn't load</span><button class="retry-preview">Try again</button></div>
+              <span class:list={['preview-framework', artifact.framework]}><span class:list={['framework-dot', artifact.framework]}></span>{labels[artifact.framework]}</span>
+              <button class="preview-interact" aria-pressed="false" aria-label={`Interact with ${artifact.title}`}>Interact<ArrowUpRight size={12} /></button>
+            </div>
+            <div class="card-body">
+              <div class="card-title-row"><h3><a href={artifactUrl(artifact)} target="_blank" rel="noopener">{artifact.title}<ArrowUpRight size={17} /></a></h3></div>
+              <p class="card-description">{artifact.metadata.description || 'An idea brought to life. Open it up and take a look.'}</p>
+              <div class="card-footer"><div class="card-tags">{(artifact.metadata.tags ?? []).slice(0, 2).map((tag) => <span>{tag}</span>)}</div><a class="revision-link" href={artifactUrl(artifact, true)} title={`Open immutable revision ${artifact.revision}`} target="_blank" rel="noopener"><Code2 size={12} />{artifact.revision.slice(0, 7)}</a></div>
+            </div>
+          </article>)}
+        </div>
+
+        {artifacts.length === 0 && <div class="empty-state"><div class="empty-icon"><Flame size={30} strokeWidth={1.4} /></div><span class="eyebrow">EVERY WORKSHOP STARTS SOMEWHERE</span><h3>Your next idea belongs here.</h3><p>Connect Kiln to your agent and ask it to create an artifact.<br />A tiny tool, an interactive chart, an idea you can't quite shake.</p><div class="empty-frameworks"><span>HTML</span><span>React</span><span>Vue</span><span>Svelte</span></div></div>}
+        <div id="no-results" class="empty-state no-results" hidden><div class="empty-icon"><Search size={28} strokeWidth={1.5} /></div><h3>Nothing here. Yet.</h3><p>Try a different search or give your filters a little room.</p><button id="reset-filters" class="reset-button"><X size={14} />Clear filters</button></div>
+      </section>
+    </main>
+
+    <footer class="site-footer"><span><Flame size={14} />Made of ideas. Fired in Kiln.</span><span>YOUR WORK. EVERY REVISION. ALL YOURS.</span></footer>
+  </div>
+</GalleryLayout>
+
+<script>
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('.artifact-card'));
+  const search = document.querySelector<HTMLInputElement>('#artifact-search')!;
+  const sort = document.querySelector<HTMLSelectElement>('#artifact-sort')!;
+  const grid = document.querySelector<HTMLElement>('#artifact-grid')!;
+  const selectedTags = new Set<string>();
+  let framework = 'all';
+
+  function filterCards() {
+    const query = search.value.trim().toLocaleLowerCase();
+    let count = 0;
+    for (const card of cards) {
+      const tags = JSON.parse(card.dataset.tags ?? '[]') as string[];
+      const visible = (framework === 'all' || card.dataset.framework === framework)
+        && (!query || card.dataset.search?.includes(query))
+        && [...selectedTags].every((tag) => tags.includes(tag));
+      card.hidden = !visible;
+      if (visible) count++;
+    }
+    document.querySelector('#result-count')!.textContent = `${count} ${count === 1 ? 'artifact' : 'artifacts'}${count !== cards.length ? ` of ${cards.length}` : ' · always something to build on'}`;
+    (document.querySelector('#no-results') as HTMLElement).hidden = count > 0 || cards.length === 0;
+    const tagCount = document.querySelector('#tag-count');
+    if (tagCount) tagCount.textContent = selectedTags.size ? ` (${selectedTags.size})` : '';
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.framework-filter').forEach((button) => {
+    button.addEventListener('click', () => {
+      framework = button.dataset.framework!;
+      document.querySelectorAll('.framework-filter').forEach((item) => {
+        const active = item === button;
+        item.classList.toggle('is-active', active);
+        item.setAttribute('aria-pressed', String(active));
+      });
+      filterCards();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>('.tag-option').forEach((button) => {
+    button.addEventListener('click', () => {
+      const tag = button.dataset.tag!;
+      if (selectedTags.has(tag)) selectedTags.delete(tag); else selectedTags.add(tag);
+      button.setAttribute('aria-pressed', String(selectedTags.has(tag)));
+      filterCards();
+    });
+  });
+  function clearTags() {
+    selectedTags.clear();
+    document.querySelectorAll('.tag-option').forEach((button) => button.setAttribute('aria-pressed', 'false'));
+    filterCards();
+  }
+  document.querySelector('#clear-tags')?.addEventListener('click', clearTags);
+  document.querySelector('#reset-filters')?.addEventListener('click', () => {
+    search.value = '';
+    document.querySelector<HTMLButtonElement>('[data-framework="all"]')!.click();
+    clearTags();
+    search.focus();
+  });
+  search.addEventListener('input', filterCards);
+  sort.addEventListener('change', () => {
+    const sorted = [...cards].sort((a, b) => sort.value === 'title'
+      ? a.dataset.title!.localeCompare(b.dataset.title!)
+      : sort.value === 'oldest'
+        ? a.dataset.updated!.localeCompare(b.dataset.updated!)
+        : b.dataset.updated!.localeCompare(a.dataset.updated!));
+    sorted.forEach((card) => grid.append(card));
+  });
+  document.addEventListener('keydown', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !target?.matches('input, textarea, select, [contenteditable="true"]')) {
+      event.preventDefault();
+      search.focus();
+    }
+    if (event.key === 'Escape') document.querySelectorAll<HTMLDetailsElement>('.tag-filter[open]').forEach((details) => { details.open = false; });
+  });
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll<HTMLDetailsElement>('.tag-filter[open]').forEach((details) => {
+      if (!details.contains(event.target as Node)) details.open = false;
+    });
+  });
+
+  function startPreview(preview: HTMLElement) {
+    const frame = preview.querySelector<HTMLIFrameElement>('iframe')!;
+    let timer: ReturnType<typeof setTimeout>;
+    const showError = () => {
+      preview.dataset.state = 'error';
+      (preview.querySelector('.preview-error') as HTMLElement).hidden = false;
+      clearTimeout(timer);
+    };
+    const load = () => {
+      preview.dataset.state = 'loading';
+      (preview.querySelector('.preview-error') as HTMLElement).hidden = true;
+      clearTimeout(timer);
+      timer = setTimeout(showError, 20000);
+      frame.src = frame.dataset.src!;
+    };
+    frame.addEventListener('load', () => {
+      if (!frame.getAttribute('src')) return;
+      clearTimeout(timer);
+      preview.dataset.state = 'ready';
+      (preview.querySelector('.preview-error') as HTMLElement).hidden = true;
+    });
+    frame.addEventListener('error', showError);
+    preview.querySelector('.retry-preview')!.addEventListener('click', load);
+    preview.querySelector('.preview-interact')!.addEventListener('click', (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      const active = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(active));
+      button.textContent = active ? 'Stop preview' : 'Interact ↗';
+      preview.classList.toggle('is-interactive', active);
+      frame.tabIndex = active ? 0 : -1;
+    });
+    load();
+  }
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          startPreview(entry.target as HTMLElement);
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '200px' });
+    document.querySelectorAll<HTMLElement>('[data-preview]').forEach((preview) => observer.observe(preview));
+  } else {
+    document.querySelectorAll<HTMLElement>('[data-preview]').forEach(startPreview);
+  }
+</script>
