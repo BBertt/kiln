@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Capability boundaries · #562</title>
+<style>
+:root{color-scheme:light dark;--fg:#1e2928;--muted:#66736f;--border:#d7dfd9;--surface:#f3f6f2;--accent:#376852;--success:#287347;--warning:#936216;--error:#a73f35;--c1:#376852;--c2:#5974a1;--c3:#a17642;background:#fcfdf9;color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+@media(prefers-color-scheme:dark){:root{--fg:#e5ece7;--muted:#a3b3a9;--border:#34453b;--surface:#18261e;--accent:#a4d0af;--success:#91cba4;--warning:#e1bf79;--error:#efaaa1;--c1:#a4d0af;--c2:#a9bde8;--c3:#dabb8c;background:#101b15}}
+*{box-sizing:border-box}body{margin:0}a{color:var(--accent);text-underline-offset:4px}main{max-width:1100px;margin:auto;padding:54px 38px 64px}header{border-bottom:1px solid var(--border);padding-bottom:30px}.eyebrow,.label{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}.eyebrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}h1{font-weight:550;font-size:clamp(33px,5vw,56px);letter-spacing:-.055em;line-height:1.08;margin:24px 0 18px}h1 span{color:var(--accent)}.lead{font-size:17px;line-height:1.65;max-width:760px;color:var(--muted);margin:0}.meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.chip{border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px}.chip code{font-size:11px}.status{color:var(--success)}nav{display:flex;gap:22px;padding:19px 0;position:sticky;top:0;z-index:2;backdrop-filter:blur(14px);border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface) 94%,transparent);overflow:auto}nav a{text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap}section{padding-top:43px;scroll-margin-top:65px}.section-head{display:flex;gap:17px;align-items:baseline;margin-bottom:10px}.number{font:12px ui-monospace,monospace;color:var(--accent)}h2{font-size:24px;font-weight:550;letter-spacing:-.035em;margin:0}h3{font-size:15px;font-weight:650;margin:0 0 9px}p{line-height:1.65}section>.intro{color:var(--muted);font-size:14px;max-width:800px;margin:10px 0 22px}.diagram{border:1px solid var(--border);border-radius:12px;overflow:auto}.diagram svg{display:block;width:100%;min-width:660px;height:auto}.legend{display:flex;gap:22px;flex-wrap:wrap;padding:13px 19px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}.line{display:inline-block;width:20px;height:2px;background:var(--c1);vertical-align:middle;margin-right:7px}.line.blue{background:var(--c2)}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-top:17px}.card{border:1px solid var(--border);border-radius:10px;padding:19px}.card p{font-size:13px;color:var(--muted);margin:0}.card code{font-size:12px}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.callout{border-left:3px solid var(--accent);padding:13px 18px;margin:20px 0;background:var(--surface);font-size:13px;line-height:1.65}.callout.warning{border-color:var(--warning)}.callout.warning strong{color:var(--warning)}.trees{display:grid;grid-template-columns:1fr 1fr;gap:16px}details{border:1px solid var(--border);border-radius:10px;overflow:hidden}summary{padding:15px 18px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface)}pre{font-size:12px;line-height:1.8;margin:0;padding:19px;overflow:auto;tab-size:2}table{border-collapse:collapse;width:100%;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.09em;font-weight:600}td,th{padding:13px 15px;border-bottom:1px solid var(--border)}td:last-child{color:var(--muted)}td.result{color:var(--success);font-weight:600;white-space:nowrap}.table-wrap{border:1px solid var(--border);border-radius:10px;overflow:auto}tr:last-child td{border-bottom:0}.footnote{font-size:12px;color:var(--muted);line-height:1.7;margin-top:13px}.checklist{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin:16px 0 0;padding:0;list-style:none;font-size:13px}.checklist li{padding-left:17px;position:relative;line-height:1.65}.checklist li:before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;background:var(--accent);border-radius:50%}footer{margin-top:45px;border-top:1px solid var(--border);padding-top:20px;font-size:12px;color:var(--muted);display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap}.svg-label{font-family:Inter,system-ui,sans-serif;fill:var(--fg);font-size:15px;font-weight:600}.svg-sub{font-family:Inter,system-ui,sans-serif;fill:var(--muted);font-size:12px}.svg-mono{font-family:ui-monospace,monospace;fill:var(--muted);font-size:12px}.svg-small{font-family:Inter,system-ui,sans-serif;fill:var(--muted);font-size:11px}.svg-node{fill:var(--surface);stroke:var(--border)}
+@media(max-width:720px){main{padding:28px 18px 40px}.cards,.trees,.checklist{grid-template-columns:1fr}nav{gap:17px}h2{font-size:21px}.meta{gap:7px}.diagram svg{min-width:700px}td,th{padding:11px}}
+@media print{nav{position:static}.diagram svg{min-width:0}.trees{grid-template-columns:1fr}details{break-inside:avoid}main{max-width:none;padding:20px}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow"><span class="dot"></span> Arcane / Engineering result <span>08 Nov 2026</span></div>
+<h1>Capabilities own the code.<br><span>Pages compose the experience.</span></h1>
+<p class="lead">The campaign-shaped package is gone. Runtime configuration, payment rules and credit policy now have capability-owned homes. The admin console owns operator attribution and transaction orchestration.</p>
+<div class="meta"><span class="chip status">Implemented locally</span><span class="chip">Not pushed or deployed</span><span class="chip"><code>feat/562-campaign-controls</code></span><span class="chip"><a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/issues/562">Issue #562</a> / <a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/merge_requests/667">MR !667</a></span></div>
+</header>
+<nav aria-label="Artifact sections"><a href="#boundaries">01 / Ownership</a><a href="#writes">02 / Atomic writes</a><a href="#runtime">03 / Runtime reads</a><a href="#layout">04 / Code map</a><a href="#evidence">05 / Evidence</a></nav>
+<section id="boundaries"><div class="section-head"><span class="number">01</span><h2>A capability boundary, not a page boundary</h2></div>
+<p class="intro">Business-oriented names are useful when they identify a lasting capability. “Campaign controls” remains an operator-facing page name—not the owner of platform-wide AI configuration.</p>
+<div class="diagram">
+<svg viewBox="0 0 960 450" role="img" aria-labelledby="ownership-title ownership-desc"><title id="ownership-title">Implemented Python dependencies</title><desc id="ownership-desc">The API and workers use runtime settings and credits. The admin backend uses runtime settings, credits and shared payment management. Shared packages have no admin audit dependency.</desc><defs><marker id="ownership-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="var(--c1)"/></marker><marker id="ownership-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="var(--c2)"/></marker></defs>
+<path d="M340 93 H580" fill="none" stroke="var(--c2)" stroke-width="1.8" marker-end="url(#ownership-blue)"/>
+<path d="M340 120 C445 120 465 198 580 198" fill="none" stroke="var(--c2)" stroke-width="1.8" marker-end="url(#ownership-blue)"/>
+<path d="M340 291 C425 291 405 120 580 120" fill="none" stroke="var(--c1)" stroke-width="1.8" marker-end="url(#ownership-green)"/>
+<path d="M340 312 C445 312 465 225 580 225" fill="none" stroke="var(--c1)" stroke-width="1.8" marker-end="url(#ownership-green)"/>
+<path d="M340 335 H580" fill="none" stroke="var(--c1)" stroke-width="1.8" marker-end="url(#ownership-green)"/>
+<rect class="svg-node" x="55" y="55" width="285" height="100" rx="9"/><text class="svg-label" x="77" y="86">API + worker operations</text><text class="svg-sub" x="77" y="111">Runtime snapshots and signup policy</text><text class="svg-mono" x="77" y="136">apps/api/app/</text>
+<rect class="svg-node" x="55" y="265" width="285" height="100" rx="9"/><text class="svg-label" x="77" y="296">Admin backend</text><text class="svg-sub" x="77" y="321">Compose commands + operator history</text><text class="svg-mono" x="77" y="346">apps/admin/admin_console/</text>
+<rect class="svg-node" x="580" y="55" width="325" height="90" rx="9"/><text class="svg-label" x="602" y="85">Runtime settings</text><text class="svg-sub" x="602" y="108">Models · generation · override storage</text><text class="svg-mono" x="602" y="129">arcane_runtime_settings</text>
+<rect class="svg-node" x="580" y="170" width="325" height="90" rx="9"/><text class="svg-label" x="602" y="200">Credits</text><text class="svg-sub" x="602" y="223">Signup policy · promo management</text><text class="svg-mono" x="602" y="244">arcane_credits</text>
+<rect class="svg-node" x="580" y="285" width="325" height="90" rx="9"/><text class="svg-label" x="602" y="315">Payments</text><text class="svg-sub" x="602" y="338">Plan prices · coupon management</text><text class="svg-mono" x="602" y="359">arcane_payments</text>
+<text class="svg-small" x="55" y="413">API checkout/provider integrations stay API-owned; the new payments package is consumed by admin.</text>
+</svg><div class="legend"><span><i class="line blue"></i>API consumer</span><span><i class="line"></i>Admin consumer</span><span>Arrows = imports / uses</span></div></div>
+<div class="cards"><article class="card"><h3>Credits → neutral store</h3><p><code>SignupCreditPolicy</code> owns defaults and validation. It uses the runtime override store; runtime settings does not import credit policy.</p></article><article class="card"><h3>Audit stays in admin</h3><p>Shared commands return before/after values. They do not import admin principals, activity types or the audit table.</p></article><article class="card"><h3>Frontend follows capabilities</h3><p>Settings imports runtime features—not <code>CampaignControls.tsx</code>. Activity formatting and commercial helpers also have separate homes.</p></article></div>
+</section>
+<section id="writes"><div class="section-head"><span class="number">02</span><h2>Two writes. One transaction.</h2></div>
+<p class="intro">Operator identity and the reason belong to console orchestration. Validation and business mutation belong to the capability. Both database writes use the same session.</p>
+<div class="diagram"><svg viewBox="0 0 960 430" role="img" aria-labelledby="write-title write-desc"><title id="write-title">Atomic admin write flow</title><desc id="write-desc">The console service performs preflight provider checks where needed, begins a transaction, invokes a capability command to lock, compare and mutate, then appends an audit entry and commits. A failed mutation or audit rolls the whole transaction back.</desc><defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="var(--muted)"/></marker></defs>
+<rect class="svg-node" x="38" y="28" width="290" height="68" rx="8"/><text class="svg-label" x="57" y="55">Reviewed operator request</text><text class="svg-sub" x="57" y="78">Value · expected state/revision · reason</text>
+<path d="M328 62 H385" stroke="var(--muted)" fill="none" marker-end="url(#flow-arrow)"/>
+<rect class="svg-node" x="385" y="28" width="537" height="68" rx="8"/><text class="svg-label" x="405" y="55">ControlsCommandService</text><text class="svg-sub" x="405" y="78">Model changes: check provider presence. Runtime values: obtain deploy defaults.</text>
+<path d="M653 96 V141" stroke="var(--muted)" fill="none" marker-end="url(#flow-arrow)"/>
+<rect x="38" y="142" width="884" height="189" rx="11" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="58" y="169" class="svg-mono" style="fill:var(--accent)">async with session.begin()</text>
+<rect class="svg-node" x="60" y="193" width="285" height="104" rx="8"/><text class="svg-label" x="79" y="220">Capability command</text><text class="svg-sub" x="79" y="245">Lock → compare → validate → mutate</text><text class="svg-sub" x="79" y="269">Return effective before / after values</text>
+<path d="M345 246 H402" stroke="var(--muted)" fill="none" marker-end="url(#flow-arrow)"/>
+<rect class="svg-node" x="402" y="193" width="285" height="104" rx="8"/><text class="svg-label" x="421" y="220">ActivityRepository.append</text><text class="svg-sub" x="421" y="245">Actor · reason · target · values</text><text class="svg-mono" x="421" y="269">admin_control_changes</text>
+<path d="M687 246 H744" stroke="var(--muted)" fill="none" marker-end="url(#flow-arrow)"/>
+<rect x="744" y="213" width="155" height="65" rx="8" fill="var(--surface)" stroke="var(--success)"/><text x="821" y="252" text-anchor="middle" class="svg-label" style="fill:var(--success)">Commit both</text>
+<path d="M202 297 V366 H480 M545 297 V366 H480 V385" stroke="var(--error)" fill="none" stroke-dasharray="4 5"/>
+<text x="480" y="411" text-anchor="middle" class="svg-label" style="fill:var(--error)">Mutation or audit fails → roll back both</text>
+</svg></div>
+<div class="callout"><strong>Unchanged refusal semantics.</strong> Stale saves answer <code>409</code>; invalid values and duplicate coupon/promo creation answer <code>422</code>. Reloading stale state preserves the operator’s draft and reason.</div>
+</section>
+<section id="runtime"><div class="section-head"><span class="number">03</span><h2>A new operation sees the new settings</h2></div>
+<p class="intro">A configuration change is not a campaign switch. Model, image and generation overrides are resolved by the API for each new operation; an in-flight operation retains its snapshot.</p>
+<div class="diagram"><svg viewBox="0 0 960 310" role="img" aria-labelledby="runtime-title runtime-desc"><title id="runtime-title">Runtime snapshot resolution</title><desc id="runtime-desc">Deploy defaults and runtime database overrides are combined by get_runtime_settings. The resulting snapshot is used for the operation. An operator save changes what the next operation reads, not the existing snapshot.</desc><defs><marker id="runtime-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="var(--muted)"/></marker></defs>
+<rect class="svg-node" x="38" y="35" width="235" height="73" rx="8"/><text class="svg-label" x="58" y="65">Deploy defaults</text><text class="svg-sub" x="58" y="89">Settings + model role defaults</text>
+<rect class="svg-node" x="38" y="137" width="235" height="73" rx="8"/><text class="svg-label" x="58" y="167">Stored overrides</text><text class="svg-mono" x="58" y="191">runtime_settings</text>
+<path d="M273 71 H324 V119 H369 M273 174 H324 V119" fill="none" stroke="var(--muted)" marker-end="url(#runtime-arrow)"/>
+<rect class="svg-node" x="370" y="80" width="252" height="90" rx="8"/><text class="svg-label" x="390" y="111">get_runtime_settings</text><text class="svg-sub" x="390" y="137">Overlay once · keep deploy unchanged</text>
+<path d="M622 125 H686" fill="none" stroke="var(--muted)" marker-end="url(#runtime-arrow)"/>
+<rect class="svg-node" x="687" y="80" width="235" height="90" rx="8"/><text class="svg-label" x="707" y="111">Operation snapshot</text><text class="svg-sub" x="707" y="137">Plan · write · fix rounds / image job</text>
+<path d="M156 210 V249 H804 V181" fill="none" stroke="var(--c2)" stroke-dasharray="5 5"/><text class="svg-small" x="371" y="271">An operator save affects the next operation’s read, not the current snapshot.</text>
+</svg></div>
+<ul class="checklist"><li>Empty model fields return to deploy settings; empty fallback lists mean no fallbacks.</li><li>Signup credit policy is resolved separately, inside the existing provisioning transaction.</li><li>Existing purchases, subscription terms and granted credit lots retain their snapshots.</li><li>Provider credentials stay with the API. The console receives presence checks, never keys.</li></ul>
+</section>
+<section id="layout"><div class="section-head"><span class="number">04</span><h2>The implemented code map</h2></div><p class="intro">Actual module layout, not the earlier proposed tree. Existing credits and entitlements remain; the obsolete campaign package and compatibility exports were removed.</p>
+<div class="trees"><details open><summary>Shared Python capabilities</summary><pre>packages/
+├── runtime-settings/arcane_runtime_settings/
+│   ├── models.py          # ModelSettings / ModelRole
+│   ├── schemas.py         # Runtime values / keys
+│   ├── repository.py      # Reads and resolution
+│   ├── commands.py        # Runtime mutations
+│   └── store.py           # Revisioned override writes
+├── credits/arcane_credits/
+│   ├── signup.py          # SignupCreditPolicy
+│   ├── promotions.py      # Promo management
+│   └── …                  # Existing ledger capability
+├── payments/arcane_payments/
+│   ├── pricing.py         # Catalogue prices
+│   ├── coupons.py         # Definitions / queries / writes
+│   └── errors.py
+└── entitlements/          # Existing capability</pre></details>
+<details open><summary>Admin orchestration + persistence models</summary><pre>apps/admin/admin_console/
+├── services/
+│   ├── controls.py        # Preflight + transaction
+│   ├── control_commands.py# Capability + audit composition
+│   └── activity.py        # Other console actions
+├── repositories/
+│   ├── controls.py        # Composed capability reads
+│   └── activity.py        # Append / filter / history
+└── schemas/
+    ├── controls.py
+    └── activity.py
+
+db/db/models/
+├── runtime_setting.py
+└── admin_control_change.py
+# Python modules split; tables unchanged.</pre></details>
+<details open><summary>Admin frontend capabilities</summary><pre>apps/admin/web/src/
+├── features/
+│   ├── runtime-settings/
+│   │   ├── AiModels.tsx
+│   │   ├── RuntimeNumberRow.tsx
+│   │   ├── SettingRow.tsx / ValueSource.tsx
+│   │   └── values.ts + tests
+│   ├── commercial-controls/
+│   │   ├── CommercialControls.tsx
+│   │   └── values.ts + tests
+│   ├── activity/changes.ts + tests
+│   └── controls/
+│       ├── ControlsPage.tsx
+│       ├── InlineChangeForm.tsx
+│       └── …              # Neutral control plumbing
+├── api/
+│   ├── runtime-settings.ts / commercial-controls.ts
+│   ├── activity.ts / controls.ts / client.ts
+└── views/                 # Page composition</pre></details>
+<details open><summary>Cutover surfaces and contracts</summary><pre>Migrated
+  API config, UnitOfWork, DI and model consumers
+  Admin commands, queries, Sales and activity reads
+  Frontend Settings, Campaign controls and log helpers
+  Workspace manifests, uv.lock and Docker COPY lists
+  Existing regression tests and domain documentation
+
+Deliberately retained
+  /api/campaign-controls/* HTTP adapter
+  /api/v1/internal/campaign/* service routes
+  Stored setting keys and audit kind values
+  Advisory-lock namespaces and table names
+  Provider checks and existing named write grants
+  “Campaign controls” navigation label</pre></details></div>
+</section>
+<section id="evidence"><div class="section-head"><span class="number">05</span><h2>Observed verification, with limits</h2></div><p class="intro">Recorded during the implementation session. Test counts are separate suite results—not an aggregate of unique scenarios.</p>
+<div class="table-wrap"><table><thead><tr><th>Surface</th><th>Observed result</th><th>Evidence / limit</th></tr></thead><tbody>
+<tr><td>Python lint + types</td><td class="result">Passed</td><td>Pyright: zero errors; Black check clean.</td></tr>
+<tr><td>API broad suite</td><td class="result">4,395 passed</td><td>439 database/runtime-dependent cases skipped.</td></tr>
+<tr><td>Admin backend broad suite</td><td class="result">267 passed</td><td>120 database-dependent cases skipped.</td></tr>
+<tr><td>Controls + activity on PostgreSQL</td><td class="result">42 passed</td><td>Separate real local database; stale writes, audit rollback and restricted-role checks.</td></tr>
+<tr><td>Credits + entitlements packages</td><td class="result">33 passed</td><td>Combined run with importlib mode and explicit async mode.</td></tr>
+<tr><td>Admin frontend unit suite</td><td class="result">207 passed</td><td>Capability-owned helper tests and existing console tests.</td></tr>
+<tr><td>Chromium stories</td><td class="result">96 passed</td><td>Real browser; missing host libraries supplied locally.</td></tr>
+<tr><td>Production frontend bundle</td><td class="result">Built</td><td>TypeScript + Vite; existing large-chunk advisory remains.</td></tr>
+<tr><td>Image wiring</td><td class="result">Passed</td><td>Image-layout and build-context checks; Docker images not built here.</td></tr>
+</tbody></table></div>
+<div class="callout"><strong>Live-path smoke.</strong> The real console persisted a price, signup credits, coupon, promo and model override. Missing-provider saves were refused; empty fallback / deploy-reset semantics held; stale reload retained the draft and reason; zero runtime values saved; history and filtered CSV worked. The API runtime dependency read those browser-saved values without changing deploy defaults or unrelated model roles.</div>
+<div class="callout warning"><strong>Repository-wide blocker.</strong> <code>make verify</code> stops at a stale bridge stamp in untouched <code>apps/web</code>. The remaining backend checks ran separately. The generated stamp was not changed to conceal this blocker.</div>
+<p class="footnote">Docker was unavailable in this WSL environment. Smoke verification used isolated local PostgreSQL, the real admin application and the actual scoped provider/settings router with placeholder credentials; no paid provider call was made. This is not full-stack, staging or production acceptance. Temporary runners and services were removed or stopped.</p>
+</section>
+<footer><span>Result: capability-owned code; unchanged wire and storage contracts.</span><span>Documentation: admin README · domain briefs · ADR-071 amendment</span></footer>
+</main></body></html>

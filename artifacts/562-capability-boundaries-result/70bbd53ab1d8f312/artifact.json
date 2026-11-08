@@ -1,0 +1,17 @@
+{
+  "slug": "562-capability-boundaries-result",
+  "title": "From campaign controls to capability ownership",
+  "framework": "html",
+  "metadata": {
+    "description": "Implemented capability refactor for issue #562: dependency diagram, atomic write flow, runtime snapshots, actual code map and verification evidence.",
+    "tags": [
+      "architecture",
+      "admin-console",
+      "562",
+      "runtime-settings",
+      "refactor"
+    ]
+  },
+  "revision": "70bbd53ab1d8f312",
+  "updated_at": "2026-11-08T12:49:16.032Z"
+}
