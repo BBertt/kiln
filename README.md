@@ -80,6 +80,9 @@ Do not delete revision directories if you need their links to keep working.
 
 ## GitHub Pages
 
+This project is published at https://bbertt.github.io/kiln/.
+The public template repository is https://github.com/BBertt/kiln.
+
 Sign in with `gh auth login`. Create a GitHub repository and set it as the `origin` remote.
 The repository needs an initial commit on `main` that contains the complete Kiln project, including its lockfile and deployment workflow.
 The publishing tool only commits files under `artifacts/`. Commit intentional changes to the project code separately.
@@ -108,10 +111,11 @@ npm run build
 
 The regression test uses a temporary project. It checks that a rejected update preserves the latest revision and that a framework change retains old source.
 
-Local smoke checks exercised MCP creation and listing, the publishing function, and browser interactions for all four frameworks.
+Smoke checks exercised all three MCP tools and browser interactions for all four frameworks.
 A revision update refreshed the local preview without manual navigation.
 A build under `/kiln/` served working links, React interaction, and separate latest and historical HTML pages.
 A temporary local Git remote received artifact commits while an unrelated staged file stayed out of the commit.
-These checks do not prove that GitHub Pages deployed the site. GitHub authentication is still required.
+GitHub Actions completed the Pages deployment. Browser checks on the public site exercised search and all four frameworks.
+Public latest and historical HTML links served their separate revisions.
 
 No project license is selected yet.
