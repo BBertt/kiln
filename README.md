@@ -114,10 +114,11 @@ npm test
 npm run build
 ```
 
-The regression test uses a temporary project. It checks that a rejected update preserves the latest revision and that a framework change retains old source.
+The regression tests use temporary projects. They cover rejected updates, retained source revisions, and saved code after automatic publication fails.
 
 Smoke checks exercised all three MCP tools and browser interactions for all four frameworks.
 A revision update refreshed the local preview without manual navigation.
+An MCP create call pushed directly to GitHub without a separate `publish_artifacts` call.
 A build under `/kiln/` served working links, React interaction, and separate latest and historical HTML pages.
 A temporary local Git remote received artifact commits while an unrelated staged file stayed out of the commit.
 GitHub Actions completed the Pages deployment. Browser checks on the public site exercised search and all four frameworks.
