@@ -1,0 +1,17 @@
+{
+  "slug": "563-loading-flow-implementation-plan",
+  "title": "Editor loading flow: implementation plan (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "Plain-English plan and progress for issue #563: XState loading machine, typed build phases, the ten animations, and what remains for staging and production.",
+    "tags": [
+      "563",
+      "editor",
+      "loading-animations",
+      "xstate",
+      "implementation-plan"
+    ]
+  },
+  "revision": "179f11e5d43d7ac3",
+  "updated_at": "2026-11-09T11:27:50.344Z"
+}
