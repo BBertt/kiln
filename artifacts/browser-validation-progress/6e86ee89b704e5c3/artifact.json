@@ -1,0 +1,15 @@
+{
+  "slug": "browser-validation-progress",
+  "title": "Browser validation: progress and next steps",
+  "framework": "html",
+  "metadata": {
+    "description": "Progress and a separate BV-2 design proposal: dedicated browser execution, proposed limits, timing targets, failures, compatibility, and rollout.",
+    "tags": [
+      "progress",
+      "browser-validation",
+      "bv2-design"
+    ]
+  },
+  "revision": "6e86ee89b704e5c3",
+  "updated_at": "2026-11-09T09:27:59.658Z"
+}
