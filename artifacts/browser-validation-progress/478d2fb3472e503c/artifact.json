@@ -1,0 +1,14 @@
+{
+  "slug": "browser-validation-progress",
+  "title": "Browser validation: progress and next steps",
+  "framework": "html",
+  "metadata": {
+    "description": "Diagnosis testing is complete for this plan. BV-2 design is next. Existing measurements and future release testing remain distinct.",
+    "tags": [
+      "progress",
+      "browser-validation"
+    ]
+  },
+  "revision": "478d2fb3472e503c",
+  "updated_at": "2026-11-09T09:23:03.818Z"
+}
