@@ -1,0 +1,17 @@
+{
+  "slug": "570-espay-sandbox-flow-results",
+  "title": "Espay sandbox: whole-flow test results (#570)",
+  "framework": "html",
+  "metadata": {
+    "description": "Results of the 9 November 2026 Espay sandbox run for issue #570: one-time card and VA payments work end to end; saved-card renewals, capture, void and refund are blocked on the sandbox merchant.",
+    "tags": [
+      "570",
+      "espay",
+      "payments",
+      "spike",
+      "sandbox"
+    ]
+  },
+  "revision": "42fa314f1355e5ad",
+  "updated_at": "2026-11-09T07:47:37.872Z"
+}
