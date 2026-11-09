@@ -1,0 +1,14 @@
+{
+  "slug": "browser-validation-progress",
+  "title": "Browser validation: progress and next steps",
+  "framework": "html",
+  "metadata": {
+    "description": "Measured results, checkpoint status, and next steps for browser validation, as of 9 November 2026.",
+    "tags": [
+      "progress",
+      "browser-validation"
+    ]
+  },
+  "revision": "0e7b91a1f84aaf16",
+  "updated_at": "2026-11-09T08:54:30.314Z"
+}
