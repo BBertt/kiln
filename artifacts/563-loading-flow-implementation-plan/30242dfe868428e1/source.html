@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor loading flow: implementation plan (#563)</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1d2330; --muted: #5d6576; --border: #dfe2e8; --surface: #ffffff;
+    --ok: #13795b; --ok-bg: #e7f6ef; --bad: #b3261e; --bad-bg: #fdecea; --warn: #8a5a00; --warn-bg: #fff4dc;
+    --accent: #2457c5; --accent-bg: #eaf0fc; --code-bg: #f1f3f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13161c; --fg: #e6e8ee; --muted: #9aa2b2; --border: #2c323d; --surface: #1a1e26;
+      --ok: #5fd0a2; --ok-bg: #12291f; --bad: #ff8a80; --bad-bg: #2d1514; --warn: #f2c066; --warn-bg: #2b2210;
+      --accent: #8fb0ff; --accent-bg: #1a2440; --code-bg: #232833;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 26px 0 8px; }
+  p { margin: 0 0 12px; }
+  .meta { color: var(--muted); margin-bottom: 28px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 18px 0 8px; }
+  .card { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .card p { font-size: 14.5px; margin: 0; }
+  .card.now { border-left: 5px solid var(--accent); }
+  .card.next { border-left: 5px solid var(--muted); }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); }
+  .pill.bad { color: var(--bad); background: var(--bad-bg); }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); }
+  .pill.info { color: var(--accent); background: var(--accent-bg); }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 14.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 11px; border-bottom: 1px solid var(--border); }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; background: var(--code-bg); }
+  tr:last-child td { border-bottom: 0; }
+  ul, ol { margin: 0 0 12px; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .flow { overflow-x: auto; margin: 10px 0 6px; }
+  .flow svg { min-width: 880px; width: 100%; height: auto; }
+  .note { color: var(--muted); font-size: 14px; }
+  .callout { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  .decision { border: 1px solid var(--border); border-left: 5px solid var(--warn); background: var(--surface); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  .decision h3 { margin: 0 0 6px; font-size: 16px; }
+  .decision p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Editor loading flow: implementation plan</h1>
+  <div class="meta">Issue #563 · plan written 9 November 2026 · status: proposal, waiting for four decisions · recording starts 30 November at the latest</div>
+
+  <p>We will move the editor's loading and overlay logic into one statechart. A statechart is a state machine written as data: a list of modes and the events that move between them. Then we give each build step its own name on the wire, and use that name to show the right one of the ten new animations.</p>
+  <p>The work has four steps. Step LB-0 changes no visible behaviour. Steps LB-1 and LB-2 add the animations. Step LB-3 ships them to production before filming.</p>
+
+  <div class="steps">
+    <div class="card now">
+      <h3>LB-0 · One declared flow <span class="pill info">first</span></h3>
+      <p>Replace four separate pieces of loading logic with one XState machine. Add a generated diagram, machine tests and Storybook journeys. The screen looks the same as today.</p>
+    </div>
+    <div class="card now">
+      <h3>LB-1 · A name for each step <span class="pill info">in parallel</span></h3>
+      <p>The backend sends a fixed <code>phase</code> key next to each progress label. The editor stops guessing the step from the Indonesian label text.</p>
+    </div>
+    <div class="card next">
+      <h3>LB-2 · Animations on staging</h3>
+      <p>The machine picks one of the ten animations from the phase key. The file counter stays. Reduced motion stays.</p>
+    </div>
+    <div class="card next">
+      <h3>LB-3 · Production before filming</h3>
+      <p>Release to production. Jonathan watches one full build there before creators start recording.</p>
+    </div>
+  </div>
+
+  <h2>What happens today</h2>
+  <p>The editor decides what to show from many signals: the live chat stream, a saved "a build is running" record on the server, the deployment status that the editor asks for every 3 to 5 seconds, messages from the preview page, and five local timers. Four separate pieces of code combine these signals:</p>
+  <table>
+    <tr><th>Piece of code</th><th>What it decides</th></tr>
+    <tr><td><code>usePreviewViewModel</code></td><td>The workspace status, and a 60-second timeout while the workspace starts.</td></tr>
+    <tr><td><code>usePreviewGenerationOverlay</code></td><td>The build overlay: shown, fading or hidden. It also holds a 4-second bridge after a build ends, until the server says files are syncing.</td></tr>
+    <tr><td><code>PreviewProvider</code></td><td>The wake-up overlay while the preview page starts, with a 30-second safety timer and an error panel.</td></tr>
+    <tr><td><code>PreviewContent</code></td><td>A chain of if-statements that picks what is on screen from all of the above.</td></tr>
+  </table>
+  <p>Nobody wrote down how these pieces work together. The order is only visible in the code. The editor also decides "the AI is testing the site" by comparing the label text with <code>Memvalidasi…</code> and <code>Memperbaiki…</code>. If someone changes the wording, that check breaks silently.</p>
+  <p>The ten animation components from #556 are in <code>apps/web/src/domains/editor/preview/loading-animations/</code>. No code uses them yet. Every wait still shows <code>PreviewLoadingScene</code>.</p>
+
+  <h2>The target shape</h2>
+  <p>The machine has three parts that run at the same time. A selector reads all three parts and returns the one scene to show. A selector is a small function next to the machine that turns its state into screen data.</p>
+  <div class="flow">
+    <svg viewBox="0 0 940 600" role="img" aria-label="Three parallel parts: Workspace, Build and Wake-up, read by one scene picker">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+        </marker>
+      </defs>
+      <style>
+        .panel { fill: none; stroke: var(--border); stroke-width: 1.5; }
+        .st { fill: var(--surface); stroke: var(--accent); stroke-width: 1.8; }
+        .side { fill: var(--surface); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 3; }
+        .t { fill: var(--fg); font: 600 14px system-ui, sans-serif; }
+        .ttl { fill: var(--fg); font: 700 15px system-ui, sans-serif; }
+        .s { fill: var(--muted); font: 12px system-ui, sans-serif; }
+        .ln { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+      </style>
+
+      <!-- Workspace -->
+      <rect class="panel" x="10" y="10" width="300" height="380" rx="12"/>
+      <text class="ttl" x="160" y="36" text-anchor="middle">Workspace</text>
+      <rect class="st" x="70" y="56" width="180" height="36" rx="9"/><text class="t" x="160" y="79" text-anchor="middle">verifying</text>
+      <line class="ln" x1="160" y1="92" x2="160" y2="124" marker-end="url(#arrow)"/><text class="s" x="168" y="112">check answered</text>
+      <rect class="st" x="70" y="126" width="180" height="36" rx="9"/><text class="t" x="160" y="149" text-anchor="middle">loading</text>
+      <line class="ln" x1="160" y1="162" x2="160" y2="194" marker-end="url(#arrow)"/><text class="s" x="168" y="182">first status</text>
+      <rect class="st" x="70" y="196" width="180" height="36" rx="9"/><text class="t" x="160" y="219" text-anchor="middle">provisioning</text>
+      <line class="ln" x1="160" y1="232" x2="160" y2="264" marker-end="url(#arrow)"/><text class="s" x="168" y="252">server: running</text>
+      <rect class="st" x="70" y="266" width="180" height="36" rx="9"/><text class="t" x="160" y="289" text-anchor="middle">ready</text>
+      <text class="s" x="160" y="318" text-anchor="middle">running or syncing files</text>
+      <rect class="side" x="30" y="332" width="260" height="44" rx="9"/>
+      <text class="s" x="160" y="351" text-anchor="middle">failed · timed out after 60 s</text>
+      <text class="s" x="160" y="367" text-anchor="middle">stopped · no workspace</text>
+
+      <!-- Build -->
+      <rect class="panel" x="320" y="10" width="300" height="380" rx="12"/>
+      <text class="ttl" x="470" y="36" text-anchor="middle">Build</text>
+      <rect class="st" x="380" y="56" width="180" height="36" rx="9"/><text class="t" x="470" y="79" text-anchor="middle">idle</text>
+      <line class="ln" x1="470" y1="92" x2="470" y2="124" marker-end="url(#arrow)"/><text class="s" x="478" y="112">stream or saved record</text>
+      <rect class="st" x="380" y="126" width="180" height="36" rx="9"/><text class="t" x="470" y="149" text-anchor="middle">building</text>
+      <text class="s" x="470" y="176" text-anchor="middle">holds the phase: preparing … syncing</text>
+      <text class="s" x="470" y="191" text-anchor="middle">testing: overlay steps aside</text>
+      <line class="ln" x1="470" y1="198" x2="470" y2="222" marker-end="url(#arrow)"/><text class="s" x="478" y="214">build ended</text>
+      <rect class="st" x="380" y="224" width="180" height="36" rx="9"/><text class="t" x="470" y="247" text-anchor="middle">bridging</text>
+      <text class="s" x="568" y="247">≤ 4 s</text>
+      <line class="ln" x1="470" y1="260" x2="470" y2="284" marker-end="url(#arrow)"/><text class="s" x="478" y="276">server: syncing</text>
+      <rect class="st" x="380" y="286" width="180" height="36" rx="9"/><text class="t" x="470" y="309" text-anchor="middle">syncing</text>
+      <line class="ln" x1="470" y1="322" x2="470" y2="340" marker-end="url(#arrow)"/>
+      <rect class="st" x="380" y="342" width="180" height="36" rx="9"/><text class="t" x="470" y="365" text-anchor="middle">fading (0.5 s)</text>
+      <path class="ln" d="M380,360 C346,360 346,74 378,74" marker-end="url(#arrow)"/>
+
+      <!-- Wake-up -->
+      <rect class="panel" x="630" y="10" width="300" height="380" rx="12"/>
+      <text class="ttl" x="780" y="36" text-anchor="middle">Wake-up</text>
+      <rect class="st" x="690" y="56" width="180" height="36" rx="9"/><text class="t" x="780" y="79" text-anchor="middle">hidden</text>
+      <line class="ln" x1="780" y1="92" x2="780" y2="124" marker-end="url(#arrow)"/><text class="s" x="788" y="112">preview page loads</text>
+      <rect class="st" x="690" y="126" width="180" height="36" rx="9"/><text class="t" x="780" y="149" text-anchor="middle">waking</text>
+      <text class="s" x="780" y="176" text-anchor="middle">30 s safety timer, "boot" restarts it</text>
+      <line class="ln" x1="780" y1="184" x2="780" y2="214" marker-end="url(#arrow)"/><text class="s" x="788" y="204">"ready" or 30 s</text>
+      <rect class="st" x="690" y="216" width="180" height="36" rx="9"/><text class="t" x="780" y="239" text-anchor="middle">fading (0.5 s)</text>
+      <path class="ln" d="M870,234 C904,234 904,74 872,74" marker-end="url(#arrow)"/>
+      <rect class="st" x="690" y="296" width="180" height="36" rx="9"/><text class="t" x="780" y="319" text-anchor="middle">error</text>
+      <text class="s" x="780" y="350" text-anchor="middle">fatal error from the page</text>
+      <text class="s" x="780" y="366" text-anchor="middle">"Muat Ulang" goes back to waking</text>
+
+      <!-- arrows down to picker -->
+      <line class="ln" x1="160" y1="392" x2="300" y2="430" marker-end="url(#arrow)"/>
+      <line class="ln" x1="470" y1="392" x2="470" y2="430" marker-end="url(#arrow)"/>
+      <line class="ln" x1="780" y1="392" x2="640" y2="430" marker-end="url(#arrow)"/>
+
+      <!-- Scene picker -->
+      <rect class="st" x="140" y="432" width="660" height="156" rx="12"/>
+      <text class="ttl" x="470" y="458" text-anchor="middle">Scene picker (selector, first match wins)</text>
+      <text class="s" x="170" y="484">1. Workspace verifying → Verifying</text>
+      <text class="s" x="170" y="504">2. First build while ready → full build scene, template site hidden</text>
+      <text class="s" x="170" y="524">3. Workspace not ready → skeleton, Provisioning, or a status message</text>
+      <text class="s" x="170" y="544">4. Ready → preview, with the Build overlay on top while building, bridging or syncing</text>
+      <text class="s" x="170" y="564">5. Wake-up overlay only when the Build overlay is fully hidden</text>
+      <text class="s" x="170" y="582">Testing badge while the AI tests the site</text>
+    </svg>
+  </div>
+  <p class="note">This drawing is the plan. The real diagram is generated from the machine code and committed to <code>docs/flows/editor-preview-loading.md</code>. A test fails when the two differ.</p>
+
+  <h2>Rules we keep</h2>
+  <ul>
+    <li>The server owns the truth about builds and deployments. The machine only receives what the editor already observes. It never starts or stops server work.</li>
+    <li>React Query keeps asking the server for status. The machine does not fetch data. The chat stream and the two Zustand stores stay as they are.</li>
+    <li>Server status, the stream, the saved build record and preview-page messages become named events. The three hooks that send them are thin. They hold no decisions.</li>
+    <li>Side effects have names in the machine, and the editor supplies them. Examples: "refresh the app status" when a build ends, and "send init to the preview page".</li>
+    <li>These stay outside the machine: reloading the preview when new files arrive, the keep-warm ping, and the history refresh after a recovered build. They are not loading or overlay decisions.</li>
+  </ul>
+
+  <h2>Step LB-0: one declared flow</h2>
+  <p>The screen looks the same at the end of this step. Only the code and the proof change.</p>
+  <ol>
+    <li>Add <code>xstate</code> 5.33 and <code>@xstate/react</code> 6 to <code>apps/web</code>. Sitrep measured about 14 KiB more compressed JavaScript for this pair.</li>
+    <li>Copy the Arsenal diagram helper to <code>apps/web/src/lib/statecharts/machine-diagram.ts</code>. It turns a machine into a Mermaid diagram, and it can list the states that the machine can reach.</li>
+    <li>Write <code>preview-loading.machine.ts</code> and <code>preview-loading.selectors.ts</code> in <code>apps/web/src/domains/editor/preview/</code>. The machine file has no React code. The selector holds the scene order from the drawing above.</li>
+    <li>Start the machine once in <code>PreviewProvider</code>. Send events to it from <code>usePreviewViewModel</code>, the chat state, and the preview-page message listener.</li>
+    <li>Delete the logic that the machine replaces: the reducer and bridge timer in <code>usePreviewGenerationOverlay</code>, the lifecycle state and timers in <code>PreviewProvider</code>, the 60-second timer in <code>usePreviewViewModel</code>, and the if-chain in <code>PreviewContent</code>. <code>PreviewContent</code> then renders the scene that the selector returns.</li>
+    <li>Write machine tests with fake requests and a simulated clock. Cover every timer, including the 30-second safety timer and the "boot" restart, which have no tests today. Add a test that every state is reachable and only end states have no exit.</li>
+    <li>Add the diagram test. It writes the Mermaid diagram into <code>docs/flows/editor-preview-loading.md</code> and fails when the committed file is out of date. It runs in <code>make web-verify</code>.</li>
+    <li>Move the current overlay tests to the machine where they test decisions. Keep the panel tests that check what renders. Delete tests that only check the old reducer wiring.</li>
+    <li>Build the Storybook journeys (see below).</li>
+    <li>Record the Arsenal adoption of <code>frontend-statecharts</code> in <code>.arsenal/manifest.yaml</code>. Add the rule for when a flow must be a machine to <code>apps/web/AGENTS.md</code>. Update the preview section of <code>docs/domains/preview-runtime.md</code> and section H of <code>docs/flows/editor-interactivity.md</code>.</li>
+  </ol>
+
+  <h3>Behaviour that must not change</h3>
+  <table>
+    <tr><th>Behaviour</th><th>How we prove it</th></tr>
+    <tr><td>Reopening the editor during a build shows the build overlay again, from the saved build record.</td><td>Machine test and a Storybook journey</td></tr>
+    <tr><td>A first build hides the template site behind the build scene.</td><td>Selector test</td></tr>
+    <tr><td>After a build ends, the overlay stays up for up to 4 seconds until the server reports syncing, then shows syncing.</td><td>Machine test with a simulated clock</td></tr>
+    <tr><td>The wake-up overlay stays hidden while the build overlay is visible or fading.</td><td>Selector test and a Storybook journey</td></tr>
+    <tr><td>While the AI tests the site, the build overlay steps aside, the preview is visible, and the testing badge shows.</td><td>Machine test and a Storybook journey</td></tr>
+    <tr><td>A fatal error from the preview page shows the error panel. A later "ready" clears it. The safety timer never clears it.</td><td>Machine test</td></tr>
+    <tr><td>A workspace that starts for more than 60 seconds shows the timeout message with a retry button.</td><td>Machine test</td></tr>
+  </table>
+
+  <h3>Storybook journeys</h3>
+  <p>The journeys use the real machine and the real preview components. A fake editor backend replaces the server, in the same style as <code>src/domains/onboarding/mocks/onboarding-backend.ts</code>. A small stub page plays the preview page and sends "boot", "ready" or an error on demand. Each journey has a <code>play</code> function that checks each visible change.</p>
+  <ol>
+    <li>A build moves to syncing and then to a visible preview.</li>
+    <li>Validating, repairing, then validating again.</li>
+    <li>The build ends before the server reports syncing.</li>
+    <li>The editor reopens during an active build.</li>
+    <li>The wake-up overlay and the build overlay overlap, and the preview stays visible while the AI tests the site.</li>
+  </ol>
+
+  <h2>Step LB-1: a name for each step</h2>
+  <p>Today the backend sends only a display label, such as <code>Menulis kode…</code>. We add a fixed <code>phase</code> key next to it. The label stays for the chat. The phase key decides the animation.</p>
+  <ol>
+    <li>Add a <code>ProgressPhase</code> enum in the backend. Set it everywhere the backend sets a progress label today. The two fix-round steps both use <code>repairing</code>. The image wait gets its own value, because no turn state covers it.</li>
+    <li>Add the phase to the live stream (<code>ProgressState</code>) and to the saved build record (<code>ActiveGenerationResponse</code>). Both fields are optional, so older clients keep working.</li>
+    <li>Regenerate the frontend API types with <code>make web-generate-api</code>.</li>
+    <li>Add the phase to <code>BuildProgressMirror</code> and <code>useBuildProgressStore</code>. Pass it to the machine.</li>
+    <li>Change the testing check to read the phase, not the label text. Remove <code>PREVIEW_TESTING_LABELS</code>. Update the invariant about test labels in <code>docs/domains/app-generation.md</code>.</li>
+    <li>If the phase is missing or unknown, the editor shows today's loading scene.</li>
+  </ol>
+
+  <h3>Which signal picks which animation</h3>
+  <table>
+    <tr><th>#</th><th>Animation</th><th>Signal</th><th>Owner</th></tr>
+    <tr><td>01</td><td>Verifying</td><td>The workspace check on editor open is running</td><td>Editor</td></tr>
+    <tr><td>02</td><td>Provisioning</td><td>Server deployment status is provisioning</td><td>Server status</td></tr>
+    <tr><td>03</td><td>Cold start</td><td>Wake-up part is waking</td><td>Preview page</td></tr>
+    <tr><td>04</td><td>Preparing</td><td>Phase <code>preparing</code>, or a build with no phase yet</td><td>Backend phase</td></tr>
+    <tr><td>05</td><td>Planning</td><td>Phase <code>planning</code></td><td>Backend phase</td></tr>
+    <tr><td>06</td><td>Writing code</td><td>Phase <code>writing_code</code>, with the file counter</td><td>Backend phase</td></tr>
+    <tr><td>07</td><td>Making images</td><td>Phase <code>making_images</code></td><td>Backend phase</td></tr>
+    <tr><td>08</td><td>Validating</td><td>Phase <code>validating</code></td><td>Backend phase</td></tr>
+    <tr><td>09</td><td>Repairing</td><td>Phase <code>repairing</code></td><td>Backend phase</td></tr>
+    <tr><td>10</td><td>Syncing</td><td>Phase <code>syncing</code>, the bridge after a build, or server status syncing</td><td>Backend phase and server status</td></tr>
+  </table>
+  <p class="note">The ten animations are not ten steps in a row. A build can go from writing back to planning, and validating and repairing can repeat.</p>
+
+  <h2>Step LB-2: animations on staging</h2>
+  <ol>
+    <li>Add one wrapper that keeps today's overlay frame: full-panel position, fade-out, screen-reader label and the file counter. Inside it, show the animation for the current scene.</li>
+    <li>Keep the wrapper mounted while the phase changes. Only the animation inside it swaps. Then validating and repairing can alternate without restarting the whole loading sequence.</li>
+    <li>Use the live label as the animation text. Show "4 dari 9 file" and the progress bar under Writing code, as today.</li>
+    <li>Reduced motion already works in the animations through <code>useStillFrame</code>. The journeys check it with <code>MotionConfig reducedMotion="always"</code>.</li>
+    <li>Update the five journeys to show the new animations.</li>
+    <li>Check the whole flow on the local stack and on staging. Include reopening the editor during a build and the change to a usable preview.</li>
+  </ol>
+
+  <h2>Step LB-3: production before filming</h2>
+  <p>Promote staging to production before creators record, which is 30 November at the latest. Jonathan watches one full build in production. Then we close the checkpoint.</p>
+  <table>
+    <tr><th>Week of</th><th>Work</th></tr>
+    <tr><td>9 November</td><td>LB-0 machine, tests and diagram. LB-1 backend phase key in parallel.</td></tr>
+    <tr><td>16 November</td><td>LB-0 journeys. LB-1 frontend. LB-2 wiring and the staging check.</td></tr>
+    <tr><td>23 November</td><td>Fixes from staging. LB-3 production release and Jonathan's check.</td></tr>
+  </table>
+  <p class="note">These dates are a proposal. The issue asks us to reassess the time after the transitions and journeys are mapped. That mapping is in this plan.</p>
+
+  <h2>Decisions for you</h2>
+  <p>Issue #563 is <code>ai::human-led</code>, so these choices are yours. Each one has a recommendation.</p>
+
+  <div class="decision">
+    <h3>1. How the saved build record keeps the phase</h3>
+    <p>After a reload, the editor knows the build step only from the saved build record. Option A adds a <code>phase</code> column to <code>active_generations</code>. That needs a database migration, which needs your approval under <code>AGENTS.md</code>. Option B makes the backend work out the phase from the saved label when it builds the response. Option B needs no migration, but the phase then still depends on the wording.</p>
+    <p>Recommendation: <span class="pill ok">Option A</span> The issue says that phase identity must not depend on display text. The column can be empty, so the migration is small.</p>
+  </div>
+
+  <div class="decision">
+    <h3>2. Two labels with no animation</h3>
+    <p>The backend also sends <code>Menyimpan file…</code> (saving files) and <code>Memperbarui preview…</code> (updating the preview). Both happen after the code is written and before the preview updates.</p>
+    <p>Recommendation: <span class="pill ok">Own phase keys, Syncing animation</span> Give them <code>saving_files</code> and <code>updating_preview</code>, and show the Syncing animation for both.</p>
+  </div>
+
+  <div class="decision">
+    <h3>3. Whether the Storybook journeys run in CI</h3>
+    <p>The Storybook test project in <code>apps/web/vitest.config.ts</code> is turned off today. With it off, the <code>play</code> functions run only when someone opens Storybook. Turning it on needs a Chromium browser in CI and makes the check slower.</p>
+    <p>Recommendation: <span class="pill ok">Separate command first</span> Add a command that runs the journeys on demand, outside <code>make web-verify</code>. The machine tests are the gate. We add the journeys to CI later.</p>
+  </div>
+
+  <div class="decision">
+    <h3>4. Odd behaviour found while mapping</h3>
+    <p>The map found behaviour that is probably not intended:</p>
+    <ul>
+      <li>The wake-up overlay does not check for testing. It can cover the preview while the AI tests the site.</li>
+      <li>The first-build scene ignores testing, so the preview stays hidden during the tests of a first build.</li>
+      <li><code>verifying</code> is in the workspace status type, but nothing sets it.</li>
+    </ul>
+    <p>Recommendation: <span class="pill ok">Keep in LB-0, decide in LB-2</span> LB-0 promises no visible change. The generated diagram will show each case. We fix them in LB-2 only if Jonathan agrees.</p>
+  </div>
+
+  <h2>Risks and limits</h2>
+  <ul>
+    <li>The Arsenal package comes from one small flow in Sitrep. Arcane is its second user. Our flow has more inputs and waits on long server work, which the package has not covered yet. We report what we learn back to Arsenal.</li>
+    <li>Today the frontend tests write labels with three dots (<code>...</code>), but the backend sends one ellipsis character (<code>…</code>). The phase key removes this problem, but some tests change in LB-1.</li>
+    <li>After a reload, the editor knows the phase but not the file counts. Writing code then shows no counter until the live stream returns.</li>
+    <li>Green tests and stories do not prove the real flow. The local stack and staging checks in LB-2 are the proof, and Jonathan's production check is the final one.</li>
+  </ul>
+
+  <h2>Sources</h2>
+  <p class="note">Arsenal <code>frontend-statecharts</code> at <code>3d4daff8</code> (not yet pinned in this repository). Manifest contract and <code>use-arsenal</code> procedure at <code>77426d77</code>. Code read in this repository on 9 November 2026. Issues #563, #556, #527 and #562.</p>
+</main>
+</body>
+</html>

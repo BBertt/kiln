@@ -1,0 +1,17 @@
+{
+  "slug": "563-loading-flow-implementation-plan",
+  "title": "Editor loading flow: implementation plan (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "Plain-English plan for issue #563: one XState statechart for the editor's loading and overlays (LB-0), a phase key for each build step (LB-1), the ten animations on staging (LB-2) and production before filming (LB-3), with four decisions.",
+    "tags": [
+      "563",
+      "editor",
+      "loading-animations",
+      "xstate",
+      "implementation-plan"
+    ]
+  },
+  "revision": "30242dfe868428e1",
+  "updated_at": "2026-11-09T07:40:03.936Z"
+}
