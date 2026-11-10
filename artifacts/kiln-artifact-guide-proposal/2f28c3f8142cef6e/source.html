@@ -1,0 +1,574 @@
+<script>
+  (() => {
+    let pref = 'system';
+    try { pref = localStorage.getItem('kiln-theme') || 'system'; } catch (error) {}
+    const dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.dataset.themePref = pref;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..600&family=JetBrains+Mono:wght@400..500&family=Source+Serif+4:opsz,wght@8..60,300..600&family=Lora:wght@400..600&family=Poppins:wght@400;500;600&display=swap">
+<style>
+  /* Layout: one reading column. Decisions first, then what the references show,
+     then the proposal in the order Kiln would build it. Kiln's default tokens. */
+  :root {
+    color-scheme: light;
+    --bg: #faf9f5; --surface: #ffffff; --surface-2: #f0eee6; --line: #e8e6dc; --line-strong: #d1cfc5;
+    --text: #141413; --muted: #5e5d59;
+    --accent: #d97757; --accent-strong: #c6613f;
+    --ok: #1d6956; --ok-wash: #e9f3ef; --warn: #8a5a00; --warn-wash: #faf7e6; --bad: #b3261e; --bad-wash: #fbeceb;
+    --sans: "Anthropic Sans", "Hanken Grotesk", system-ui, sans-serif;
+    --serif: "Anthropic Serif", "Source Serif 4", Georgia, serif;
+    --mono: "Anthropic Mono", "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #191919; --surface: #1f1f1f; --surface-2: #2a2a2a; --line: #2e2e2e; --line-strong: #3d3d3d;
+      --text: #efefef; --muted: #9c9c9c;
+      --ok: #53c556; --ok-wash: #263627; --warn: #e49c06; --warn-wash: #3b301c; --bad: #f17778; --bad-wash: #3c2b2b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #191919; --surface: #1f1f1f; --surface-2: #2a2a2a; --line: #2e2e2e; --line-strong: #3d3d3d;
+    --text: #efefef; --muted: #9c9c9c;
+    --ok: #53c556; --ok-wash: #263627; --warn: #e49c06; --warn-wash: #3b301c; --bad: #f17778; --bad-wash: #3c2b2b;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; padding: 0 16px; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 960px; margin: 0 auto; padding-block: 40px 72px; }
+  .prose { max-width: 68ch; }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; border-radius: 4px; }
+  .mono { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.01em; }
+  .muted { color: var(--muted); }
+  h1 { margin: 0; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; text-wrap: balance; }
+  h2 { margin: 0 0 16px; font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  h2 .count { font-family: var(--mono); font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+  h3 { margin: 28px 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 0.84em; background: var(--surface-2); border-radius: 5px; padding: 1px 5px; }
+  pre { font-family: var(--mono); font-size: 13px; line-height: 1.6; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  header.top { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
+  header.top .lead { margin: 0; color: var(--muted); font-size: 17px; max-width: 64ch; }
+
+  nav.toc { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 16px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); margin: 0 -16px 40px; padding: 8px 16px; }
+  nav.toc ul { flex: 1; min-width: 0; overflow-x: auto; list-style: none; display: flex; gap: 4px 18px; margin: 0; padding: 2px 0; white-space: nowrap; font-size: 14px; }
+  nav.toc li { margin: 0; }
+  nav.toc a { text-decoration: none; color: var(--muted); }
+  nav.toc a:hover { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); }
+  .theme { display: flex; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; font-size: 13px; }
+  .theme label { position: relative; }
+  .theme input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .theme span { display: block; padding: 5px 10px; color: var(--muted); cursor: pointer; }
+  .theme label + label span { border-left: 1px solid var(--line-strong); }
+  .theme input:checked + span { background: var(--text); color: var(--bg); }
+  .theme input:focus-visible + span { outline: 2px solid var(--accent-strong); outline-offset: -2px; }
+
+  section { padding-bottom: 48px; margin-bottom: 48px; border-bottom: 1px solid var(--line); scroll-margin-top: 64px; }
+  section:last-of-type { border-bottom: 0; margin-bottom: 0; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--ok-wash); color: var(--ok); }
+  .pill.warn { background: var(--warn-wash); color: var(--warn); }
+  .pill.bad { background: var(--bad-wash); color: var(--bad); }
+
+  .decisions { display: flex; flex-direction: column; gap: 12px; }
+  .decision { border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); }
+  .decision.open { border: 2px solid var(--bad-wash); }
+  .decision .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .decision .q { font-weight: 500; font-size: 17px; letter-spacing: -0.01em; min-width: 0; }
+  .decision p { margin: 0; color: var(--muted); }
+  .decision .rec { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+  .decision .rec b { font-weight: 600; }
+  .decision .answer { color: var(--ok); font-weight: 500; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.5; }
+  th { text-align: left; font-family: var(--mono); font-weight: 400; font-size: 12px; color: var(--muted); background: var(--surface-2); padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: 12.5px; }
+  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line-strong); vertical-align: -2px; margin-right: 8px; }
+
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin: 0 0 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .card h3, .card h4 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+  .card p { margin: 0; font-size: 15px; color: var(--muted); }
+  .card ol, .card ul { font-size: 15px; margin: 0; }
+  .callout { background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 0 0 18px; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .steps { list-style: none; padding: 0; margin: 0 0 18px; }
+  .steps > li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 0 16px; margin: 0; }
+  .steps .rail { display: flex; flex-direction: column; align-items: center; }
+  .steps .code { font-family: var(--mono); font-size: 12px; font-weight: 500; width: 56px; height: 30px; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--line); background: var(--bg); }
+  .steps li.done .code { border-color: var(--ok); color: var(--ok); }
+  .steps li.rejected .code { color: var(--muted); }
+  .steps .line { flex: 1; width: 2px; background: var(--line); margin-block: 4px; min-height: 16px; }
+  .steps > li:last-child .line { display: none; }
+  .steps .body { padding-bottom: 24px; min-width: 0; }
+  .steps .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 30px; margin-bottom: 4px; }
+  .steps .title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .steps .body p, .steps .body ul { color: var(--muted); font-size: 15px; }
+  .steps .body ul { margin-bottom: 8px; }
+
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+  legend { font-weight: 600; font-size: 15px; margin-bottom: 10px; padding: 0; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice { position: relative; }
+  .choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .choice span { display: block; font-size: 14px; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--muted); cursor: pointer; }
+  .choice input:checked + span { background: var(--text); border-color: var(--text); color: var(--bg); }
+  .choice input:focus-visible + span { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+  .preview { --p-head: var(--sans); --p-body: var(--sans); --p-mono: var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin: 0 0 10px; }
+  .preview[data-pair="brand"] { --p-head: Poppins, Arial, sans-serif; --p-body: Lora, Georgia, serif; --p-mono: ui-monospace, monospace; }
+  .preview[data-pair="system"] { --p-head: system-ui, sans-serif; --p-body: system-ui, sans-serif; --p-mono: ui-monospace, monospace; }
+  .preview[data-pair="claude"] { --p-head: "Anthropic Sans", sans-serif; --p-body: "Anthropic Sans", sans-serif; --p-mono: "Anthropic Mono", monospace; }
+  .preview .p-meta { font-family: var(--p-mono); font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+  .preview .p-title { font-family: var(--p-head); font-size: 34px; line-height: 1.1; font-weight: 500; letter-spacing: -0.03em; margin: 0 0 10px; }
+  .preview .p-body { font-family: var(--p-body); font-size: 15px; line-height: 1.55; color: var(--muted); margin: 0 0 16px; max-width: 62ch; }
+  .preview .p-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-family: var(--p-body); }
+  .preview .p-row strong { font-family: var(--p-head); font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .preview .pill { font-family: var(--p-mono); }
+  .bar { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; max-width: 320px; margin: 10px 0 0; }
+  .bar > span { display: block; height: 100%; width: 60%; background: var(--accent); border-radius: 999px; }
+  .preview-note { font-size: 14px; color: var(--muted); min-height: 46px; margin: 0 0 18px; }
+
+  details { border-top: 1px solid var(--line); padding-top: 8px; margin: 0 0 12px; }
+  summary { cursor: pointer; color: var(--muted); font-family: var(--mono); font-size: 12.5px; }
+  details[open] summary { margin-bottom: 10px; }
+  footer { color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="mono muted" style="margin:0">Kiln proposal. Revised 10 Nov 2026. Public page: no private data.</p>
+    <h1>A Claude-style guide and design system for Kiln artifacts</h1>
+    <p class="lead">Kiln gives agents almost no guidance, so every artifact looks different. This proposal adds a written guide like the one Claude follows, a shared design system, Claude's typography, and light and dark themes on every artifact. This revision is based on two real Claude artifacts you shared.</p>
+  </header>
+
+  <nav class="toc" aria-label="Sections">
+    <ul>
+      <li><a href="#decisions">Decisions</a></li>
+      <li><a href="#reference">Your references</a></li>
+      <li><a href="#problem">The problem</a></li>
+      <li><a href="#retrieve">How to collect it</a></li>
+      <li><a href="#font">Font</a></li>
+      <li><a href="#system">Design system</a></li>
+      <li><a href="#guide">Guide</a></li>
+      <li><a href="#wiring">Changes to Kiln</a></li>
+      <li><a href="#sources">Sources</a></li>
+    </ul>
+    <div class="theme" role="radiogroup" aria-label="Theme">
+      <label><input type="radio" name="theme" value="system"><span>System</span></label>
+      <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+      <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+    </div>
+  </nav>
+
+  <section id="decisions" aria-labelledby="decisions-title">
+    <h2 id="decisions-title">Decisions <span class="count">3 open, 1 settled</span></h2>
+    <div class="decisions">
+      <article class="decision open">
+        <div class="top"><div class="q">D1. Which fonts should Kiln use?</div><span class="pill bad">Needs you</span></div>
+        <p>Claude's own fonts cannot be licensed. Your two references don't use them either: they use a sans font for everything and a mono font for labels.</p>
+        <div class="rec"><b>Recommended:</b> Name Claude's fonts first, then ship free look-alikes. Hanken Grotesk for text and headings, JetBrains Mono for labels and code, and Source Serif 4 for long reading pieces.</div>
+      </article>
+      <article class="decision open">
+        <div class="top"><div class="q">D2. May an artifact use its subject's own colors and fonts?</div><span class="pill bad">Needs you</span></div>
+        <p>Your tracker reference uses its project's brand colors and fonts, not Claude's. The report reference uses neutral grays.</p>
+        <div class="rec"><b>Recommended:</b> Yes. Kiln's palette and fonts are the default. An artifact may replace the values when its subject has a brand, if it keeps the token names and gives a dark value for each one.</div>
+      </article>
+      <article class="decision open">
+        <div class="top"><div class="q">D3. Where should the guide live?</div><span class="pill bad">Needs you</span></div>
+        <p>Today only agents working inside the Kiln folder see any guidance.</p>
+        <div class="rec"><b>Recommended:</b> In the MCP server, as instructions sent on connect plus a full guide agents can read. See <a href="#wiring">Changes to Kiln</a>.</div>
+      </article>
+      <article class="decision settled">
+        <div class="top"><div class="q">D4. Light and dark themes on every artifact?</div><span class="pill ok">Settled</span></div>
+        <div class="answer">Decided: yes. The system theme is the default, and the reader can switch (10 Nov).</div>
+      </article>
+    </div>
+  </section>
+
+  <section id="reference" aria-labelledby="reference-title">
+    <h2 id="reference-title">What your Claude artifacts show</h2>
+    <div class="prose">
+      <p>You shared two artifacts Claude made for you: a work tracker for a redesign project, built in Claude Code, and a benchmark report on free AI model tiers. I read the saved HTML of each and the printed PDFs. The PDFs record which fonts actually rendered. Project details stay out of this page because it is public.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Aspect</th><th scope="col">Work tracker</th><th scope="col">Benchmark report</th></tr></thead>
+        <tbody>
+          <tr><td>Fonts</td><td>Inter Tight and Geist Mono from Google Fonts</td><td>The system sans; system mono for model IDs</td></tr>
+          <tr><td>Palette</td><td>The project's own brand colors</td><td>Neutral grays with a green accent</td></tr>
+          <tr><td>Page width</td><td>920px, one column</td><td>1100px, one column with card grids</td></tr>
+          <tr><td>Title</td><td>44px, weight 500, tight letter spacing</td><td>28px, bold</td></tr>
+          <tr><td>Body text</td><td>15px, line height 1.55</td><td>15px, line height 1.55</td></tr>
+          <tr><td>Dark theme</td><td>Every token has a dark value</td><td>Every token has a dark value</td></tr>
+          <tr><td>Theme switch</td><td>None inside the artifact. It follows the system, or a <code>data-theme</code> mark set from outside.</td><td>Same</td></tr>
+          <tr><td>Data</td><td>Live, from Claude's built-in artifact storage</td><td>One list in the page, drawn by a script</td></tr>
+          <tr><td>Order</td><td>Now, decisions, work sequence, log</td><td>Summary, results table, failures, recommendation, alternatives, method, sources</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>What they share</h3>
+    <div class="prose">
+      <ol>
+        <li><strong>Color tokens at the top.</strong> Background, surface, line, text, muted, an accent with a soft wash, and status colors that each have a matching wash. Every token has a light and a dark value.</li>
+        <li><strong>One theme convention.</strong> The system setting decides by default, and a <code>data-theme</code> mark on the page overrides it. Neither artifact draws its own switch.</li>
+        <li><strong>One column, most useful content first.</strong> The tracker even states its layout plan in a comment at the top of its styles.</li>
+        <li><strong>One sans family plus mono.</strong> Mono carries metadata: links, dates, counts, IDs and status pills.</li>
+        <li><strong>Status as small pills.</strong> Colored text with a dot, on a matching wash.</li>
+        <li><strong>Counts next to section titles</strong>, such as "0 open, 8 settled" or "6 of 8 phases on staging".</li>
+        <li><strong>Data apart from layout.</strong> Content sits in one list, and a script draws it. The script uses plain text, never raw HTML, and only allows <code>https</code> links.</li>
+        <li><strong>Loading, empty and failed states</strong> with a sentence explaining what will appear.</li>
+        <li><strong>Accessibility basics.</strong> Labelled sections, pressed states on filter buttons, labelled progress bars, visible focus, and motion only when the reader allows it.</li>
+        <li><strong>The reader's language.</strong> The report is written in Indonesian and says so in its <code>lang</code> attribute.</li>
+      </ol>
+    </div>
+    <div class="callout prose">
+      <p>Neither artifact uses Claude's fonts or the cream and clay palette. Claude's artifact look is a structure and a token discipline, not a fixed palette. So Kiln should fix the structure and the theme convention, and supply a default palette and fonts that an artifact may replace.</p>
+    </div>
+    <h3>Parts worth reusing</h3>
+    <div class="grid">
+      <div class="card"><h4>Now panel</h4><p>Three columns: working on, next, waiting on you. The waiting column turns red when something needs the reader.</p></div>
+      <div class="card"><h4>Decision card</h4><p>Question, context, options, a recommended answer on a tinted box, then "Decided: …" with a date. Open ones first.</p></div>
+      <div class="card"><h4>Phase timeline</h4><p>A rail of short phase codes joined by a line. Each phase has a title, a status pill, a summary, links and its dependencies.</p></div>
+      <div class="card"><h4>Step checklist</h4><p>A progress bar, then collapsible steps. Done steps are struck through. Active phases open by default.</p></div>
+      <div class="card"><h4>Log</h4><p>Newest first. A date column in mono, then the phase code and one line of what happened.</p></div>
+      <div class="card"><h4>Summary and stat cards</h4><p>Key and value pairs for each option, then small cards for the winners, with a label, a value and a note.</p></div>
+      <div class="card"><h4>Results table</h4><p>Scrolls sideways on phones, with sticky headers, tier badges, score colors, aligned numbers and filter buttons.</p></div>
+      <div class="card"><h4>Callout and sources</h4><p>A tinted note with an accent edge for caveats. A numbered source list and a dated footer at the end.</p></div>
+    </div>
+  </section>
+
+  <section id="problem" aria-labelledby="problem-title">
+    <h2 id="problem-title">The problem today</h2>
+    <div class="prose"><p>Only one of Kiln's three guidance places reaches agents in other projects, and it says nothing about design.</p></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Place</th><th scope="col">What it says</th><th scope="col">Who sees it</th></tr></thead>
+        <tbody>
+          <tr><td><code>AGENTS.md</code></td><td>About 20 lines: authoring steps, frameworks, packages, basic design rules.</td><td>Only agents working inside the Kiln folder.</td></tr>
+          <tr><td>Tool description</td><td>One paragraph, mostly about saving and publishing.</td><td>Every agent that connects to Kiln.</td></tr>
+          <tr><td>MCP instructions, resources, prompts</td><td>Nothing.</td><td>Nobody.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose"><p>The five plan and progress artifacts in the gallery use three different fonts, title sizes from 30 to 57px, page widths from 980 to 1180px, and three backgrounds. Their content habits are good: plain section titles, pills, callouts, tables, diagrams, risks and sources.</p></div>
+  </section>
+
+  <section id="retrieve" aria-labelledby="retrieve-title">
+    <h2 id="retrieve-title">How to collect Claude's design system <span class="count">5 of 5 sources read</span></h2>
+    <div class="prose"><p>Anthropic publishes no single artifact design system, so I combined these sources, most trustworthy first.</p></div>
+    <ol class="steps">
+      <li class="done">
+        <div class="rail"><span class="code">S1</span><span class="line"></span></div>
+        <div class="body">
+          <div class="head"><span class="title">Your own Claude artifacts</span><span class="pill ok">Read</span></div>
+          <p>The best evidence, described above. Saved HTML gives the code; the printed PDFs list the fonts that rendered.</p>
+        </div>
+      </li>
+      <li class="done">
+        <div class="rail"><span class="code">S2</span><span class="line"></span></div>
+        <div class="body">
+          <div class="head"><span class="title">Anthropic's public skills</span><span class="pill ok">Read</span></div>
+          <p>The <a href="https://github.com/anthropics/skills">anthropics/skills</a> repository is official and Apache 2.0 licensed. <code>brand-guidelines</code> gives the brand palette and stand-in fonts. <code>frontend-design</code> gives design principles. <code>web-artifacts-builder</code> gives the artifact stack and what to avoid.</p>
+        </div>
+      </li>
+      <li class="done">
+        <div class="rail"><span class="code">S3</span><span class="line"></span></div>
+        <div class="body">
+          <div class="head"><span class="title">Live claude.ai styles</span><span class="pill ok">Measured</span></div>
+          <p>The logged-out page in a headless browser, in light and dark mode. It gave the font families, the clay accent, and the dark surfaces and text colors.</p>
+        </div>
+      </li>
+      <li class="done">
+        <div class="rail"><span class="code">S4</span><span class="line"></span></div>
+        <div class="body">
+          <div class="head"><span class="title">A published Claude document artifact</span><span class="pill ok">Measured</span></div>
+          <p>Markdown artifacts render in Anthropic Serif with Anthropic Mono for code. Code artifacts, like your references, do not.</p>
+        </div>
+      </li>
+      <li class="done">
+        <div class="rail"><span class="code">S5</span><span class="line"></span></div>
+        <div class="body">
+          <div class="head"><span class="title">Anthropic's showcase artifacts</span><span class="pill ok">Measured</span></div>
+          <p>Examples hosted by Anthropic. They name Anthropic's fonts but never load them, so visitors see Georgia and system fonts.</p>
+        </div>
+      </li>
+      <li class="rejected">
+        <div class="rail"><span class="code">×</span><span class="line"></span></div>
+        <div class="body">
+          <div class="head"><span class="title">Leaked system prompts</span><span class="pill">Rejected</span></div>
+          <p>Unofficial and possibly out of date. Not something to copy into a public repository.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="font" aria-labelledby="font-title">
+    <h2 id="font-title">Claude's font</h2>
+    <div class="prose">
+      <p>claude.ai uses three fonts Anthropic made for itself: Anthropic Sans for the interface, Anthropic Serif for headings and Claude's replies, and Anthropic Mono for code. I found no public license for them, and font reference sites say they are not available to license. Kiln is public, so shipping the files would redistribute them. Linking to Anthropic's copies would technically work, but it has no license, the links change when Anthropic deploys, and visitors' browsers would contact Anthropic.</p>
+      <p>Your references point the same way as the license: Claude's code artifacts use a plain sans and a mono, not Anthropic's fonts. So Kiln names Claude's fonts first, which helps only on a device that has them installed, and ships free look-alikes for everyone else.</p>
+    </div>
+    <pre><code>--font-sans:  "Anthropic Sans", "Hanken Grotesk", system-ui, sans-serif;
+--font-mono:  "Anthropic Mono", "JetBrains Mono", ui-monospace, monospace;
+--font-serif: "Anthropic Serif", "Source Serif 4", Georgia, serif;  /* long reading only */</code></pre>
+    <div class="prose"><p>Kiln would bundle the free fonts from the <code>@fontsource-variable</code> npm packages, under the SIL Open Font License, so no font service is called. This preview loads them from Google Fonts only for the comparison.</p></div>
+    <fieldset>
+      <legend>Compare font options</legend>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="pair" value="recommended" checked><span>Look-alikes</span></label>
+        <label class="choice"><input type="radio" name="pair" value="brand"><span>Poppins and Lora</span></label>
+        <label class="choice"><input type="radio" name="pair" value="system"><span>System fonts</span></label>
+        <label class="choice"><input type="radio" name="pair" value="claude"><span>Claude's fonts, if installed</span></label>
+      </div>
+    </fieldset>
+    <div class="preview" id="preview" data-pair="recommended" aria-label="Font preview">
+      <p class="p-meta">Tracker #000 &nbsp; Updated 10 Nov, 13:00</p>
+      <p class="p-title">Loading flow, in the order it ships</p>
+      <p class="p-body">Where each step stands: what is in progress now, the decisions waiting on you, and the steps that remain.</p>
+      <div class="p-row"><strong>One declared flow</strong><span class="pill ok">On staging</span></div>
+      <div class="bar" role="img" aria-label="3 of 5 steps done"><span></span></div>
+    </div>
+    <p class="preview-note" id="preview-note" aria-live="polite">Hanken Grotesk for headings and text, JetBrains Mono for labels and status.</p>
+  </section>
+
+  <section id="system" aria-labelledby="system-title">
+    <h2 id="system-title">Proposed Kiln design system</h2>
+    <div class="prose"><p>Kiln fixes the token names, the theme convention and the page structure. It supplies default values that look like Claude. An artifact may replace the values for its subject, as decision D2 describes.</p></div>
+    <h3>Color tokens</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Token</th><th scope="col">Light</th><th scope="col">Dark</th><th scope="col">Use</th><th scope="col">Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>--kiln-bg</code></td><td><span class="swatch" style="background:#faf9f5"></span>#faf9f5</td><td><span class="swatch" style="background:#191919"></span>#191919</td><td>Page</td><td>Brand light; claude.ai dark</td></tr>
+          <tr><td><code>--kiln-surface</code></td><td><span class="swatch" style="background:#ffffff"></span>#ffffff</td><td><span class="swatch" style="background:#1f1f1f"></span>#1f1f1f</td><td>Cards, tables</td><td>Showcase artifacts; claude.ai dark</td></tr>
+          <tr><td><code>--kiln-surface-2</code></td><td><span class="swatch" style="background:#f0eee6"></span>#f0eee6</td><td><span class="swatch" style="background:#2a2a2a"></span>#2a2a2a</td><td>Table heads, code, quiet pills, tinted boxes</td><td>Kiln choice</td></tr>
+          <tr><td><code>--kiln-line</code></td><td><span class="swatch" style="background:#e8e6dc"></span>#e8e6dc</td><td><span class="swatch" style="background:#2e2e2e"></span>#2e2e2e</td><td>Borders, dividers</td><td>Brand light gray; Kiln choice</td></tr>
+          <tr><td><code>--kiln-text</code></td><td><span class="swatch" style="background:#141413"></span>#141413</td><td><span class="swatch" style="background:#efefef"></span>#efefef</td><td>Text</td><td>Brand dark; claude.ai dark</td></tr>
+          <tr><td><code>--kiln-muted</code></td><td><span class="swatch" style="background:#5e5d59"></span>#5e5d59</td><td><span class="swatch" style="background:#9c9c9c"></span>#9c9c9c</td><td>Secondary text, labels</td><td>Showcase artifacts; claude.ai dark</td></tr>
+          <tr><td><code>--kiln-accent</code></td><td colspan="2"><span class="swatch" style="background:#d97757"></span>#d97757 in both</td><td>Markers, progress, link underlines. Never small text.</td><td>claude.ai</td></tr>
+          <tr><td><code>--kiln-ok</code> and <code>-wash</code></td><td><span class="swatch" style="background:#1d6956"></span>#1d6956</td><td><span class="swatch" style="background:#53c556"></span>#53c556</td><td>Done, settled, shipped</td><td>Showcase artifacts; claude.ai dark</td></tr>
+          <tr><td><code>--kiln-warn</code> and <code>-wash</code></td><td><span class="swatch" style="background:#8a5a00"></span>#8a5a00</td><td><span class="swatch" style="background:#e49c06"></span>#e49c06</td><td>In progress, at risk</td><td>Kiln choice; claude.ai dark</td></tr>
+          <tr><td><code>--kiln-bad</code> and <code>-wash</code></td><td><span class="swatch" style="background:#b3261e"></span>#b3261e</td><td><span class="swatch" style="background:#f17778"></span>#f17778</td><td>Blocked, needs you</td><td>Kiln choice; claude.ai dark</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Type</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Role</th><th scope="col">Font</th><th scope="col">Size and weight</th><th scope="col">From</th></tr></thead>
+        <tbody>
+          <tr><td>Page title</td><td>Sans</td><td>30 to 44px, weight 500, letter spacing −0.035em</td><td>Tracker</td></tr>
+          <tr><td>Section title</td><td>Sans</td><td>22 to 24px, weight 600, with a mono count beside it</td><td>Tracker</td></tr>
+          <tr><td>Body text</td><td>Sans</td><td>15 to 16px, line height 1.55 to 1.6, at most about 68 characters a line</td><td>Both</td></tr>
+          <tr><td>Labels, dates, IDs, pills</td><td>Mono</td><td>12 to 12.5px</td><td>Tracker</td></tr>
+          <tr><td>Long reading pieces</td><td>Serif, optional</td><td>17px, line height 1.6</td><td>claude.ai documents</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Layout and shape</h3>
+    <div class="prose"><p>One column, 920 to 1100px wide, with 48px between sections. Prose stays near 68 characters a line. Corners are 16 to 20px on large panels, 10 to 12px on cards and tables, and fully round on pills. Section order puts what the reader must act on first.</p></div>
+
+    <h3 id="themes">Light and dark themes</h3>
+    <div class="prose">
+      <p>Every artifact supports both themes, follows the system setting by default, and lets the reader choose System, Light or Dark. Kiln draws the switch in a slim top bar on each artifact page, next to a gallery link and the title. The browser saves the choice for every artifact on the site. This page has the same switch in its top bar.</p>
+      <p>Kiln uses the same convention as your references, so artifacts Claude writes work in Kiln unchanged. A script sets <code>data-theme="light"</code> or <code>"dark"</code> on the artifact before it appears. Without the mark, the artifact still follows the system.</p>
+    </div>
+    <pre><code>:root { --kiln-bg: #faf9f5; /* light values */ }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --kiln-bg: #191919; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --kiln-bg: #191919; color-scheme: dark; }
+@custom-variant dark (&amp;:where([data-theme=dark], [data-theme=dark] *));  /* Tailwind */</code></pre>
+    <div class="prose">
+      <p>What each artifact must do:</p>
+      <ul>
+        <li>Take every color from the tokens or from Tailwind <code>dark:</code> classes, and give every token a dark value.</li>
+        <li>Never draw its own theme switch.</li>
+        <li>Draw SVG lines and labels with <code>currentColor</code> or the tokens, and give charts token colors.</li>
+        <li>Keep text contrast at 4.5 to 1 in both themes, and check both before reporting.</li>
+      </ul>
+      <p>The nine older artifacts in the gallery hard-code their colors and will ignore the switch until they are rebuilt.</p>
+    </div>
+    <h3>Rules</h3>
+    <div class="grid">
+      <div class="card">
+        <h4>Do</h4>
+        <ul>
+          <li>Put status, counts and decisions on the first screen.</li>
+          <li>Keep data in one list and draw it with a script, using plain text and <code>https</code> links only.</li>
+          <li>Write empty, loading and failed states.</li>
+          <li>Write in the reader's language and set <code>lang</code>.</li>
+          <li>Label every control, keep focus visible, respect reduced motion.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Avoid</h4>
+        <ul>
+          <li>Hard-coded colors outside the token block.</li>
+          <li>Purple gradients and centered body text.</li>
+          <li>The same card for every block.</li>
+          <li>The accent on more than one job.</li>
+          <li>Entrance animations on every section.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="guide" aria-labelledby="guide-title">
+    <h2 id="guide-title">The authoring guide</h2>
+    <div class="prose">
+      <p>The guide follows the shape of Claude's artifact instructions, but every rule comes from what Kiln supports. It has eight parts:</p>
+      <ol>
+        <li><strong>When to make an artifact.</strong> Substantial content the reader will return to or share. Short answers stay in chat.</li>
+        <li><strong>Which format.</strong> HTML for trackers, plans and reports. React for interactive tools. Vue or Svelte only when asked.</li>
+        <li><strong>What is available.</strong> Tailwind, the Kiln tokens and fonts, <code>lucide-react</code>, <code>recharts</code> and <code>framer-motion</code>. No backend.</li>
+        <li><strong>Runtime limits.</strong> HTML runs in a frame with scripts on. All artifacts share one website, so prefix storage keys with the slug and never store private data.</li>
+        <li><strong>Design.</strong> The tokens, theme convention, type, layout and rules above.</li>
+        <li><strong>Templates.</strong> A work tracker and a findings report, below.</li>
+        <li><strong>Edit or create.</strong> Reuse the slug for edits and send the full code. Each change becomes a new revision.</li>
+        <li><strong>Check before reporting.</strong> Open the preview in both themes, try every control, give both links, and wait for GitHub Actions before saying the site is live.</li>
+      </ol>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h3>Work tracker: plans and progress</h3>
+        <ol>
+          <li>Header: links to the issue and design in mono, the update time, a title, one sentence on what the page tracks</li>
+          <li>Now: working on, next, waiting on you</li>
+          <li>Decisions with a count: open first, each with a recommendation</li>
+          <li>Work sequence with a count: phases in shipping order, each with steps</li>
+          <li>Log, newest first</li>
+          <li>Footer: who updates the page</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Findings report: tests, comparisons, spikes</h3>
+        <ol>
+          <li>Header: title, one sentence, chips for date, version and sample size</li>
+          <li>Summary: one card per option, then stat cards for the winners</li>
+          <li>Main results table with filters</li>
+          <li>What could not be tested</li>
+          <li>Recommendation</li>
+          <li>Alternatives and why they lost</li>
+          <li>Method and limits</li>
+          <li>Sources and a dated footer</li>
+        </ol>
+      </div>
+    </div>
+    <div class="callout prose">
+      <p>Your tracker updates itself from Claude's built-in artifact storage. Kiln has no storage, so a Kiln tracker keeps its data in the page and the agent republishes it. Each update then becomes a revision you can go back to.</p>
+    </div>
+  </section>
+
+  <section id="wiring" aria-labelledby="wiring-title">
+    <h2 id="wiring-title">Changes to Kiln</h2>
+    <div class="prose"><p>The guide lives in one file and reaches every agent through the MCP server. The installed MCP SDK supports server instructions, resources and prompts.</p></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">File</th><th scope="col">Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/guide/authoring.md</code></td><td>New. The full guide, the single source of truth.</td></tr>
+          <tr><td><code>src/tools/mcp-server.ts</code></td><td>Send short instructions on connect. Serve the guide as a resource. Add tracker and report prompts. Point the tool description at the guide.</td></tr>
+          <tr><td><code>src/layouts/ArtifactLayout.astro</code></td><td>Add the top bar with the gallery link, title and theme switch, and the script that sets the theme before the page appears.</td></tr>
+          <tr><td><code>src/pages/artifacts/[...path].astro</code></td><td>Pass the theme mark into each HTML artifact's frame and update it on change.</td></tr>
+          <tr><td><code>src/styles/artifact.css</code></td><td>Add the tokens, both themes, font stacks and the Tailwind <code>dark:</code> rule. Theme the loading and error screens.</td></tr>
+          <tr><td><code>src/styles/gallery.css</code></td><td>Replace Inter with the font stacks, and use the tokens and theme switch.</td></tr>
+          <tr><td><code>package.json</code></td><td>Add the three <code>@fontsource-variable</code> packages.</td></tr>
+          <tr><td><code>AGENTS.md</code></td><td>Link to the guide instead of repeating it.</td></tr>
+          <tr><td><code>artifacts/</code></td><td>Two reference artifacts: a work tracker and a findings report.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Order of work</h3>
+    <div class="prose">
+      <ol>
+        <li>You settle decisions D1 to D3.</li>
+        <li>Write the tokens, fonts, theme convention and guide.</li>
+        <li>Wire the guide into the MCP server.</li>
+        <li>Add the theme switch to artifact pages, then restyle the gallery.</li>
+        <li>Build the two reference artifacts.</li>
+        <li>Rebuild the nine older artifacts with the tokens.</li>
+        <li>Ask an agent in another project to rebuild one plan using only the MCP guide, and compare it with your Claude references.</li>
+      </ol>
+      <p>Markdown, SVG and Mermaid artifact types need new rendering code and belong in a separate proposal.</p>
+    </div>
+  </section>
+
+  <section id="sources" aria-labelledby="sources-title">
+    <h2 id="sources-title">Sources</h2>
+    <div class="prose">
+      <ol>
+        <li>Two Claude artifacts you shared as saved HTML and PDF. Private, so not linked.</li>
+        <li><a href="https://github.com/anthropics/skills/tree/main/skills/brand-guidelines">anthropics/skills: brand-guidelines</a></li>
+        <li><a href="https://github.com/anthropics/skills/tree/main/skills/frontend-design">anthropics/skills: frontend-design</a></li>
+        <li><a href="https://github.com/anthropics/skills/tree/main/skills/web-artifacts-builder">anthropics/skills: web-artifacts-builder</a></li>
+        <li><a href="https://platform.claude.com/docs/en/release-notes/system-prompts/overview">Anthropic: published system prompts</a>. They mention Artifacts only as a setting.</li>
+        <li><a href="https://claude.ai/login">claude.ai sign-in page</a>, measured in light and dark mode on 10 Nov 2026.</li>
+        <li><a href="https://claude.ai/public/artifacts/3112030c-61c7-4ae7-882e-b7fe87bd6497">A published Claude markdown artifact</a>, measured the same day.</li>
+        <li><a href="https://assets.claude.ai/brand/artifacts/solutions/legal/outside_counsel_management_use_case_v3.html">Anthropic showcase artifact: October billing review</a></li>
+        <li><a href="https://font-inspector.com/fonts-used-by/claude">Font Inspector</a> and <a href="https://siteprint.app/blog/claude-fonts/">Siteprint</a>, third-party sources on font licensing.</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer class="mono">Kiln proposal, revised 10 Nov 2026. Claude and Anthropic fonts are trademarks of Anthropic. This page uses free look-alike fonts.</footer>
+</div>
+
+<script>
+  (() => {
+    const notes = {
+      recommended: 'Hanken Grotesk for headings and text, JetBrains Mono for labels and status.',
+      brand: 'Poppins for headings, Lora for text. These are the stand-ins in Anthropic\u2019s brand-guidelines skill.',
+      system: 'The device\u2019s own sans and mono. Nothing to download, closest to your report reference.',
+      claude: 'Anthropic Sans and Mono by name only. If this looks like a plain default font, they are not installed on your device. Almost every visitor would see that.'
+    };
+    const preview = document.getElementById('preview');
+    const note = document.getElementById('preview-note');
+    document.querySelectorAll('input[name="pair"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        preview.dataset.pair = input.value;
+        note.textContent = notes[input.value];
+      });
+    });
+
+    const root = document.documentElement;
+    const media = matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = (pref) => {
+      root.dataset.themePref = pref;
+      root.dataset.theme = pref === 'dark' || (pref === 'system' && media.matches) ? 'dark' : 'light';
+    };
+    document.querySelectorAll('input[name="theme"]').forEach((input) => {
+      input.checked = input.value === root.dataset.themePref;
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        applyTheme(input.value);
+        try { localStorage.setItem('kiln-theme', input.value); } catch (error) {}
+      });
+    });
+    media.addEventListener('change', () => {
+      if (root.dataset.themePref === 'system') applyTheme('system');
+    });
+  })();
+</script>
