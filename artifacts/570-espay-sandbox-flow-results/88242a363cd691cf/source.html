@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Espay sandbox: whole-flow test results (#570)</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1d2330; --muted: #5d6576; --border: #dfe2e8; --surface: #ffffff;
+    --ok: #13795b; --ok-bg: #e7f6ef; --bad: #b3261e; --bad-bg: #fdecea; --warn: #8a5a00; --warn-bg: #fff4dc;
+    --accent: #2457c5; --code-bg: #f1f3f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13161c; --fg: #e6e8ee; --muted: #9aa2b2; --border: #2c323d; --surface: #1a1e26;
+      --ok: #5fd0a2; --ok-bg: #12291f; --bad: #ff8a80; --bad-bg: #2d1514; --warn: #f2c066; --warn-bg: #2b2210;
+      --accent: #8fb0ff; --code-bg: #232833;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 26px 0 8px; }
+  p { margin: 0 0 12px; }
+  .meta { color: var(--muted); margin-bottom: 28px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+  .verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; margin: 18px 0 8px; }
+  .card { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .card.ok { border-left: 5px solid var(--ok); }
+  .card.bad { border-left: 5px solid var(--bad); }
+  .card.warn { border-left: 5px solid var(--warn); }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); }
+  .pill.bad { color: var(--bad); background: var(--bad-bg); }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 14.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 11px; border-bottom: 1px solid var(--border); }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; background: var(--code-bg); }
+  tr:last-child td { border-bottom: 0; }
+  ul { margin: 0 0 12px; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .flow { overflow-x: auto; margin: 10px 0 6px; }
+  .flow svg { min-width: 860px; width: 100%; height: auto; }
+  .note { color: var(--muted); font-size: 14px; }
+  .callout { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Espay sandbox: whole-flow test results</h1>
+  <div class="meta">Issue #570 · tests run 9 November 2026, blocked tests re-run 10 November after Espay enabled the card endpoints · Espay sandbox only, dummy cards, no real money</div>
+
+  <p>One-time payments with Espay work end to end. Recurring card payments do not work on our sandbox merchant: Espay rejects every saved-card charge.</p>
+
+  <div class="verdicts">
+    <div class="card ok">
+      <h3>Pay once <span class="pill ok">works</span></h3>
+      <p>A card payment and a BCA virtual-account (bank transfer) payment were each created, paid, and confirmed by both Espay's payment callback and its status lookup. Espay added no fee to the IDR 10,000 price.</p>
+    </div>
+    <div class="card bad">
+      <h3>Auto-renew <span class="pill bad">blocked</span></h3>
+      <p>Espay enabled the card endpoints on 10 November. Charging a saved card now gets further but fails with <code>IRF</code> "Invalid Request". Refund, void and capture fail with a missing-privilege error. Nothing was charged or refunded.</p>
+    </div>
+    <div class="card warn">
+      <h3>Saving the card <span class="pill warn">customer's choice</span></h3>
+      <p>Espay's card page saves the card only if the customer ticks a box. Without it, Espay returns no token, so that customer could never be renewed.</p>
+    </div>
+  </div>
+
+  <h2>The flow we tested</h2>
+  <p>Each box is one step. Green steps worked in the sandbox; the red step failed every time.</p>
+  <div class="flow">
+    <svg viewBox="0 0 900 230" role="img" aria-label="Payment flow: our checkout, Espay card page, OTP, inquiry callback, payment callback, status lookup, then renewal which fails">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+        </marker>
+      </defs>
+      <style>
+        .box { fill: var(--surface); stroke-width: 2; rx: 10; }
+        .okb { stroke: var(--ok); }
+        .badb { stroke: var(--bad); }
+        .t { fill: var(--fg); font: 600 13px system-ui, sans-serif; }
+        .s { fill: var(--muted); font: 12px system-ui, sans-serif; }
+        .line { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+      </style>
+      <rect class="box okb" x="10" y="20" width="160" height="62"/>
+      <text class="t" x="24" y="45">1. Our checkout</text>
+      <text class="s" x="24" y="65">Host to Host order</text>
+      <rect class="box okb" x="230" y="20" width="180" height="62"/>
+      <text class="t" x="244" y="45">2. Espay card page</text>
+      <text class="s" x="244" y="65">optional "Save card" box</text>
+      <rect class="box okb" x="470" y="20" width="160" height="62"/>
+      <text class="t" x="484" y="45">3. Sandbox OTP</text>
+      <text class="s" x="484" y="65">test code, then Success</text>
+      <rect class="box okb" x="690" y="20" width="200" height="62"/>
+      <text class="t" x="704" y="45">4. Inquiry callback</text>
+      <text class="s" x="704" y="65">Espay asks us for the bill</text>
+      <path class="line" d="M170,51 H226" marker-end="url(#arrow)"/>
+      <path class="line" d="M410,51 H466" marker-end="url(#arrow)"/>
+      <path class="line" d="M630,51 H686" marker-end="url(#arrow)"/>
+      <path class="line" d="M790,82 V112 H120 V140" marker-end="url(#arrow)"/>
+      <rect class="box okb" x="10" y="144" width="220" height="62"/>
+      <text class="t" x="24" y="169">5. Payment callback</text>
+      <text class="s" x="24" y="189">status S, token if box ticked</text>
+      <rect class="box okb" x="290" y="144" width="220" height="62"/>
+      <text class="t" x="304" y="169">6. Status lookup</text>
+      <text class="s" x="304" y="189">confirms S and the amount</text>
+      <rect class="box badb" x="570" y="144" width="320" height="62"/>
+      <text class="t" x="584" y="169">7. Renewal: charge the saved card</text>
+      <text class="s" x="584" y="189">HTTP 500 · Cannot map server service</text>
+      <path class="line" d="M230,175 H286" marker-end="url(#arrow)"/>
+      <path class="line" d="M510,175 H566" marker-end="url(#arrow)"/>
+    </svg>
+  </div>
+
+  <h2>Test results</h2>
+  <table>
+    <thead><tr><th>#</th><th>Test</th><th>What happened</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Confirm the first card payment from 6 November (<code>PMW4S3U1F</code>)</td><td>The customer paid, but our receiver had rejected Espay's payment callback. Espay kept the order as <code>SP</code> (Suspect) for three days. No token, because "Save card" was not ticked. Fixed later by the resend in 2b.</td><td><span class="pill warn">paid, stuck Suspect</span></td></tr>
+      <tr><td>2</td><td>Does Espay retry a failed callback?</td><td>We made our receiver answer HTTP 500 to a new card payment, twice: once through the shortcut page (<code>PMW8WA1JQ</code>) and once through Host to Host (<code>PMW8ZHZGS</code>). Both times Espay sent the callback once and did not retry in the next 15 minutes. The orders stayed <code>SP</code>.</td><td><span class="pill warn">no automatic retry</span></td></tr>
+      <tr><td>2b</td><td>Recover a failed callback by asking Espay to resend it</td><td>A status query with <code>isPaymentNotif: "Y"</code> made Espay resend each missed callback within a second, for all three Suspect orders. Each moved from <code>SP</code> to <code>S</code>.</td><td><span class="pill ok">works</span></td></tr>
+      <tr><td>3</td><td>Repeat the probes that failed before Espay's fix</td><td>The status lookup (both versions) and Host to Host now work. Every card operation still fails: <code>tokenpayment</code>, <code>void</code>.</td><td><span class="pill warn">partly fixed</span></td></tr>
+      <tr><td>4</td><td>Pay by card with "Save card" ticked (<code>PMW8W5SGA</code>), opened through the Embed Kit shortcut page</td><td>Payment succeeded. The payment callback said <code>S</code>, IDR 10,000, and carried a 19-character card token. Both status lookups said <code>S</code>, but neither returned the token.</td><td><span class="pill ok">works</span></td></tr>
+      <tr><td>5</td><td>Renew without the customer: charge the saved card for IDR 10,000, then IDR 12,000</td><td><strong>9 Nov:</strong> both failed with HTTP 500 <code>EX</code> "Cannot map server service".<br><strong>10 Nov re-run</strong> (<code>SPK570RNW7</code>, <code>SPK570RNW8</code>): Espay now first sends an inquiry for the renewal order, which we answer. Then the charge returns <code>IRF</code> "Invalid Request". No payment callback arrives and the orders stay <code>IP</code> (in process). Nothing was charged.</td><td><span class="pill bad">fails</span></td></tr>
+      <tr><td>5b</td><td>Second saved card via Host to Host (<code>PMW8WX1H3</code>), then renew</td><td>The payment and token worked again. The renewal failed the same way. Both saved cards received the <em>identical</em> token, one digit away from the sample token in Espay's docs, so [INFERENCE] the sandbox may be issuing a placeholder token that cannot be charged.</td><td><span class="pill bad">fails</span></td></tr>
+      <tr><td>6</td><td>Charge the same renewal order twice</td><td><strong>10 Nov:</strong> we sent <code>SPK570RNW7</code> a second time. Espay sent another inquiry and returned the same Espay transaction ID (<code>ESP17943040207W3I</code>), so it did not create a second transaction. Whether a <em>successful</em> charge could be taken twice is still untested, because no charge succeeds.</td><td><span class="pill warn">partly tested</span></td></tr>
+      <tr><td>7</td><td>Capture, void and refund a paid card order</td><td><strong>9 Nov:</strong> all failed with the "Cannot map server service" error.<br><strong>10 Nov re-run</strong>, on three different paid orders (capture <code>PMW8W5SGA</code>, void <code>PMW8WA1JQ</code>, partial refund of IDR 5,000 on <code>PMW8ZHZGS</code>): all return HTTP 500 <code>EX</code> "Privilege not found for sender SGWDEWAWEB, receiver GOWORLDPG and service PGv2-PaymentRefundNotif. Operation not permitted". All three orders stay <code>S</code> with no refund.</td><td><span class="pill bad">fails</span></td></tr>
+      <tr><td>8</td><td>One-time QRIS and bank transfer (BCA virtual account)</td><td>Creating both now works; on 5 November both failed. Bertrand paid a BCA VA (<code>PMW8X71M9</code>) in Espay's Sandbox Portal. Callback and status both said <code>S</code>, IDR 10,000. The QRIS was created but not paid.</td><td><span class="pill ok">VA works</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>What we learned</h2>
+
+  <h3>Saved-card charges still fail, now for different reasons</h3>
+  <p>On 9 November every call under <code>/rest/creditcard/…</code> failed before Espay read it. After Espay enabled these endpoints on 10 November, two separate problems remain:</p>
+  <ul>
+    <li><strong>Renewal (<code>tokenpayment</code>):</strong> our signature is accepted (a deliberately wrong one now returns <code>11</code> "Credential is not Valid"), and Espay sends a signed inquiry for the renewal order. After we answer it, the charge returns <code>IRF</code> "Invalid Request". Changing the masked card's case or returning the token in our inquiry reply did not help. The most likely cause is the sandbox's identical placeholder token. Only Espay can confirm it.</li>
+    <li><strong>Capture, void and refund:</strong> our merchant lacks a privilege named <code>PGv2-PaymentRefundNotif</code>. Espay has to grant it.</li>
+  </ul>
+  <p>One new rule for our design: Espay asks us about a renewal order before charging it. If our system has not created that order first, Espay rejects the charge with <code>0031</code> "Error komunikasi dengan Mitra".</p>
+
+  <h3>Saving the card is optional, and the token appears in only one place</h3>
+  <ul>
+    <li>Espay's card page shows a "Save card" box that starts unticked. A payment without it returns no token.</li>
+    <li>When ticked, the token arrives only in the payment callback. The status lookups never return it. If we miss that one callback, we lose the token.</li>
+    <li>For Auto-renew, we would have to make saving the card a condition of the subscription. Espay's page does not let us force the box.</li>
+  </ul>
+
+  <h3>Callbacks reach us, but are not signed</h3>
+  <ul>
+    <li>Every inquiry and payment callback from the sandbox arrived without a signature (<code>X-SIGNATURE</code>), although Espay's docs say they are signed. We cannot prove a callback came from Espay.</li>
+    <li>For these tests, our receiver accepts unsigned callbacks but still rejects a wrong signature. In production, the status lookup would have to be the source of truth.</li>
+    <li>Espay asks us for the bill (inquiry) at each step of the card page. One card order produced four inquiries.</li>
+  </ul>
+
+  <h3>A missed callback is not retried; it must be requested again</h3>
+  <ul>
+    <li>When our receiver failed, Espay marked the order Suspect and did not retry within 15 minutes.</li>
+    <li>Asking Espay to resend it works and fixes the status. Each resend carries a new delivery ID (<code>paymentRequestId</code>), so we would detect duplicates by order ID instead.</li>
+  </ul>
+
+  <h3>Fees</h3>
+  <p>Our sandbox merchant is set to "Seller" fees. Espay reported <code>txFee 0.00</code>, and the customer paid exactly the price. Production fees are not known.</p>
+
+  <h3>Smaller observations</h3>
+  <ul>
+    <li>Two routes reach the same Espay card page. Tests 1, 4 and the first run of test 2 used an undocumented shortcut: the page Embed Kit redirects to (<code>sandbox-kit.espay.id/index/order</code>), opened directly with our API key in the URL. Test 5b and the repeat of test 2 used the documented Host to Host API (<code>POST /apimerchant/v1.0/debit/payment-host-to-host</code>), which now works. Our demo now uses Host to Host only.</li>
+    <li>Once, in our headless test browser, Espay's Host to Host redirect page did not submit itself. The next Host to Host run submitted normally, so this was not consistent.</li>
+    <li>A virtual account created through Espay's older API still reports payment through the newer (SNAP) callback.</li>
+  </ul>
+
+  <h2>What these tests could not show</h2>
+  <ul>
+    <li>A way to list a customer's saved cards. None is documented in the pages we reviewed; we only have the token from the callback.</li>
+    <li>Whether a renewal needs the customer for an OTP, how declines look, and whether a renewal sends a callback. These need a working saved-card charge.</li>
+    <li>Duplicate charges and timeouts.</li>
+    <li>How long a token lasts, how to delete one, and what happens when a card expires.</li>
+    <li>Disputes, settlement reports and customer emails.</li>
+    <li>Whether production callbacks are signed.</li>
+    <li>QRIS payment, because the QRIS order was not paid.</li>
+  </ul>
+
+  <h2>Conclusion: how our Espay flow would work</h2>
+  <p>This is our proposed design, built on what the sandbox showed. Steps marked <span class="pill bad">blocked</span> still need Espay to switch something on.</p>
+
+  <h3>1. The first payment</h3>
+  <p>Every paid subscription starts the same way, whether or not the customer saves their card.</p>
+  <div class="flow">
+    <svg viewBox="0 0 900 580" role="img" aria-label="First payment sequence between the customer, our app and Espay">
+      <defs>
+        <marker id="seqArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--fg)"/>
+        </marker>
+      </defs>
+      <style>
+        .lane { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+        .laneText { fill: var(--fg); font: 600 14px system-ui, sans-serif; text-anchor: middle; }
+        .life { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 5 5; }
+        .msg { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+        .reply { stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 4; fill: none; }
+        .mt { fill: var(--fg); font: 13px system-ui, sans-serif; text-anchor: middle; }
+        .mr { fill: var(--muted); font: 12px system-ui, sans-serif; text-anchor: middle; }
+        .key { fill: var(--ok); font: 600 13px system-ui, sans-serif; text-anchor: middle; }
+      </style>
+      <rect class="lane" x="40" y="15" width="200" height="40" rx="8"/><text class="laneText" x="140" y="40">Customer's browser</text>
+      <rect class="lane" x="350" y="15" width="200" height="40" rx="8"/><text class="laneText" x="450" y="40">Our app</text>
+      <rect class="lane" x="660" y="15" width="200" height="40" rx="8"/><text class="laneText" x="760" y="40">Espay</text>
+      <line class="life" x1="140" y1="55" x2="140" y2="570"/>
+      <line class="life" x1="450" y1="55" x2="450" y2="570"/>
+      <line class="life" x1="760" y1="55" x2="760" y2="570"/>
+
+      <text class="mt" x="295" y="92">1. Choose a plan; we explain "Save card"</text>
+      <line class="msg" x1="140" y1="100" x2="446" y2="100" marker-end="url(#seqArrow)"/>
+      <text class="mt" x="605" y="137">2. Host to Host: create order</text>
+      <line class="msg" x1="450" y1="145" x2="756" y2="145" marker-end="url(#seqArrow)"/>
+      <text class="mr" x="605" y="177">payment page URL</text>
+      <line class="reply" x1="760" y1="185" x2="454" y2="185" marker-end="url(#seqArrow)"/>
+      <text class="mt" x="295" y="217">3. Redirect to Espay's card page</text>
+      <line class="msg" x1="450" y1="225" x2="144" y2="225" marker-end="url(#seqArrow)"/>
+      <text class="mt" x="605" y="267">4. Inquiry callback: "what is order X?"</text>
+      <line class="msg" x1="760" y1="275" x2="454" y2="275" marker-end="url(#seqArrow)"/>
+      <text class="mr" x="605" y="307">we reply with the amount (2002400)</text>
+      <line class="reply" x1="450" y1="315" x2="756" y2="315" marker-end="url(#seqArrow)"/>
+      <text class="mt" x="450" y="357">5. Card details, optional "Save card" box, OTP</text>
+      <line class="msg" x1="140" y1="365" x2="756" y2="365" marker-end="url(#seqArrow)"/>
+      <text class="key" x="605" y="407">6. Payment callback: S, token only if saved</text>
+      <line class="msg" x1="760" y1="415" x2="454" y2="415" marker-end="url(#seqArrow)"/>
+      <text class="mr" x="605" y="447">we acknowledge (2002500)</text>
+      <line class="reply" x1="450" y1="455" x2="756" y2="455" marker-end="url(#seqArrow)"/>
+      <text class="mt" x="605" y="497">7. Status lookup: confirm S and amount</text>
+      <line class="msg" x1="450" y1="505" x2="756" y2="505" marker-end="url(#seqArrow)"/>
+      <text class="mt" x="450" y="547">8. Back to our page (this alone is not proof of payment)</text>
+      <line class="msg" x1="760" y1="555" x2="144" y2="555" marker-end="url(#seqArrow)"/>
+    </svg>
+  </div>
+  <ul>
+    <li><strong>Inquiry callback (step 4).</strong> Before taking payment, Espay asks us what the order costs. We answer from our own order record. If we don't know the order, or it has expired, we refuse and Espay stops. Espay can ask several times for one order; we saw four inquiries for a single card order.</li>
+    <li><strong>Payment callback (step 6).</strong> Espay tells us the result. Status <code>S</code> means paid. If the customer ticked "Save card", this callback carries the card token. It is the only place we ever receive the token, so we must store it the moment the callback arrives.</li>
+    <li><strong>Status lookup (step 7).</strong> The sandbox sends callbacks without a signature, so we can't prove a callback came from Espay. We treat the callback as a signal and the status lookup as proof. We grant the subscription only after the lookup confirms <code>S</code> and the right amount.</li>
+    <li><strong>The return to our page (step 8)</strong> only tells us the customer came back. It never grants anything.</li>
+  </ul>
+
+  <h3>2. Card saved, or not saved</h3>
+  <p>The customer decides on Espay's card page. The "Save card" box starts unticked, and we can't tick it for them. We only learn their choice from the payment callback: a token means they agreed; no token means they didn't.</p>
+  <div class="flow">
+    <svg viewBox="0 0 900 470" role="img" aria-label="After the first payment, a token turns on auto-renew; no token makes the subscription pay once">
+      <defs>
+        <marker id="decArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+        </marker>
+      </defs>
+      <style>
+        .nb { fill: var(--surface); stroke: var(--border); stroke-width: 2; }
+        .gb { fill: var(--surface); stroke: var(--ok); stroke-width: 2; }
+        .rb { fill: var(--surface); stroke: var(--bad); stroke-width: 2; }
+        .wb { fill: var(--surface); stroke: var(--warn); stroke-width: 2; }
+        .bt { fill: var(--fg); font: 600 13px system-ui, sans-serif; text-anchor: middle; }
+        .bs { fill: var(--muted); font: 12px system-ui, sans-serif; text-anchor: middle; }
+        .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+        .el { fill: var(--fg); font: 600 12px system-ui, sans-serif; }
+      </style>
+      <rect class="gb" x="290" y="10" width="320" height="56" rx="10"/>
+      <text class="bt" x="450" y="34">First payment confirmed</text>
+      <text class="bs" x="450" y="53">payment callback + status lookup both say S</text>
+      <path class="edge" d="M450,66 V96" marker-end="url(#decArrow)"/>
+      <rect class="nb" x="310" y="100" width="280" height="50" rx="25"/>
+      <text class="bt" x="450" y="130">Did the callback carry a token?</text>
+
+      <path class="edge" d="M310,125 H210 V186" marker-end="url(#decArrow)"/>
+      <text class="el" x="222" y="117">No: box not ticked</text>
+      <path class="edge" d="M590,125 H690 V186" marker-end="url(#decArrow)"/>
+      <text class="el" x="604" y="117">Yes: box ticked</text>
+
+      <rect class="wb" x="40" y="190" width="340" height="56" rx="10"/>
+      <text class="bt" x="210" y="214">Pay once subscription</text>
+      <text class="bs" x="210" y="233">no auto-renew; we tell the customer so</text>
+      <path class="edge" d="M210,246 V276" marker-end="url(#decArrow)"/>
+      <rect class="nb" x="40" y="280" width="340" height="56" rx="10"/>
+      <text class="bt" x="210" y="304">Before it expires: remind and send checkout</text>
+      <text class="bs" x="210" y="323">same first-payment flow as above</text>
+      <path class="edge" d="M210,336 V366" marker-end="url(#decArrow)"/>
+      <rect class="nb" x="40" y="370" width="340" height="56" rx="10"/>
+      <text class="bt" x="210" y="394">Customer pays again</text>
+      <text class="bs" x="210" y="413">ticking "Save card" now moves them to auto-renew</text>
+
+      <rect class="gb" x="520" y="190" width="340" height="56" rx="10"/>
+      <text class="bt" x="690" y="214">Auto-renew subscription</text>
+      <text class="bs" x="690" y="233">store token + masked card against it</text>
+      <path class="edge" d="M690,246 V276" marker-end="url(#decArrow)"/>
+      <rect class="rb" x="520" y="280" width="340" height="56" rx="10"/>
+      <text class="bt" x="690" y="304">Renewal date: charge the saved card</text>
+      <text class="bs" x="690" y="323">tokenpayment, new order ID · blocked today</text>
+      <path class="edge" d="M690,336 V366" marker-end="url(#decArrow)"/>
+      <rect class="nb" x="520" y="370" width="340" height="56" rx="10"/>
+      <text class="bt" x="690" y="394">Confirm with status lookup</text>
+      <text class="bs" x="690" y="413">paid: extend · failed: recovery checkout</text>
+      <path class="edge" d="M520,398 H460 V308 H384" marker-end="url(#decArrow)"/>
+      <text class="el" x="400" y="450">a failed renewal falls back to a checkout, where a new card can be saved</text>
+    </svg>
+  </div>
+  <table>
+    <thead><tr><th></th><th>Card saved (token received)</th><th>Card not saved (no token)</th></tr></thead>
+    <tbody>
+      <tr><td>What the subscription becomes</td><td>Auto-renew</td><td>Pay once</td></tr>
+      <tr><td>At the renewal date</td><td>We charge the saved card with a new order ID, then confirm with a status lookup. <span class="pill bad">blocked</span></td><td>We remind the customer and send a new checkout before access ends.</td></tr>
+      <tr><td>If the renewal fails</td><td>We send a recovery checkout. Paying there can save a new card.</td><td>Access ends at expiry, as for any Pay once plan.</td></tr>
+      <tr><td>What we show the customer</td><td>"Auto-renew is on" with the masked card number.</td><td>"This plan won't renew by itself" and the expiry date.</td></tr>
+    </tbody>
+  </table>
+  <p>Before checkout, our page has to say clearly that auto-renew needs the "Save card" box ticked. Espay's page doesn't explain this, and we can't change it.</p>
+
+  <h3>3. When a payment callback doesn't arrive</h3>
+  <p>Espay sends each payment callback once. In two tests, our receiver failed on purpose and Espay did not try again within 15 minutes. The order stayed <code>SP</code> (Suspect), even though the customer had paid. So we must chase missing callbacks ourselves.</p>
+  <div class="flow">
+    <svg viewBox="0 0 900 210" role="img" aria-label="Normal callback path and recovery path through a resend request">
+      <defs>
+        <marker id="recArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+        </marker>
+      </defs>
+      <rect class="nb" x="10" y="15" width="200" height="56" rx="10"/>
+      <text class="bt" x="110" y="39">Order created</text>
+      <text class="bs" x="110" y="58">card, VA or QRIS</text>
+      <rect class="nb" x="240" y="15" width="200" height="56" rx="10"/>
+      <text class="bt" x="340" y="39">Payment callback</text>
+      <text class="bs" x="340" y="58">a signal, not proof</text>
+      <rect class="nb" x="470" y="15" width="200" height="56" rx="10"/>
+      <text class="bt" x="570" y="39">Status lookup</text>
+      <text class="bs" x="570" y="58">the proof: S + amount</text>
+      <rect class="gb" x="690" y="15" width="200" height="56" rx="10"/>
+      <text class="bt" x="790" y="39">Grant once</text>
+      <text class="bs" x="790" y="58">keyed by our order ID</text>
+      <path class="edge" d="M210,43 H236" marker-end="url(#recArrow)"/>
+      <path class="edge" d="M440,43 H466" marker-end="url(#recArrow)"/>
+      <path class="edge" d="M670,43 H686" marker-end="url(#recArrow)"/>
+
+      <rect class="wb" x="240" y="135" width="200" height="56" rx="10"/>
+      <text class="bt" x="340" y="159">Callback lost or failed</text>
+      <text class="bs" x="340" y="178">order stuck at SP, no retry</text>
+      <rect class="nb" x="470" y="135" width="240" height="56" rx="10"/>
+      <text class="bt" x="590" y="159">Our job asks for a resend</text>
+      <text class="bs" x="590" y="178">status lookup, isPaymentNotif: "Y"</text>
+      <path class="edge" d="M110,71 V163 H236" marker-end="url(#recArrow)"/>
+      <text class="el" x="20" y="120">no callback in time</text>
+      <path class="edge" d="M440,163 H466" marker-end="url(#recArrow)"/>
+      <path class="edge" d="M590,135 L400,75" marker-end="url(#recArrow)"/>
+      <text class="el" x="520" y="110">Espay resends at once</text>
+    </svg>
+  </div>
+  <ul>
+    <li>A background job checks orders that are still unsettled after a few minutes. It asks Espay to resend the payment callback. In our tests the resend arrived within a second and moved the order from <code>SP</code> to <code>S</code>.</li>
+    <li>Each resend has a new delivery ID (<code>paymentRequestId</code>). So we grant access once per order ID, never once per callback.</li>
+    <li>An <code>SP</code> order has already been paid. We never charge the customer again because of it.</li>
+    <li>The resend request must use <code>"Y"</code>. The docs say <code>"N"</code> marks the order as paid in Espay without telling us.</li>
+  </ul>
+
+  <h3>4. Renewal is blocked today</h3>
+  <div class="callout">
+    <p><span class="pill bad">blocked</span> Espay enabled <code>/rest/creditcard/</code> on 10 November. Charging a saved card (<code>tokenpayment</code>) now passes the signature and inquiry checks, then returns <code>IRF</code> "Invalid Request" and the order stays <code>IP</code>. Capture, void and refund return "Privilege not found … PGv2-PaymentRefundNotif". Both need Espay: a chargeable sandbox token, and the missing privilege.</p>
+    <p>A renewal must create its order in our system <em>before</em> calling <code>tokenpayment</code>, because Espay sends an inquiry for it first, just as for the first payment.</p>
+    <p>Until then, only the Pay once path works end to end. The auto-renew path above is a design, not a tested flow. Once Espay enables it, we still need to test whether a renewal asks the customer for an OTP, whether it sends a payment callback, how declines look, and what happens if the same renewal is sent twice.</p>
+  </div>
+
+  <h2>What this means for #570</h2>
+  <table>
+    <thead><tr><th>Checkpoint</th><th>Status after these tests</th></tr></thead>
+    <tbody>
+      <tr><td>ES-1 — question and criteria agreed with Jonathan</td><td>Still open. This report gives the facts for that conversation.</td></tr>
+      <tr><td>ES-2 — one sandbox payment created, paid and confirmed by API and callback</td><td><span class="pill ok">met</span> Card <code>PMW8W5SGA</code> and BCA VA <code>PMW8X71M9</code>.</td></tr>
+      <tr><td>ES-3 — compare with Duitku and recommend</td><td>Still open. On this evidence, Espay cannot replace Stripe for Auto-renew. For Pay once, it works, so the comparison with Duitku decides it.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Recommendation:</strong> do not plan Auto-renew on Espay. Two things would have to change first: Espay enables saved-card charges and refunds for our merchant, and we accept that customers may skip saving their card. For Pay once, Espay is a working option to compare with Duitku.
+  </div>
+
+  <h2>Evidence</h2>
+  <p class="note">All in the standalone experiment repository (<code>espay-recurring-spike</code>). Requests and responses are redacted; tokens, keys and card data are never stored in evidence.</p>
+  <table>
+    <thead><tr><th>Order</th><th>What</th><th>Final status</th></tr></thead>
+    <tbody>
+      <tr><td><code>PMW4S3U1F</code></td><td>Card, box unticked, callback rejected on 6 Nov, resent on 9 Nov</td><td>S, no token</td></tr>
+      <tr><td><code>PMW8W5SGA</code></td><td>Card, box ticked</td><td>S, token in callback</td></tr>
+      <tr><td><code>RMW8W82FE</code>, <code>RMW8W8MC0</code></td><td>Renewals of IDR 10,000 and 12,000</td><td>Rejected, order not found</td></tr>
+      <tr><td><code>PMW8WA1JQ</code></td><td>Card, receiver forced to fail, then resent</td><td>S after resend</td></tr>
+      <tr><td><code>PMW8WX1H3</code>, <code>SPK570RNW3</code></td><td>Card via Host to Host, box ticked; its renewal</td><td>S; renewal rejected</td></tr>
+      <tr><td><code>SPK570RNW4</code>–<code>SPK570RNW8</code></td><td>Renewal attempts on 10 Nov, after Espay enabled the endpoints (RNW7 also sent twice)</td><td>IP, <code>IRF</code> Invalid Request</td></tr>
+      <tr><td><code>PMW8ZHZGS</code></td><td>Card via Host to Host, receiver forced to fail, then resent</td><td>S after resend</td></tr>
+      <tr><td><code>PMW8X71M9</code></td><td>BCA virtual account, paid in the Sandbox Portal</td><td>S</td></tr>
+      <tr><td><code>SPK570QR1</code></td><td>QRIS created</td><td>Not paid</td></tr>
+    </tbody>
+  </table>
+  <ul class="note">
+    <li><code>evidence/runs/</code>: every request we sent to Espay and its response.</li>
+    <li><code>evidence/callbacks/</code>: every callback Espay sent us, with whether it was signed.</li>
+    <li><code>FINDINGS.md</code> and <code>EXPERIMENTS.md</code>: updated with these results.</li>
+  </ul>
+</main>
+</body>
+</html>
