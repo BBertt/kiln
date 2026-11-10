@@ -1,0 +1,15 @@
+{
+  "slug": "rfc-032-cluster-spike",
+  "title": "Spike: the browser runner on the real cluster",
+  "framework": "html",
+  "metadata": {
+    "description": "RFC-032 spike on the shared Kubernetes cluster: service proxy limits, readiness routing, access rights, network policies and Chromium in a locked-down pod.",
+    "tags": [
+      "spike",
+      "browser-validation",
+      "rfc-032"
+    ]
+  },
+  "revision": "8e2487c2eabfb417",
+  "updated_at": "2026-11-10T10:21:46.816Z"
+}
