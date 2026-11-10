@@ -1,0 +1,17 @@
+{
+  "slug": "563-loading-flow-implementation-plan",
+  "title": "Editor loading flow: implementation plan (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "Plain-English plan, progress and technical detail for issue #563: directory tree of the change, phase data flow, the five machine regions, the phase table and test layers.",
+    "tags": [
+      "563",
+      "editor",
+      "loading-animations",
+      "xstate",
+      "implementation-plan"
+    ]
+  },
+  "revision": "1b1677016aaa51dc",
+  "updated_at": "2026-11-10T02:22:00.659Z"
+}
