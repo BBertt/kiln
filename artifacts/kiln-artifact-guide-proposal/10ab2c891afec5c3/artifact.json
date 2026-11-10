@@ -1,0 +1,17 @@
+{
+  "slug": "kiln-artifact-guide-proposal",
+  "title": "A Claude-style guide and design system for Kiln artifacts",
+  "framework": "html",
+  "metadata": {
+    "description": "Proposal: how to collect Claude's artifact design system from checkable sources, how Kiln can use Claude's fonts legally, a shared design system, and a Claude-style authoring guide delivered through the MCP server.",
+    "tags": [
+      "kiln",
+      "proposal",
+      "design-system",
+      "typography",
+      "authoring-guide"
+    ]
+  },
+  "revision": "10ab2c891afec5c3",
+  "updated_at": "2026-11-10T08:44:43.386Z"
+}
