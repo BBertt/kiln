@@ -1,0 +1,17 @@
+{
+  "slug": "browser-runner-implementation-plan",
+  "title": "Implementation plan: the browser runner",
+  "framework": "html",
+  "metadata": {
+    "description": "Draft delivery plan for RFC-032, with phases, contracts, cluster resources, rollout, and six diagrams.",
+    "tags": [
+      "browser-validation",
+      "BV-3",
+      "BV-4",
+      "implementation-plan",
+      "RFC-032"
+    ]
+  },
+  "revision": "cb9d7d45a695c39f",
+  "updated_at": "2026-11-11T08:01:17.289Z"
+}

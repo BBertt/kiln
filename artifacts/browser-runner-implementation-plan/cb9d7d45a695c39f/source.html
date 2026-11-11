@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Implementation plan: the browser runner</title>
+<style>
+:root{color-scheme:light;--bg:var(--kiln-bg);--fg:var(--kiln-text);--muted:var(--kiln-muted);--line:var(--kiln-line);--panel:var(--kiln-surface);--accent:var(--kiln-accent-text)}:root[data-theme="dark"]{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 var(--kiln-font-sans)}main{max-width:1100px;margin:0 auto;padding:40px 30px 80px}header{border-bottom:2px solid var(--accent);padding-bottom:24px;margin-bottom:32px}h1{font-size:30px;line-height:1.25;margin:32px 0 18px}header h1{font-size:38px;margin:8px 0}h2{font-size:24px;margin-top:32px}a{color:var(--accent)}p{max-width:68ch}table{border-collapse:collapse;width:100%;font-size:14px;margin:24px 0;background:var(--panel);display:block;overflow-x:auto}th,td{padding:12px 14px;border:1px solid var(--line);vertical-align:top;text-align:left}th{background:var(--bg)}pre{padding:20px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:1.5}code{font-family:var(--kiln-font-mono);overflow-wrap:anywhere}.diagram{overflow:auto;margin:28px 0;background:var(--panel);padding:18px;border:1px solid var(--line);border-radius:10px}.diagram pre{border:0;padding:0}svg{max-width:100%;height:auto}.eyebrow{color:var(--muted);font-size:14px}.notice{border-left:4px solid var(--accent);padding:8px 18px;background:var(--panel)}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark}}@media(max-width:640px){main{padding:22px 14px}header h1{font-size:30px}th,td{min-width:130px}}
+</style></head><body><main><header><div class="eyebrow">BV-3 and BV-4 · Draft implementation plan</div><h1>Implementation plan: the browser runner</h1><p>This plan describes delivery. <a href="https://docs.internal.jmn.my.id/doc/rfc-032-browser-validation-in-a-separate-runner-TDxGnhGxYp">RFC-032</a> describes the design.</p><p class="notice">This is a proposal, not an approved schedule. The plan stays as an artifact while the design is under review.</p></header><p>Status: draft plan. RFC-032 is not accepted yet, and this plan changes with the review · Date: 2026-11-10 · Author: Bertrand · Design: <a href="https://docs.internal.jmn.my.id/doc/rfc-032-browser-validation-in-a-separate-runner-TDxGnhGxYp">RFC-032</a> · Tracker: <a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/issues/610">#610</a> (BV-3 and BV-4)</p>
+<p>This page shows how RFC-032 gets built: the phases and their order, the files that change, the contract between the API and the runner, how one runner replica behaves, what goes into the cluster, how the rollout and the rollback work, and the tests for each phase. RFC-032 explains why. This page explains how. If the build proves part of this page wrong, the page is corrected first, with a dated note.</p>
+<h1>0 Summary</h1>
+<p>The work has eight phases. Phase 1 fixes today's code in the API, so that a page the browser never saw cannot pass. It needs no new infrastructure and can ship before the 25 Nov freeze. Phases 2 to 6 build the runner, put it in the cluster, and switch the API to it on staging, first with one page at a time and then with two. Phases 7 and 8 move production, measure BV-4, and remove Chromium from the API.</p>
+<p>The forecast has the runner on staging before the freeze. Production timing remains a delivery decision in §12. The phases add up to about 18 working days, which is far more than the five days that #610 allows for delivery. The allowance needs a revision with Jonathan before phase 2 starts.</p>
+<h1>1 Before the work starts</h1>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Who</th>
+<th>Needed by</th>
+<th>Blocks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RFC-032 accepted, or accepted with changes</td>
+<td>Jonathan and Bertrand</td>
+<td>Phase 2</td>
+<td>Phases 2 to 8</td>
+</tr>
+<tr>
+<td>The RFC-029 mapping in RFC-032 §4 accepted, or exceptions recorded</td>
+<td>Jonathan and Bertrand</td>
+<td>Phase 2</td>
+<td>Phases 2 to 8</td>
+</tr>
+<tr>
+<td>Review of the spike's findings (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F1 to F11</a>)</td>
+<td>Infrastructure review</td>
+<td>Phase 4</td>
+<td>Phases 4 to 8</td>
+</tr>
+<tr>
+<td>The inbound rule's node address (RFC-032 §6, question 7, <a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F8</a>)</td>
+<td>Infrastructure review</td>
+<td>Phase 4</td>
+<td>Phases 4 to 8</td>
+</tr>
+<tr>
+<td>The #610 allowance revised</td>
+<td>Jonathan</td>
+<td>Phase 2</td>
+<td>Phases 2 to 8</td>
+</tr>
+</tbody>
+</table>
+<p>Phase 1 needs none of these gates. It fixes a fault in today's code and is useful with or without the runner.</p>
+<p>The spike on 10 Nov 2026 found the three facts that this gate first asked for (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F1, F6, F11</a>). A request through the service proxy stays open for 200 s, network policies are enforced, and the nodes have room. The infrastructure review now checks those findings and the inbound rule's address. These facts belong to the build, not to BV-1.</p>
+<h1>2 Phases</h1>
+<div class="diagram"><pre class="mermaid">flowchart TD
+  G1[&quot;Gate: RFC-032 accepted&lt;br/&gt;allowance revised&quot;]
+  G2[&quot;Gate: infrastructure review&lt;br/&gt;of the spike findings&quot;]
+  P1[&quot;Phase 1&lt;br/&gt;Unseen pages never pass&lt;br/&gt;one browser at a time in the API&quot;]
+  P2[&quot;Phase 2&lt;br/&gt;Capture function: deadline&lt;br/&gt;and pages at once&quot;]
+  P3[&quot;Phase 3&lt;br/&gt;Runner service and image&quot;]
+  P4[&quot;Phase 4&lt;br/&gt;Cluster objects and access&quot;]
+  P5[&quot;Phase 5&lt;br/&gt;Staging: runner, one page at a time&quot;]
+  P6[&quot;Phase 6&lt;br/&gt;Staging: two pages at once&quot;]
+  P7[&quot;Phase 7&lt;br/&gt;Production rollout and BV-4&quot;]
+  P8[&quot;Phase 8&lt;br/&gt;Remove Chromium from the API&quot;]
+  G1 --&gt; P2
+  P1 --&gt; P2
+  P2 --&gt; P3
+  G2 --&gt; P4
+  P3 --&gt; P5
+  P4 --&gt; P5
+  P5 --&gt; P6
+  P6 --&gt; P7
+  P7 --&gt; P8
+</pre></div><table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>What it delivers</th>
+<th>Merge request</th>
+<th>Exit test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>The outcome enum. A page that the browser never saw cannot pass. One browser check at a time in the API</td>
+<td>One API MR</td>
+<td>A capture with an unseen page gives <code>COULD_NOT_RUN</code>, never a pass. Two checks at once run one after the other</td>
+</tr>
+<tr>
+<td>2</td>
+<td>The capture function takes a deadline and a number of pages at once, with one as the default</td>
+<td>One API MR</td>
+<td>With one page at a time, the three test apps give the same verdicts and the same times as today</td>
+</tr>
+<tr>
+<td>3</td>
+<td>The runner: an HTTP service around the capture function, its image and its build targets</td>
+<td>One MR</td>
+<td>The runner passes its fault tests locally, and the image runs the three test apps</td>
+</tr>
+<tr>
+<td>4</td>
+<td>The cluster objects, the API's right to call the runner, the token, the metrics and the alerts</td>
+<td>One infrastructure MR, reviewed as infrastructure</td>
+<td>A request from the platform host reaches the runner on staging, and a request without the token fails</td>
+</tr>
+<tr>
+<td>5</td>
+<td>The API client and the feature flag. The runner checks staging turns, one page at a time</td>
+<td>One API MR, then a flag change</td>
+<td>Staging turns pass the comparison in §8</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Two pages at once on staging</td>
+<td>One change to a value in code</td>
+<td>The speed targets hold on staging, and the error controls still fail</td>
+</tr>
+<tr>
+<td>7</td>
+<td>The runner in production, then the BV-4 measurements</td>
+<td>Flag changes, then a report in #610</td>
+<td>BV-4's checkpoint text in #610</td>
+</tr>
+<tr>
+<td>8</td>
+<td>The in-API capture path, the flag and Chromium leave the API image</td>
+<td>One API MR and one docs MR</td>
+<td>The API image has no Chromium, and all tests pass</td>
+</tr>
+</tbody>
+</table>
+<h1>3 Timeline</h1>
+<p>The dates are a forecast, not a promise. They assume one developer and that each gate opens on time. Production timing remains a delivery decision in §12.</p>
+<div class="diagram"><pre class="mermaid">gantt
+  title Browser runner build, forecast
+  dateFormat YYYY-MM-DD
+  axisFormat %d %b
+  excludes weekends
+  section Gates
+  RFC-032 review and allowance       :g1, 2026-11-11, 3d
+  Infrastructure review               :g2, 2026-11-11, 4d
+  section API
+  Phase 1, unseen pages never pass    :p1, 2026-11-11, 3d
+  Phase 2, capture function           :p2, after p1, 1d
+  section Runner
+  Phase 3, service and image          :p3, after p2, 3d
+  Phase 4, cluster objects            :p4, after g2, 2d
+  section Rollout
+  Phase 5, staging one page           :p5, after p3 p4, 2d
+  Phase 6, staging two pages          :p6, after p5, 1d
+  Freeze                              :milestone, m1, 2026-11-25, 0d
+  Launch                              :milestone, m2, 2026-11-30, 0d
+  Phase 7, production and BV-4        :p7, 2026-12-01, 4d
+  Phase 8, remove Chromium            :p8, after p7, 2d
+</pre></div><p>If the infrastructure review takes longer, phases 4 to 6 move after the launch. Phase 1 still ships before the freeze.</p>
+<h1>4 Where the code goes</h1>
+<p>Tags: NEW is a new file. CHANGED is the same file with new code. REMOVED is deleted in phase 8. P1 to P8 name the phase that does it.</p>
+<pre><code>apps/api/app/
+├─ schemas/generation/
+│  ├─ checks.py                       CHANGED P1  RUNNER_BUSY and RUNNER_UNAVAILABLE skip reasons, both &quot;could not run&quot;
+│  └─ browser_capture.py              NEW     P1  CaptureOutcome, CaptureRequest, CaptureResult
+├─ services/generation/
+│  ├─ pod_probes.py                   CHANGED P1  marks unseen routes, takes a deadline
+│  │                                  CHANGED P2  pages at once, default one
+│  ├─ checks/__init__.py              CHANGED P1  NoConsoleErrorsCheck: an unseen route never passes
+│  │                                  CHANGED P5  calls the runner client when the flag is on
+│  └─ browser_capture_lock.py         NEW     P1  one browser capture at a time in the API process
+│                                     REMOVED P8
+├─ browser_runner/                    NEW     P3  the runner service, its own entrypoint
+│  ├─ main.py                         NEW     P3  the HTTP app: capture, liveness, readiness, metrics
+│  ├─ slot.py                         NEW     P3  the one request slot, the readiness answer, attempt ids
+│  └─ execution.py                    NEW     P3  deadline, cancel on disconnect, process group kill
+├─ integrations/
+│  ├─ infrastructure/kubernetes/
+│  │  └─ browser_runner.py            NEW     P5  the client: service proxy call on browser-runner:http, kept connections, three tries after BUSY
+│  └─ unleash/constants.py            CHANGED P5  FeatureFlag.BROWSER_RUNNER
+│                                     CHANGED P8  the flag removed
+└─ config.py                          CHANGED P5  the runner&#x27;s service name and token settings
+
+deploy/
+├─ docker/browser-runner/             NEW     P3  Dockerfile, VERSION, README.md (built like the screenshot image)
+├─ docker/api/Dockerfile              CHANGED P8  no Playwright browser install
+├─ k8s/browser-runner/                NEW     P4  namespace, deployment, service, network policy,
+│                                                 role and binding for each environment, token secret example
+├─ k8s/cluster-base/monitoring/       CHANGED P4  scrape the runner&#x27;s metrics
+└─ ansible/roles/arcane-api/templates/api.env.j2  CHANGED P4  the runner token from the vault
+
+mk/templates.mk                       CHANGED P3  browser-runner-build-local, browser-runner-publish
+docs/                                 CHANGED P1, P4, P8  briefs, runbook, feature flags, ADR
+</code></pre><p>The runner image installs the API's package with the <code>validation</code> extra, the same way that the API image does today. The runner therefore runs the same capture function as the API and the local eval tools. The eval tools keep calling the function directly on a developer's machine.</p>
+<p>The capture function is built so that phase 1 and the runner share it. In phase 1 the API calls it in its own process. From phase 5 the runner calls it, and the API only calls the client.</p>
+<h1>5 The contract</h1>
+<p>The request and the result are Pydantic models in <code>browser_capture.py</code>. The API and the runner import the same file, so the two sides cannot drift.</p>
+<div class="diagram"><pre class="mermaid">classDiagram
+  direction LR
+  class CaptureRequest {
+    +attempt_id: UUID
+    +preview_url: str
+    +routes: tuple~str~
+    +deadline_seconds: float
+  }
+  class CaptureResult {
+    +outcome: CaptureOutcome
+    +capture: ConsoleCapture
+    +unseen_routes: tuple~str~
+    +reason: Optional~str~
+  }
+  class CaptureOutcome {
+    &lt;&lt;enumeration&gt;&gt;
+    COMPLETED
+    INCOMPLETE
+    TIMED_OUT
+    BUSY
+    UNAVAILABLE
+    CANCELLED
+  }
+  class ConsoleCapture {
+    +route_captures: list~RouteRenderCapture~
+    +timing: BrowserCaptureTiming
+  }
+  class RouteRenderCapture {
+    +route: str
+    +console_errors: list~ConsoleErrorEntry~
+    +ok: bool
+  }
+  class CheckStatus {
+    &lt;&lt;enumeration&gt;&gt;
+    PASSED
+    FAILED
+    NOT_APPLICABLE
+    COULD_NOT_RUN
+  }
+  CaptureResult --&gt; CaptureOutcome
+  CaptureResult --&gt; ConsoleCapture
+  ConsoleCapture --&gt; RouteRenderCapture
+  CaptureResult ..&gt; CheckStatus : NoConsoleErrorsCheck maps
+</pre></div><p><code>ConsoleCapture</code>, <code>RouteRenderCapture</code> and <code>CheckStatus</code> exist today. Who sets each outcome, and what the check does with it:</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Set by</th>
+<th>Check status</th>
+<th>What the user sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COMPLETED</code></td>
+<td>The runner, or the API in phase 1</td>
+<td><code>PASSED</code> or <code>FAILED</code>, by today's rules</td>
+<td>As today</td>
+</tr>
+<tr>
+<td><code>INCOMPLETE</code></td>
+<td>The runner, or the API in phase 1</td>
+<td><code>FAILED</code> if a seen page has an error. Otherwise <code>COULD_NOT_RUN</code></td>
+<td>A fix round, or the change kept with the &quot;not checked&quot; warning</td>
+</tr>
+<tr>
+<td><code>TIMED_OUT</code></td>
+<td>The runner, or the API in phase 1</td>
+<td>As <code>INCOMPLETE</code></td>
+<td>As <code>INCOMPLETE</code></td>
+</tr>
+<tr>
+<td><code>BUSY</code></td>
+<td>The runner, or the API client after three tries</td>
+<td><code>COULD_NOT_RUN</code> with <code>RUNNER_BUSY</code></td>
+<td>The change kept with the &quot;not checked&quot; warning</td>
+</tr>
+<tr>
+<td><code>UNAVAILABLE</code></td>
+<td>The API client, when the connection breaks or fails</td>
+<td><code>COULD_NOT_RUN</code> with <code>RUNNER_UNAVAILABLE</code></td>
+<td>The change kept with the &quot;not checked&quot; warning</td>
+</tr>
+<tr>
+<td><code>CANCELLED</code></td>
+<td>The API client, when the turn ends</td>
+<td>Not recorded as a check result</td>
+<td>Nothing. The turn already ended</td>
+</tr>
+</tbody>
+</table>
+<p>The test step already turns a blocking check with <code>COULD_NOT_RUN</code> into <code>KeptWarningReason.NOT_CHECKED</code>. No change to the test step or to the turn runner is needed.</p>
+<p>A page that hung on its <code>load</code> event but reported a real error before that still fails the check, as today. A page that hung with no error is unseen, so the change is kept with a warning and does not go to a fix round.</p>
+<h1>6 One runner replica</h1>
+<p>A replica moves through these states. Readiness is true only in <code>Ready</code>, so the Kubernetes Service sends new requests only to replicas in that state.</p>
+<div class="diagram"><pre class="mermaid">stateDiagram-v2
+  [*] --&gt; Starting
+  Starting --&gt; Ready: process up, liveness and readiness pass
+  Ready --&gt; Busy: takes a request, readiness turns false
+  Busy --&gt; Busy: another request gets BUSY at once
+  Busy --&gt; Closing: all routes done, deadline passed, or connection closed
+  Closing --&gt; Cleaning: browser closed within 5 s
+  Closing --&gt; Killing: browser still open after 5 s
+  Killing --&gt; Cleaning: process group killed
+  Cleaning --&gt; Ready: other processes killed, folders emptied, readiness turns true
+  Ready --&gt; Draining: deploy sends a stop signal
+  Busy --&gt; Draining: deploy sends a stop signal
+  Draining --&gt; [*]: no request left, or the grace time ends
+</pre></div><p>Rules inside one replica:</p>
+<ul>
+<li>The slot is one <code>asyncio.Lock</code> that is never waited on. A request that finds it taken gets <code>BUSY</code> at once.</li>
+<li>The readiness answer reads the slot. It answers 503 while the slot is taken or the replica is draining.</li>
+<li>The liveness answer only says that the process answers. A busy replica stays alive.</li>
+<li>The replica keeps the attempt ids of its current and recent requests until their deadline and clean-up time pass. A repeated id gets <code>BUSY</code>.</li>
+<li>Chromium starts in its own process group, so the replica can kill the browser and all its child processes at once.</li>
+<li>The grace time on a stop signal is 190 s: the 180 s deadline, 5 s of clean-up and a margin.</li>
+<li>Chromium starts with its sandbox off. After each check, the runner kills every process in its container except itself, then empties <code>/tmp</code> and <code>/dev/shm</code>. Only then does it turn ready again. The root file system is read-only, so nothing else survives a check.</li>
+</ul>
+<h1>7 What goes into the cluster</h1>
+<div class="diagram"><pre class="mermaid">flowchart LR
+  subgraph HOST[&quot;Platform host&quot;]
+    API[&quot;API container&lt;br/&gt;K8S__API_URL and K8S__TOKEN, as today&lt;br/&gt;new: the runner token&quot;]
+  end
+  subgraph CLUSTER[&quot;Preview cluster&quot;]
+    KAPI[&quot;Kubernetes API&quot;]
+    subgraph APPS[&quot;dewabuilder-apps-env&quot;]
+      SA[&quot;platform-sa-env&lt;br/&gt;existing service account&quot;]
+    end
+    subgraph RUNNERNS[&quot;dewabuilder-browser-runner-&amp;lt;env&amp;gt;&lt;br/&gt;dev, stg or prod&quot;]
+      ROLE[&quot;Role and RoleBinding&lt;br/&gt;services/proxy on the runner service only&quot;]
+      DEP[&quot;Deployment&lt;br/&gt;replicas spread over nodes&lt;br/&gt;no service account token, not root&quot;]
+      SVC[&quot;Service&lt;br/&gt;ready replicas only&quot;]
+      NP[&quot;Network policy&lt;br/&gt;DNS and public internet only&quot;]
+      SEC[&quot;Secret&lt;br/&gt;the runner token&quot;]
+    end
+    EDGE[&quot;Traefik and KEDA interceptor&quot;]
+    PREVIEW[&quot;Preview pods&quot;]
+  end
+  API --&gt; KAPI
+  SA -. &quot;bound to&quot; .-&gt; ROLE
+  KAPI --&gt; SVC
+  SVC --&gt; DEP
+  SEC -. &quot;mounted as an env value&quot; .-&gt; DEP
+  NP -. &quot;limits&quot; .-&gt; DEP
+  DEP -- &quot;public preview address&quot; --&gt; EDGE
+  EDGE --&gt; PREVIEW
+</pre></div><p>The namespace names follow <code>dewabuilder-browser-runner-&lt;env&gt;</code>. A namespace groups the Kubernetes resources for one environment.</p>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Runner namespace</th>
+<th>API callers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dev</td>
+<td><code>dewabuilder-browser-runner-dev</code></td>
+<td>Local API containers in developers' dev stacks</td>
+</tr>
+<tr>
+<td>Staging</td>
+<td><code>dewabuilder-browser-runner-stg</code></td>
+<td>Staging API containers</td>
+</tr>
+<tr>
+<td>Production</td>
+<td><code>dewabuilder-browser-runner-prod</code></td>
+<td>Production API containers</td>
+</tr>
+</tbody>
+</table>
+<p>Each namespace contains a Deployment and a Service named <code>browser-runner</code>, plus its own token, access rules and network policies. Each Deployment starts with one replica. Developers share the dev Deployment, not the staging or production Deployment.</p>
+<p>The local API calls the dev runner through the Kubernetes API service proxy. It uses the dev cluster credentials and the dev runner token. The runner opens each app through its public dev-preview address, through Traefik and KEDA. The dev stack does not need a local runner container.</p>
+<p>The environments share cluster nodes and network capacity. Separate runners and resource limits reduce interference, but do not guarantee that dev or staging load cannot slow production.</p>
+<p>The role follows the pattern that the builds namespace uses today. Each runner namespace binds its role to the platform service account of the same environment. Dev credentials must not grant access to staging or production runners. The local dev stack receives the dev runner token through its existing secret configuration, not through a committed value.</p>
+<p>The objects to write:</p>
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Settings that matter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Namespace</td>
+<td><code>dewabuilder-browser-runner-dev</code>, <code>dewabuilder-browser-runner-stg</code> and <code>dewabuilder-browser-runner-prod</code></td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>1 replica to start. 2 CPU and 2 GiB as both request and limit. Rolling update with one extra pod and no pod down. Spread over nodes. No service account token. Not root. Read-only root file system with a temporary folder. Grace time 190 s</td>
+</tr>
+<tr>
+<td>Service</td>
+<td>One port. It sends only to ready replicas</td>
+</tr>
+<tr>
+<td>Readiness probe</td>
+<td>Every 1 s, one failure turns the replica not ready</td>
+</tr>
+<tr>
+<td>Liveness probe</td>
+<td>Every 10 s, three failures restart the replica</td>
+</tr>
+<tr>
+<td>Network policy</td>
+<td>Out to DNS, to public addresses and to Traefik's namespace on ports 80 and 443 (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F7</a>). Blocks private ranges, the metadata address and the Kubernetes API. In only from the control-plane node's Weave address, where service proxy traffic comes from (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F8</a>)</td>
+</tr>
+<tr>
+<td>Role and binding</td>
+<td><code>get</code> and <code>create</code> on <code>services/proxy</code>, for <code>browser-runner:http</code> by name only, port included (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F5</a>)</td>
+</tr>
+<tr>
+<td>Secret</td>
+<td>The runner token. The same value goes into the API's vault</td>
+</tr>
+<tr>
+<td>Monitoring</td>
+<td>Scrape the runner's metrics. Alert when the Deployment has no available pods, and when busy answers pass a share agreed in RFC-032 §6</td>
+</tr>
+</tbody>
+</table>
+<p>Phase 4 is an infrastructure change, so it goes through the escalation rule in <code>AGENTS.md</code> and gets its own human review. The runbook in <code>deploy/k8s/README.md</code> gets a section on the runner: how to see its state, add a replica, roll it back, and rotate its token.</p>
+<h1>8 Rollout and rollback</h1>
+<div class="diagram"><pre class="mermaid">stateDiagram-v2
+  [*] --&gt; InApi
+  InApi: Browser in the API, flag off
+  RunnerOne: Runner, one page at a time
+  RunnerTwo: Runner, two pages at once
+  ProdRunner: Production on the runner
+  Clean: In-API path and Chromium removed
+  InApi --&gt; RunnerOne: staging flag on after phase 5
+  RunnerOne --&gt; InApi: flag off, without a deploy
+  RunnerOne --&gt; RunnerTwo: comparison passed, phase 6
+  RunnerTwo --&gt; RunnerOne: pages at once back to one
+  RunnerTwo --&gt; ProdRunner: production flag on after the launch decision
+  ProdRunner --&gt; InApi: flag off, without a deploy
+  ProdRunner --&gt; Clean: BV-4 done, phase 8
+  Clean --&gt; [*]
+</pre></div><p>The comparison before each move uses the same three apps as BV-1 (Resep Dapur Ibu, Drinks at BVW and tiket.com) and real staging turns:</p>
+<table>
+<thead>
+<tr>
+<th>Move</th>
+<th>Must hold before it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One page at a time on staging</td>
+<td>The three apps give the same verdicts as the browser in the API. The times are within 2 s of today's, for the network cost. The clean page passes, and the delayed error and the broken image fail</td>
+</tr>
+<tr>
+<td>Two pages at once on staging</td>
+<td>The same verdicts. The speed targets in RFC-032 §3.6 hold. The memory of a replica stays under its limit</td>
+</tr>
+<tr>
+<td>Production</td>
+<td>A week of staging turns with no <code>UNAVAILABLE</code> that the team did not cause. The alert and the flag switch-back were both tried once</td>
+</tr>
+<tr>
+<td>Removal</td>
+<td>BV-4 done in production. No flag switch-back for a week</td>
+</tr>
+</tbody>
+</table>
+<p>Until phase 8, the flag is the rollback. It switches every new check back to the browser in the API, and it needs no deploy. After phase 8, the rollback is a release revert of the API and the runner together. The API never switches by itself.</p>
+<h1>9 Tests for each phase</h1>
+<p>The tests follow <code>apps/api/AGENTS.md</code>. Each test fails if the behavior it names breaks.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Test</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Unit: a capture with an unseen route and no error</td>
+<td>The check gives <code>COULD_NOT_RUN</code>, not a pass</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Unit: an unseen route next to a seen route with an error</td>
+<td>The check fails, and a fix round starts</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Unit: a second capture while one runs</td>
+<td>It waits, and it reports <code>BUSY</code> when its deadline passes</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Unit: the deadline passes mid-capture</td>
+<td><code>TIMED_OUT</code>, with the findings so far</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Real Chromium, local: the three apps with one and with two pages at once</td>
+<td>The same verdicts, and the time per pair of routes</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Real Chromium, local: the clean page, the delayed error, the broken image</td>
+<td>Two pages at once still catch the late error</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Unit, runner: a second request, a repeated id, the deadline, a closed connection</td>
+<td><code>BUSY</code>, <code>BUSY</code>, <code>TIMED_OUT</code>, and the browser closed within 5 s</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Unit, runner: readiness while busy and while draining</td>
+<td>503 in both cases, 200 when free</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Local, runner image: kill the browser mid-request</td>
+<td>An explicit outcome, never a pass</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Local, runner image: a page starts a program that outlives its browser, and writes a file to <code>/tmp</code></td>
+<td>The program and the file are gone before the replica turns ready again</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Dev: a local API container calls the shared dev runner through the service proxy against its own dev preview</td>
+<td>The request reaches only the dev runner and returns the capture</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Dev credentials call the staging and production runners</td>
+<td>Both refused</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Staging: a request without the token, and a request from a preview pod</td>
+<td>Both refused</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Staging: a test pod in the runner namespace opens a private address</td>
+<td>Blocked by the network policy</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Unit, client: the service proxy answers no endpoints, then <code>BUSY</code>, then a broken connection</td>
+<td><code>BUSY</code> after three tries, and <code>UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Staging: the comparison in §8</td>
+<td>The move to one page at a time holds</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Staging: two replicas, three checks at once</td>
+<td>Two complete on different replicas, and the third gets <code>BUSY</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Production: BV-4</td>
+<td>The targets, the verdicts and the API's memory</td>
+</tr>
+</tbody>
+</table>
+<p>The local test harness from BV-1 was a throwaway script and is gone. Phase 2 needs a small local script again for the real-Chromium runs. It stays out of the repository, as before.</p>
+<h1>10 Docs and cleanup</h1>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>Document</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Phase 1</td>
+<td><code>apps/api/app/services/generation/README.md</code> and the app generation brief</td>
+<td>An unseen page never passes. One browser check at a time in the API</td>
+</tr>
+<tr>
+<td>Phase 4</td>
+<td><code>deploy/k8s/README.md</code></td>
+<td>The runner runbook</td>
+</tr>
+<tr>
+<td>Phase 5</td>
+<td><code>docs/operations/feature-flags.md</code></td>
+<td>The new flag and how to switch it</td>
+</tr>
+<tr>
+<td>Phase 5</td>
+<td>The app generation and preview runtime briefs</td>
+<td>Where the browser runs, and the result outcomes</td>
+</tr>
+<tr>
+<td>Phase 8</td>
+<td>A new ADR, and the RFC-032 row in <code>docs/rfcs.md</code></td>
+<td>The decision, and the RFC marked resolved</td>
+</tr>
+<tr>
+<td>Phase 8</td>
+<td><code>docs/operations/feature-flags.md</code></td>
+<td>The flag removed</td>
+</tr>
+</tbody>
+</table>
+<p>ADR-042 named the runner as the way to take Chromium out of the API image. The new ADR records that this happened.</p>
+<h1>11 Proposed child issues</h1>
+<p>#610 says that delivery children get their own issues once the design settles. These are proposals. None is filed yet.</p>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Phases</th>
+<th>Delegation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A page that the browser never saw cannot pass</td>
+<td>1</td>
+<td>Ready: the change and its tests are fixed by this plan</td>
+</tr>
+<tr>
+<td>The browser runner service and image</td>
+<td>2 and 3</td>
+<td>Ready, once RFC-032 is accepted</td>
+</tr>
+<tr>
+<td>The browser runner in the cluster</td>
+<td>4</td>
+<td>Human-led: infrastructure and access rights</td>
+</tr>
+<tr>
+<td>Switch validation to the browser runner</td>
+<td>5 to 7</td>
+<td>Human-led: rollout on staging and production</td>
+</tr>
+<tr>
+<td>Remove Chromium from the API image</td>
+<td>8</td>
+<td>Ready, once BV-4 is done</td>
+</tr>
+</tbody>
+</table>
+<h1>12 Decisions to make during the build</h1>
+<ol>
+<li>Decided: use <code>dewabuilder-browser-runner-&lt;env&gt;</code>, with <code>dev</code>, <code>stg</code> and <code>prod</code>. Developers share the dev runner in the cluster.</li>
+<li>The share of busy answers that adds a replica and fires the alert.</li>
+<li>The HTTP framework of the runner. This plan assumes FastAPI, which the API already uses, so the image adds no new library.</li>
+<li>Decided on 11 Nov 2026: Chromium runs without its sandbox, and the pod's limits stand in for it. The sandbox did not start in a locked-down pod on the cluster. After each check, the runner kills every other process in its container and empties its writable folders. A replica does not restart after a count of checks, because Kubernetes delays a container that exits often.</li>
+<li>Decided by the spike: no start-then-ask fallback. The service proxy carries a request for 200 s, and the front proxy ends requests at 300 s, above the 180 s deadline (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F1</a>).</li>
+<li>Decide whether the runner reaches production before or after the launch. The dates in §3 remain a forecast.</li>
+</ol>
+</main><script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const sources=[...document.querySelectorAll('.mermaid')].map(el=>el.textContent);
+let rendering=false;
+async function renderDiagrams(){
+ if(rendering)return;rendering=true;
+ try{const dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme:dark)').matches);
+ mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:dark?'dark':'default'});
+ const elements=[...document.querySelectorAll('.mermaid')];elements.forEach((el,i)=>{el.removeAttribute('data-processed');el.textContent=sources[i];});
+ await mermaid.run({nodes:elements});document.documentElement.dataset.diagrams='ready';
+ }catch(error){document.documentElement.dataset.diagrams='error';console.error(error);}finally{rendering=false;}}
+new MutationObserver(()=>renderDiagrams()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+await renderDiagrams();
+</script></body></html>
