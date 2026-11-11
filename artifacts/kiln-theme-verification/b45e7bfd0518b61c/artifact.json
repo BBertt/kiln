@@ -1,0 +1,16 @@
+{
+  "slug": "kiln-theme-verification",
+  "title": "Kiln themes: verification findings",
+  "framework": "html",
+  "metadata": {
+    "description": "Reference findings report with actual browser, MCP, build and regression-test evidence from the theme migration.",
+    "tags": [
+      "kiln",
+      "design-system",
+      "guide",
+      "themes"
+    ]
+  },
+  "revision": "b45e7bfd0518b61c",
+  "updated_at": "2026-11-11T06:55:32.661Z"
+}
