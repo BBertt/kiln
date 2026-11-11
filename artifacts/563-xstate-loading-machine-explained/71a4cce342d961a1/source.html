@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How XState runs the editor's loading flow (#563)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..600&family=JetBrains+Mono:wght@400..500&display=swap">
+<style>
+  /* Kiln design system (proposal, 10 Nov 2026). Every color comes from this token block. */
+  :root {
+    color-scheme: light;
+    --kiln-bg: #faf9f5; --kiln-surface: #ffffff; --kiln-surface-2: #f0eee6;
+    --kiln-line: #e8e6dc; --kiln-line-strong: #d1cfc5;
+    --kiln-text: #141413; --kiln-muted: #5e5d59;
+    --kiln-accent: #d97757; --kiln-accent-strong: #c6613f;
+    --kiln-ok: #1d6956; --kiln-ok-wash: #e9f3ef;
+    --kiln-warn: #8a5a00; --kiln-warn-wash: #faf7e6;
+    --kiln-bad: #b3261e; --kiln-bad-wash: #fbeceb;
+    --kiln-accent-wash: color-mix(in srgb, var(--kiln-accent) 16%, var(--kiln-surface));
+    --kiln-sans: "Anthropic Sans", "Hanken Grotesk", system-ui, sans-serif;
+    --kiln-mono: "Anthropic Mono", "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --kiln-bg: #191919; --kiln-surface: #1f1f1f; --kiln-surface-2: #2a2a2a;
+      --kiln-line: #2e2e2e; --kiln-line-strong: #3d3d3d;
+      --kiln-text: #efefef; --kiln-muted: #9c9c9c;
+      --kiln-ok: #53c556; --kiln-ok-wash: #263627; --kiln-warn: #e49c06; --kiln-warn-wash: #3b301c;
+      --kiln-bad: #f17778; --kiln-bad-wash: #3c2b2b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --kiln-bg: #191919; --kiln-surface: #1f1f1f; --kiln-surface-2: #2a2a2a;
+    --kiln-line: #2e2e2e; --kiln-line-strong: #3d3d3d;
+    --kiln-text: #efefef; --kiln-muted: #9c9c9c;
+    --kiln-ok: #53c556; --kiln-ok-wash: #263627; --kiln-warn: #e49c06; --kiln-warn-wash: #3b301c;
+    --kiln-bad: #f17778; --kiln-bad-wash: #3c2b2b;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--kiln-bg); }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font-family: var(--kiln-sans); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-block: 40px 72px; }
+  .prose { max-width: 68ch; }
+  a { color: var(--kiln-text); text-decoration: underline; text-decoration-color: var(--kiln-accent); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; border-radius: 4px; }
+  .mono { font-family: var(--kiln-mono); font-size: 12.5px; letter-spacing: 0.01em; }
+  .muted { color: var(--kiln-muted); }
+  h1 { margin: 0; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; text-wrap: balance; }
+  h2 { margin: 0 0 16px; font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  h2 .count { font-family: var(--kiln-mono); font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--kiln-muted); }
+  h3 { margin: 28px 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--kiln-muted); }
+  code { font-family: var(--kiln-mono); font-size: 0.84em; background: var(--kiln-surface-2); border-radius: 5px; padding: 1px 5px; }
+  pre { font-family: var(--kiln-mono); font-size: 12px; line-height: 1.6; background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 10px; padding: 14px 16px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  header.top { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
+  header.top .lead { margin: 0; color: var(--kiln-muted); font-size: 17px; max-width: 64ch; }
+  nav.toc { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--kiln-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--kiln-line); margin: 0 -16px 40px; padding: 8px 16px; }
+  nav.toc ul { overflow-x: auto; list-style: none; display: flex; gap: 4px 18px; margin: 0; padding: 2px 0; white-space: nowrap; font-size: 14px; }
+  nav.toc li { margin: 0; }
+  nav.toc a { text-decoration: none; color: var(--kiln-muted); }
+  nav.toc a:hover { color: var(--kiln-text); text-decoration: underline; text-decoration-color: var(--kiln-accent); }
+  section { padding-bottom: 48px; margin-bottom: 48px; border-bottom: 1px solid var(--kiln-line); scroll-margin-top: 64px; }
+  section:last-of-type { border-bottom: 0; margin-bottom: 0; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-family: var(--kiln-mono); font-size: 12px; line-height: 1.5; white-space: nowrap; background: var(--kiln-surface-2); color: var(--kiln-muted); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border: 1px solid var(--kiln-line); border-radius: 16px; background: var(--kiln-surface); margin: 0 0 18px; }
+  .stat { padding: 16px 18px; border-right: 1px solid var(--kiln-line); }
+  .stat:last-child { border-right: 0; }
+  .stat .n { font-size: 28px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.1; }
+  .stat .l { font-family: var(--kiln-mono); font-size: 12px; color: var(--kiln-muted); margin-top: 6px; }
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .verdict, .pair { grid-template-columns: 1fr; } .stat { border-right: 0; border-bottom: 1px solid var(--kiln-line); } }
+  .side { border-top: 2px solid var(--kiln-line-strong); padding-top: 10px; }
+  .side.ok { border-top-color: var(--kiln-ok); }
+  .side.warn { border-top-color: var(--kiln-warn); }
+  .side h3 { margin: 0 0 6px; font-size: 15px; }
+  .side ul { margin: 0; font-size: 15px; color: var(--kiln-muted); }
+
+  .figure { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 14px; margin: 0 0 14px; overflow-x: auto; }
+  .figure svg { display: block; width: 100%; min-width: 880px; height: auto; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface); margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.5; }
+  th { text-align: left; font-family: var(--kiln-mono); font-weight: 400; font-size: 12px; color: var(--kiln-muted); background: var(--kiln-surface-2); padding: 9px 12px; border-bottom: 1px solid var(--kiln-line); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--kiln-line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: 12.5px; }
+  td:first-child { font-weight: 600; }
+  .callout { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 12px 16px; margin: 0 0 18px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 10px; }
+  .snippet { margin: 0; min-width: 0; }
+  .snippet figcaption { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+  .why { color: var(--kiln-muted); font-size: 15px; }
+  .regions { list-style: none; padding: 0; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .regions li { margin: 0; font-size: 15px; color: var(--kiln-muted); }
+  .regions code { color: var(--kiln-text); }
+
+  .steps { list-style: none; padding: 0; margin: 0; }
+  .steps > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 14px; margin: 0; }
+  .steps .rail { display: flex; flex-direction: column; align-items: center; }
+  .steps .code { font-family: var(--kiln-mono); font-size: 12px; font-weight: 500; width: 36px; height: 30px; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--kiln-line); background: var(--kiln-bg); }
+  .steps .line { flex: 1; width: 2px; background: var(--kiln-line); margin-block: 4px; min-height: 16px; }
+  .steps > li:last-child .line { display: none; }
+  .steps .body { padding-bottom: 20px; min-width: 0; }
+  .steps .head { min-height: 30px; display: flex; align-items: center; }
+  .steps .title { font-size: 16px; font-weight: 600; }
+  .steps .body p { color: var(--kiln-muted); font-size: 15px; margin: 2px 0 0; }
+  footer { color: var(--kiln-muted); }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="mono muted" style="margin:0">Issue #563 · MR !718 · commit 25ac80b0 · updated 11 Nov 2026</p>
+    <h1>How XState runs the editor's loading flow</h1>
+    <p class="lead">One XState machine now decides what the preview panel shows while a workspace starts and the AI builds. This page explains <code>preview-loading.machine.ts</code>, compares it with the code it replaced, and says what it cost.</p>
+  </header>
+
+  <nav class="toc" aria-label="Sections">
+    <ul>
+      <li><a href="#glance">At a glance</a></li>
+      <li><a href="#decides">What it decides</a></li>
+      <li><a href="#before">Before</a></li>
+      <li><a href="#after">After</a></li>
+      <li><a href="#ideas">XState ideas</a></li>
+      <li><a href="#regions">Regions</a></li>
+      <li><a href="#build">A real build</a></li>
+      <li><a href="#compare">Side by side</a></li>
+      <li><a href="#costs">Gains and costs</a></li>
+      <li><a href="#change">Changing it</a></li>
+    </ul>
+  </nav>
+
+  <section id="glance" aria-labelledby="glance-title">
+    <h2 id="glance-title">At a glance</h2>
+    <div class="stats">
+      <div class="stat"><div class="n">1</div><div class="l">event in: OBSERVE</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">parallel regions</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">timers, all owned by the machine</div></div>
+      <div class="stat"><div class="n">15</div><div class="l">machine tests, simulated clock</div></div>
+      <div class="stat"><div class="n">670 → 910</div><div class="l">lines of loading code</div></div>
+    </div>
+    <div class="verdict">
+      <div class="side ok"><h3>What XState gives</h3><ul>
+        <li>Every loading rule in one file, each with a name.</li>
+        <li>Timers start and stop with their states; none is cancelled by hand.</li>
+        <li>A diagram generated from the code, and a test that fails when it is stale.</li>
+        <li>Timer tests that run in milliseconds, without React.</li>
+      </ul></div>
+      <div class="side warn"><h3>What it costs</h3><ul>
+        <li>About 240 more lines, and two new packages.</li>
+        <li>New ideas for the team: regions, guards, eventless and delayed transitions.</li>
+        <li>Its own traps: one <code>reenter: true</code> restarted every region on each iframe load.</li>
+        <li>It cannot fix stale inputs.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="decides" aria-labelledby="decides-title">
+    <h2 id="decides-title">What the machine decides <span class="count">4 sources · 5 timers</span></h2>
+    <div class="prose">
+      <p>At every moment the preview panel shows one main screen, plus up to three layers on top:</p>
+      <ul>
+        <li>The main screen: a skeleton, the workspace check (Verifying), the workspace start (Provisioning), the first-build scene, the live preview, or a status message such as "failed" or "timed out".</li>
+        <li>The build overlay, with one of the ten #556 animations, which fades in and out.</li>
+        <li>The wake-up overlay while the preview page starts, and its error panel.</li>
+        <li>The testing badge, while the AI validates or repairs the site.</li>
+      </ul>
+      <p>The inputs come from four sources: the live chat stream, the build record the server saves, the deployment status the editor polls every few seconds, and messages from the preview page. Five timers also matter: a 60-second limit for starting the workspace, a 4-second bridge after a build ends, two 0.5-second fades, and a 30-second safety limit for the wake-up overlay.</p>
+    </div>
+  </section>
+
+  <section id="before" aria-labelledby="before-title">
+    <h2 id="before-title">Before: the state was spread out <span class="count">5 files</span></h2>
+    <div class="prose"><p>Each box kept its own state with React hooks (<code>useState</code>, <code>useReducer</code>, <code>useRef</code>) and started its own timers in effects. The red dashed lines are rules that crossed files. For example, the wake-up overlay was hidden by a prop set from the build overlay's phase, in a third file.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 470" role="img" aria-label="Before: loading state spread across four hooks and a provider">
+<defs><marker id="bfm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.bfst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.5}.bfold{fill:var(--kiln-surface);stroke:var(--kiln-warn);stroke-width:1.6}.bfnw{fill:var(--kiln-surface);stroke:var(--kiln-ok);stroke-width:2}.bfin{fill:var(--kiln-surface-2);stroke:var(--kiln-line);stroke-width:1.2}.bft{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.bfs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.bfln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}.bfhd{stroke:var(--kiln-bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}.bflb{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.bflr{fill:var(--kiln-bad);font:600 11px var(--kiln-sans)}</style>
+<rect class="bfin" x="10" y="15" width="300" height="95" rx="9"/>
+<text class="bft" x="22" y="35">Inputs</text>
+<text class="bfs" x="22" y="53">editor-store: live stream flag</text>
+<text class="bfs" x="22" y="68">build-progress-store: label, files</text>
+<text class="bfs" x="22" y="83">app GET poll: deployment + marker</text>
+<text class="bfs" x="22" y="98">iframe postMessage: boot / ready / error</text>
+<rect class="bfold" x="350" y="15" width="300" height="110" rx="9"/>
+<text class="bft" x="362" y="35">usePreviewViewModel</text>
+<text class="bfs" x="362" y="53">useState isTimedOut</text>
+<text class="bfs" x="362" y="68">effect: setTimeout 60 s while provisioning</text>
+<text class="bfs" x="362" y="83">effect cleanup resets the flag</text>
+<text class="bfs" x="362" y="98">returns status, or &#x27;timeout&#x27;</text>
+<rect class="bfold" x="670" y="15" width="300" height="110" rx="9"/>
+<text class="bft" x="682" y="35">usePreviewTestingSignal</text>
+<text class="bfs" x="682" y="53">matches label text against</text>
+<text class="bfs" x="682" y="68">PREVIEW_TESTING_LABELS</text>
+<text class="bfs" x="682" y="83">(&quot;Memvalidasi…&quot;, &quot;Memperbaiki…&quot;)</text>
+<text class="bfs" x="682" y="98">returns isTesting</text>
+<rect class="bfold" x="350" y="160" width="300" height="140" rx="9"/>
+<text class="bft" x="362" y="180">usePreviewGenerationOverlay</text>
+<text class="bfs" x="362" y="198">useReducer: hidden | visible | fading</text>
+<text class="bfs" x="362" y="213">useState bridging + 3 refs</text>
+<text class="bfs" x="362" y="228">effect: previous-value edge → bridge,</text>
+<text class="bfs" x="362" y="243">  invalidate query, setTimeout 4 s</text>
+<text class="bfs" x="362" y="258">effect: syncing seen → clear bridge</text>
+<text class="bfs" x="362" y="273">effect: setTimeout 0.5 s fade</text>
+<rect class="bfold" x="670" y="160" width="300" height="140" rx="9"/>
+<text class="bft" x="682" y="180">PreviewProvider</text>
+<text class="bfs" x="682" y="198">useState lifecycle: hidden | visible |</text>
+<text class="bfs" x="682" y="213">  fading | error</text>
+<text class="bfs" x="682" y="228">timeoutRef (30 s) + fadeRef (0.5 s)</text>
+<text class="bfs" x="682" y="243">beginFade(fromError) rule:</text>
+<text class="bfs" x="682" y="258">  &#x27;a timeout must not clear an error&#x27;</text>
+<text class="bfs" x="682" y="273">message listener → set state</text>
+<rect class="bfold" x="350" y="340" width="620" height="110" rx="9"/>
+<text class="bft" x="362" y="360">PreviewContent (render)</text>
+<text class="bfs" x="362" y="378">if verifying → scene   else if bootstrap marker → scene   else switch(status) …</text>
+<text class="bfs" x="362" y="393">  running|syncing → iframe + &lt;GenerationOverlay&gt; + testing badge +</text>
+<text class="bfs" x="362" y="408">  &lt;ColdStartOverlay suppressed={generationOverlay.phase !== &#x27;hidden&#x27;} /&gt;</text>
+<text class="bfs" x="362" y="423">The order of these checks is the precedence. It exists only in this function.</text>
+<path class="bfln" d="M310,60 L348,60" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,90 C330,150 330,200 348,215" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,100 C560,135 640,120 668,60" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,80 C600,150 640,140 668,215" marker-end="url(#bfm)"/>
+<path class="bfln" d="M500,125 L500,158" marker-end="url(#bfm)"/>
+<path class="bfhd" d="M820,125 L820,142 L660,142 L660,338" marker-end="url(#bfm)"/><text class="bflb" x="668" y="152" text-anchor="start">isTesting passed down</text>
+<path class="bfhd" d="M500,300 L500,338" marker-end="url(#bfm)"/><text class="bflb" x="492" y="322" text-anchor="end">overlay phase hides cold start</text>
+<path class="bfhd" d="M820,300 L820,338" marker-end="url(#bfm)"/><text class="bflb" x="828" y="322" text-anchor="start">lifecycle phase</text>
+<text class="bflr" x="10" y="150">Red dashed:</text><text class="bfs" x="10" y="166">rules that cross files.</text><text class="bfs" x="10" y="181">No single place shows</text><text class="bfs" x="10" y="196">how they combine.</text>
+<text class="bflr" x="10" y="240">5 timers</text><text class="bfs" x="10" y="256">in 3 files, each started</text><text class="bfs" x="10" y="271">and cleared by hand in</text><text class="bfs" x="10" y="286">effects or refs.</text>
+</svg></div>
+    <div class="prose"><p>This code worked. Its difficulty was that no single place described the whole flow. To answer "what does the user see if the preview page reports ready while a build is fading out?", a reviewer had to read all five files and simulate the effects in their head.</p></div>
+  </section>
+
+  <section id="after" aria-labelledby="after-title">
+    <h2 id="after-title">After: one machine owns the decisions <span class="count">1 machine</span></h2>
+    <div class="figure"><svg viewBox="0 0 980 430" role="img" aria-label="After: one machine owns every loading decision">
+<defs><marker id="afm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.afst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.5}.afold{fill:var(--kiln-surface);stroke:var(--kiln-warn);stroke-width:1.6}.afnw{fill:var(--kiln-surface);stroke:var(--kiln-ok);stroke-width:2}.afin{fill:var(--kiln-surface-2);stroke:var(--kiln-line);stroke-width:1.2}.aft{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.afs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.afln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}.afhd{stroke:var(--kiln-bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}.aflb{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.aflr{fill:var(--kiln-bad);font:600 11px var(--kiln-sans)}</style>
+<rect class="afin" x="10" y="20" width="270" height="95" rx="9"/>
+<text class="aft" x="22" y="40">Inputs (unchanged)</text>
+<text class="afs" x="22" y="58">editor-store: live stream flag</text>
+<text class="afs" x="22" y="73">build-progress-store: phase, label, files</text>
+<text class="afs" x="22" y="88">app GET poll: deployment + marker</text>
+<text class="afs" x="22" y="103">ensure call: verifying</text>
+<rect class="afin" x="10" y="300" width="270" height="95" rx="9"/>
+<text class="aft" x="22" y="320">Preview iframe</text>
+<text class="afs" x="22" y="338">postMessage boot / ready / error</text>
+<text class="afs" x="22" y="353">provider checks source + origin</text>
+<rect class="afnw" x="330" y="20" width="300" height="95" rx="9"/>
+<text class="aft" x="342" y="40">usePreviewLoadingViewModel</text>
+<text class="afs" x="342" y="58">reads the inputs, sends ONE event:</text>
+<text class="afs" x="342" y="73">OBSERVE {appId, previewState,</text>
+<text class="afs" x="342" y="88">isVerifying, isGenerating, marker, progress}</text>
+<rect class="afnw" x="330" y="160" width="300" height="170" rx="9"/>
+<text class="aft" x="342" y="180">previewLoadingMachine (actor)</text>
+<text class="afs" x="342" y="198">5 parallel regions:</text>
+<text class="afs" x="342" y="213">  provisioning · activity · generation</text>
+<text class="afs" x="342" y="228">  coldStart · screen</text>
+<text class="afs" x="342" y="243">owns all 5 timers (after: …)</text>
+<text class="afs" x="342" y="258">guards = named rules</text>
+<text class="afs" x="342" y="273">no React, no fetching, no DOM</text>
+<text class="afs" x="342" y="288"></text>
+<rect class="afst" x="330" y="370" width="300" height="50" rx="9"/>
+<text class="aft" x="342" y="390">PreviewProvider</text>
+<text class="afs" x="342" y="408">starts the actor · performs emitted effects</text>
+<rect class="afnw" x="680" y="160" width="290" height="80" rx="9"/>
+<text class="aft" x="692" y="180">selectPreviewLoading</text>
+<text class="afs" x="692" y="198">snapshot → { screen, animation,</text>
+<text class="afs" x="692" y="213">copy, overlays, isTesting }</text>
+<rect class="afst" x="680" y="280" width="290" height="80" rx="9"/>
+<text class="aft" x="692" y="300">PreviewContent + overlays</text>
+<text class="afs" x="692" y="318">render what the selector says;</text>
+<text class="afs" x="692" y="333">no decisions left in render</text>
+<path class="afln" d="M280,67 L328,67" marker-end="url(#afm)"/>
+<path class="afln" d="M480,115 L480,158" marker-end="url(#afm)"/><text class="aflb" x="488" y="140" text-anchor="start">OBSERVE</text>
+<path class="afln" d="M280,380 C300,390 310,395 328,395" marker-end="url(#afm)"/>
+<path class="afln" d="M420,368 L420,332" marker-end="url(#afm)"/><text class="aflb" x="428" y="352" text-anchor="start">LOAD_ARMED, FRAME_*</text>
+<path class="afln" d="M560,332 L560,368" marker-end="url(#afm)"/><text class="aflb" x="568" y="352" text-anchor="start">emit: init, invalidate</text>
+<path class="afln" d="M630,200 L678,200" marker-end="url(#afm)"/><text class="aflb" x="636" y="192" text-anchor="start">snapshot</text>
+<path class="afln" d="M825,240 L825,278" marker-end="url(#afm)"/><text class="aflb" x="833" y="262" text-anchor="start">useSelector</text>
+
+</svg></div>
+    <div class="prose">
+      <p>The inputs did not change. One hook, <code>usePreviewLoadingViewModel</code>, reads them and sends a single <code>OBSERVE</code> event. The provider forwards checked iframe messages as events. The machine updates its state, and a selector, <code>selectPreviewLoading</code>, turns that state into what to render. The components no longer decide anything.</p>
+      <p>The machine never touches the browser or the query cache. When it needs a side effect, it emits a named event (<code>sendLifecycleInit</code>, <code>invalidateDeployment</code>), and the provider performs it. That keeps the machine plain data that a test can run without React.</p>
+    </div>
+  </section>
+
+  <section id="ideas" aria-labelledby="ideas-title">
+    <h2 id="ideas-title">XState ideas, mapped to this file <span class="count">10 ideas</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Idea</th><th scope="col">What it means</th><th scope="col">In preview-loading.machine.ts</th></tr></thead>
+      <tbody>
+        <tr><td>Context</td><td>The data the machine remembers: the latest observation and the last fatal frame error.</td><td><code>context</code>, <code>PreviewLoadingContext</code></td></tr>
+        <tr><td>Event</td><td>Something that happened. The machine reacts only to events.</td><td><code>OBSERVE</code>, <code>LOAD_ARMED</code>, <code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code>, <code>RECONCILE</code></td></tr>
+        <tr><td>State</td><td>A named mode, such as <code>bridging</code> or <code>fading</code>. One at a time per region.</td><td>the <code>states</code> objects</td></tr>
+        <tr><td>Parallel regions</td><td>Several independent state machines side by side inside one actor.</td><td><code>type: "parallel"</code>, five regions</td></tr>
+        <tr><td>Transition</td><td>A move to another state when an event arrives.</td><td><code>on: { FRAME_READY: { target: "fading" } }</code></td></tr>
+        <tr><td>Eventless transition</td><td>A move checked after every event, taken when its condition becomes true.</td><td><code>always: { guard: "isGenerating", … }</code></td></tr>
+        <tr><td>Guard</td><td>A named yes-or-no rule that allows or blocks a move.</td><td><code>isTesting</code>, <code>showGenerationOverlay</code>, …</td></tr>
+        <tr><td>Delayed transition</td><td>A move after a set time. The timer starts on entering the state and stops on leaving it.</td><td><code>after: { generationBridge: "idle" }</code>, durations in <code>delays</code></td></tr>
+        <tr><td>Action</td><td>Work done on a move: update context, or emit an effect for the host.</td><td><code>observe</code>, <code>recordFrameError</code>, <code>emit(…)</code></td></tr>
+        <tr><td>Actor, snapshot</td><td>A running copy of the machine, and its state at one moment.</td><td><code>useActorRef</code> in the provider, <code>useSelector</code> for snapshots</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="regions" aria-labelledby="regions-title">
+    <h2 id="regions-title">The five regions <span class="count">5</span></h2>
+    <div class="prose"><p>Each region answers one question. Because they run in parallel, a change in one region never resets another, and each region's timers belong to it alone.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 420" role="img" aria-label="The five parallel regions of the loading machine">
+<defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.rgrg{fill:none;stroke:var(--kiln-line);stroke-width:1.5;stroke-dasharray:5 4}.rgst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.6}.rgt{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.rgh{fill:var(--kiln-text);font:700 14px var(--kiln-mono)}.rgs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.rgln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}</style>
+<text class="rgs" x="490.0" y="16" text-anchor="middle">All five regions run at the same time inside one actor. Dashed borders mark parallel regions.</text>
+<rect class="rgrg" x="5" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="98.0" y="54" text-anchor="middle">provisioning</text>
+<text class="rgs" x="98.0" y="72" text-anchor="middle">60-second deadline</text>
+<rect class="rgst" x="27" y="92" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="114" text-anchor="middle">idle</text>
+<path class="rgln" d="M98.0,126 L98.0,164" marker-end="url(#ma)"/>
+<rect x="27.0" y="137" width="142.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="98.0" y="149" text-anchor="middle">status is provisioning</text>
+<rect class="rgst" x="27" y="166" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="188" text-anchor="middle">waiting</text>
+<path class="rgln" d="M98.0,200 L98.0,238" marker-end="url(#ma)"/>
+<rect x="63.0" y="211" width="70.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="98.0" y="223" text-anchor="middle">after 60 s</text>
+<rect class="rgst" x="27" y="240" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="262" text-anchor="middle">timedOut</text>
+<text class="rgs" x="98.0" y="322" text-anchor="middle">Leaves for idle once</text>
+<text class="rgs" x="98.0" y="337" text-anchor="middle">provisioning ends.</text>
+<rect class="rgrg" x="200" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="293.0" y="54" text-anchor="middle">activity</text>
+<text class="rgs" x="293.0" y="72" text-anchor="middle">is a build running?</text>
+<rect class="rgst" x="222" y="92" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="114" text-anchor="middle">idle</text>
+<path class="rgln" d="M293.0,126 L293.0,164" marker-end="url(#ma)"/>
+<rect x="222.0" y="137" width="142.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="293.0" y="149" text-anchor="middle">stream or saved marker</text>
+<rect class="rgst" x="222" y="166" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="188" text-anchor="middle">generating</text>
+<path class="rgln" d="M293.0,200 L293.0,238" marker-end="url(#ma)"/>
+<rect x="207.0" y="211" width="172.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="293.0" y="223" text-anchor="middle">build ended: refresh status</text>
+<rect class="rgst" x="222" y="240" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="262" text-anchor="middle">bridging</text>
+<text class="rgs" x="293.0" y="322" text-anchor="middle">Back to idle after 4 s, or</text>
+<text class="rgs" x="293.0" y="337" text-anchor="middle">as soon as syncing is seen.</text>
+<rect class="rgrg" x="395" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="488.0" y="54" text-anchor="middle">generation</text>
+<text class="rgs" x="488.0" y="72" text-anchor="middle">build overlay</text>
+<rect class="rgst" x="417" y="92" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="114" text-anchor="middle">hidden</text>
+<path class="rgln" d="M488.0,126 L488.0,164" marker-end="url(#ma)"/>
+<rect x="396.0" y="137" width="184.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="488.0" y="149" text-anchor="middle">building, bridging or syncing</text>
+<rect class="rgst" x="417" y="166" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="188" text-anchor="middle">visible</text>
+<path class="rgln" d="M488.0,200 L488.0,238" marker-end="url(#ma)"/>
+<rect x="468.0" y="211" width="40.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="488.0" y="223" text-anchor="middle">0.5 s</text>
+<rect class="rgst" x="417" y="240" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="262" text-anchor="middle">fading</text>
+<text class="rgs" x="488.0" y="322" text-anchor="middle">Steps aside while</text>
+<text class="rgs" x="488.0" y="337" text-anchor="middle">validating or repairing.</text>
+<rect class="rgrg" x="590" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="683.0" y="54" text-anchor="middle">coldStart</text>
+<text class="rgs" x="683.0" y="72" text-anchor="middle">wake-up overlay</text>
+<rect class="rgst" x="612" y="92" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="114" text-anchor="middle">hidden</text>
+<path class="rgln" d="M683.0,126 L683.0,164" marker-end="url(#ma)"/>
+<rect x="603.0" y="137" width="160.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="683.0" y="149" text-anchor="middle">iframe armed; 30 s safety</text>
+<rect class="rgst" x="612" y="166" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="188" text-anchor="middle">visible</text>
+<path class="rgln" d="M683.0,200 L683.0,238" marker-end="url(#ma)"/>
+<rect x="636.0" y="211" width="94.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="683.0" y="223" text-anchor="middle">ready, or 30 s</text>
+<rect class="rgst" x="612" y="240" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="262" text-anchor="middle">fading</text>
+<text class="rgs" x="683.0" y="322" text-anchor="middle">error on a fatal page</text>
+<text class="rgs" x="683.0" y="337" text-anchor="middle">error; a later ready clears</text>
+<text class="rgs" x="683.0" y="352" text-anchor="middle">it.</text>
+<rect class="rgrg" x="785" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="878.0" y="54" text-anchor="middle">screen</text>
+<text class="rgs" x="878.0" y="72" text-anchor="middle">what fills the panel</text>
+<rect class="rgst" x="807" y="92" width="142" height="34" rx="9"/><text class="rgt" x="878.0" y="114" text-anchor="middle">deciding</text>
+<path class="rgln" d="M878.0,126 L878.0,164" marker-end="url(#ma)"/>
+<rect x="825.0" y="137" width="106.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="878.0" y="149" text-anchor="middle">first match wins</text>
+<rect class="rgst" x="807" y="166" width="142" height="34" rx="9"/><text class="rgt" x="878.0" y="188" text-anchor="middle">one of 9 screens</text>
+<text class="rgs" x="803" y="210" font-weight="600">Order checked:</text>
+<text class="rgs" x="811" y="228">1. verifying</text>
+<text class="rgs" x="811" y="243">2. bootstrap</text>
+<text class="rgs" x="811" y="258">3. loading</text>
+<text class="rgs" x="811" y="273">4. timeout</text>
+<text class="rgs" x="811" y="288">5. provisioning</text>
+<text class="rgs" x="811" y="303">6. preview</text>
+<text class="rgs" x="811" y="318">7. failed</text>
+<text class="rgs" x="811" y="333">8. stopped</text>
+<text class="rgs" x="811" y="348">9. unavailable</text>
+<text class="rgs" x="878.0" y="377" text-anchor="middle">Re-decides on every OBSERVE.</text>
+</svg></div>
+    <ul class="regions">
+      <li><code>provisioning</code> runs the 60-second limit for starting a workspace. When it expires, the screen shows the timeout message.</li>
+      <li><code>activity</code> answers "is a build running?". When a build ends it enters <code>bridging</code>, asks for fresh status, and holds the overlay up to 4 seconds until syncing is seen.</li>
+      <li><code>generation</code> is the build overlay: hidden, visible or fading. It steps aside during validating and repairing.</li>
+      <li><code>coldStart</code> is the wake-up overlay. It follows the preview page's messages, with a 30-second safety limit and an error state.</li>
+      <li><code>screen</code> picks the main screen. It re-decides on every observation, checking its rules in a fixed order.</li>
+    </ul>
+  </section>
+
+  <section id="build" aria-labelledby="build-title">
+    <h2 id="build-title">The regions during a real build <span class="count">6 lanes · 6 min</span></h2>
+    <div class="prose"><p>This is the first build recorded for !718, redrawn from its debug log. Each row is a region, and each bar is how long it stayed in a state. Orange bars are the active states. About five minutes of writing code are cut from the middle.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 330" role="img" aria-label="How each region of the machine moved during the recorded first build">
+<style>.tlb{fill:var(--kiln-text);font:600 12.5px var(--kiln-mono)}.tls{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.tlv{font:11px var(--kiln-sans);fill:var(--kiln-text)}.tloff{fill:var(--kiln-surface-2);stroke:var(--kiln-line)}.tlon{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.tlgood{fill:var(--kiln-ok-wash);stroke:var(--kiln-ok)}.tlwarn{fill:var(--kiln-warn-wash);stroke:var(--kiln-warn)}.tlbad{fill:var(--kiln-bad-wash);stroke:var(--kiln-bad)}.tlph{fill:var(--kiln-surface);stroke:var(--kiln-line)}.tlax{stroke:var(--kiln-line);stroke-width:1}</style>
+<text class="tlb" x="8" y="60">provisioning</text>
+<rect class="tloff" x="178.7" y="44" width="130.0" height="24" rx="4"/>
+<text class="tlv" x="243.7" y="60" text-anchor="middle">idle</text>
+<rect class="tlon" x="308.7" y="44" width="75.8" height="24" rx="4"/>
+<text class="tlv" x="346.6" y="60" text-anchor="middle">waiting</text>
+<rect class="tloff" x="384.5" y="44" width="45.5" height="24" rx="4"/>
+<text class="tlv" x="407.2" y="60" text-anchor="middle">idle</text>
+<rect class="tloff" x="520.0" y="44" width="445.0" height="24" rx="4"/>
+<text class="tlv" x="742.5" y="60" text-anchor="middle">idle</text>
+<text class="tlb" x="8" y="100">activity</text>
+<rect class="tlon" x="178.7" y="84" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="100" text-anchor="middle">generating</text>
+<rect class="tlon" x="520.0" y="84" width="370.8" height="24" rx="4"/>
+<text class="tlv" x="705.4" y="100" text-anchor="middle">generating</text>
+<rect class="tlwarn" x="890.8" y="84" width="45.6" height="24" rx="4"/>
+<rect class="tloff" x="936.5" y="84" width="28.5" height="24" rx="4"/>
+<text class="tlv" x="950.7" y="100" text-anchor="middle">idle</text>
+<text class="tlb" x="8" y="140">generation</text>
+<rect class="tlon" x="178.7" y="124" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="140" text-anchor="middle">visible</text>
+<rect class="tlon" x="520.0" y="124" width="73.0" height="24" rx="4"/>
+<text class="tlv" x="556.5" y="140" text-anchor="middle">visible</text>
+<rect class="tlwarn" x="593.0" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="598.7" y="124" width="194.0" height="24" rx="4"/>
+<text class="tlv" x="695.7" y="140" text-anchor="middle">hidden</text>
+<rect class="tlon" x="792.7" y="124" width="19.4" height="24" rx="4"/>
+<rect class="tlwarn" x="812.1" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="817.8" y="124" width="54.8" height="24" rx="4"/>
+<text class="tlv" x="845.2" y="140" text-anchor="middle">hidden</text>
+<rect class="tlon" x="872.6" y="124" width="13.7" height="24" rx="4"/>
+<rect class="tlwarn" x="886.3" y="124" width="4.6" height="24" rx="4"/>
+<rect class="tlon" x="890.8" y="124" width="45.6" height="24" rx="4"/>
+<text class="tlv" x="913.7" y="140" text-anchor="middle">visible</text>
+<rect class="tlwarn" x="936.5" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="942.2" y="124" width="22.8" height="24" rx="4"/>
+<text class="tlb" x="8" y="180">coldStart</text>
+<rect class="tloff" x="178.7" y="164" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="180" text-anchor="middle">hidden</text>
+<rect class="tloff" x="520.0" y="164" width="372.0" height="24" rx="4"/>
+<text class="tlv" x="706.0" y="180" text-anchor="middle">hidden</text>
+<rect class="tlon" x="892.0" y="164" width="5.7" height="24" rx="4"/>
+<rect class="tlwarn" x="897.7" y="164" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="903.4" y="164" width="61.6" height="24" rx="4"/>
+<text class="tlv" x="934.2" y="180" text-anchor="middle">hidden</text>
+<text class="tlb" x="8" y="220">screen</text>
+<rect class="tloff" x="178.7" y="204" width="130.0" height="24" rx="4"/>
+<text class="tlv" x="243.7" y="220" text-anchor="middle">unavailable</text>
+<rect class="tlon" x="308.7" y="204" width="75.8" height="24" rx="4"/>
+<text class="tlv" x="346.6" y="220" text-anchor="middle">provisioning</text>
+<rect class="tlon" x="384.5" y="204" width="45.5" height="24" rx="4"/>
+<rect class="tlon" x="520.0" y="204" width="370.8" height="24" rx="4"/>
+<text class="tlv" x="705.4" y="220" text-anchor="middle">bootstrap</text>
+<rect class="tlgood" x="890.8" y="204" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="927.9" y="220" text-anchor="middle">preview</text>
+<text class="tlb" x="8" y="260">phase (context)</text>
+<rect class="tlph" x="178.7" y="244" width="58.5" height="24" rx="4"/>
+<text class="tlv" x="207.9" y="260" text-anchor="middle">none</text>
+<rect class="tlph" x="237.2" y="244" width="19.5" height="24" rx="4"/>
+<rect class="tlph" x="256.7" y="244" width="173.3" height="24" rx="4"/>
+<text class="tlv" x="343.3" y="260" text-anchor="middle">planning</text>
+<rect class="tlph" x="520.0" y="244" width="16.0" height="24" rx="4"/>
+<rect class="tlph" x="536.0" y="244" width="57.1" height="24" rx="4"/>
+<text class="tlv" x="564.5" y="260" text-anchor="middle">syncing</text>
+<rect class="tlph" x="593.0" y="244" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="630.1" y="260" text-anchor="middle">validating</text>
+<rect class="tlph" x="667.2" y="244" width="125.5" height="24" rx="4"/>
+<text class="tlv" x="729.9" y="260" text-anchor="middle">repairing</text>
+<rect class="tlph" x="792.7" y="244" width="19.4" height="24" rx="4"/>
+<rect class="tlph" x="812.1" y="244" width="60.5" height="24" rx="4"/>
+<rect class="tlph" x="872.6" y="244" width="2.0" height="24" rx="4"/>
+<rect class="tlph" x="873.7" y="244" width="12.6" height="24" rx="4"/>
+<rect class="tlph" x="886.3" y="244" width="4.6" height="24" rx="4"/>
+<rect class="tlph" x="890.8" y="244" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="927.9" y="260" text-anchor="middle">none</text>
+<line class="tlax" x1="170" y1="286" x2="430" y2="286"/>
+<line class="tlax" x1="520" y1="286" x2="965" y2="286"/>
+<line class="tlax" x1="170.0" y1="286" x2="170.0" y2="291"/><text class="tls" x="170.0" y="304" text-anchor="middle">0:14</text>
+<line class="tlax" x1="235.0" y1="286" x2="235.0" y2="291"/><text class="tls" x="235.0" y="304" text-anchor="middle">0:17</text>
+<line class="tlax" x1="300.0" y1="286" x2="300.0" y2="291"/><text class="tls" x="300.0" y="304" text-anchor="middle">0:20</text>
+<line class="tlax" x1="365.0" y1="286" x2="365.0" y2="291"/><text class="tls" x="365.0" y="304" text-anchor="middle">0:23</text>
+<line class="tlax" x1="430.0" y1="286" x2="430.0" y2="291"/><text class="tls" x="430.0" y="304" text-anchor="middle">0:26</text>
+<line class="tlax" x1="542.8" y1="286" x2="542.8" y2="291"/><text class="tls" x="542.8" y="304" text-anchor="middle">5:30</text>
+<line class="tlax" x1="599.9" y1="286" x2="599.9" y2="291"/><text class="tls" x="599.9" y="304" text-anchor="middle">5:35</text>
+<line class="tlax" x1="656.9" y1="286" x2="656.9" y2="291"/><text class="tls" x="656.9" y="304" text-anchor="middle">5:40</text>
+<line class="tlax" x1="714.0" y1="286" x2="714.0" y2="291"/><text class="tls" x="714.0" y="304" text-anchor="middle">5:45</text>
+<line class="tlax" x1="771.0" y1="286" x2="771.0" y2="291"/><text class="tls" x="771.0" y="304" text-anchor="middle">5:50</text>
+<line class="tlax" x1="828.1" y1="286" x2="828.1" y2="291"/><text class="tls" x="828.1" y="304" text-anchor="middle">5:55</text>
+<line class="tlax" x1="885.1" y1="286" x2="885.1" y2="291"/><text class="tls" x="885.1" y="304" text-anchor="middle">6:00</text>
+<line class="tlax" x1="942.2" y1="286" x2="942.2" y2="291"/><text class="tls" x="942.2" y="304" text-anchor="middle">6:05</text>
+<text class="tls" x="475.0" y="26" text-anchor="middle">≈ 5 min of writing cut</text>
+<path d="M434,34 L516,34" stroke="var(--kiln-muted)" stroke-dasharray="4 4" fill="none"/>
+<text class="tls" x="565" y="320" text-anchor="middle">time since recording start (minutes:seconds)</text>
+<text x="913.7" y="99" text-anchor="middle" style="font:9.5px var(--kiln-sans);fill:var(--kiln-text)">bridging</text></svg></div>
+    <div class="prose">
+      <p>During validating and repairing, <code>generation</code> fades and hides, so the preview shows with the testing badge. When the build ends, <code>activity</code> enters <code>bridging</code> and the overlay comes back for 4 seconds. Meanwhile <code>screen</code> switches to the preview, the iframe loads, and <code>coldStart</code> runs its own short show-and-fade cycle. When the bridge ends, the overlay fades and the site is visible. Each region moved on its own clock, and no code coordinated them by hand.</p>
+      <p class="muted">The phase row is not a region; it is the build phase stored in the machine's context, which the animation follows. The short <code>validating*</code> after <code>updating_preview</code> is a stale value, explained under "Gains and costs".</p>
+    </div>
+  </section>
+
+  <section id="compare" aria-labelledby="compare-title">
+    <h2 id="compare-title">The same rules, written both ways <span class="count">4 comparisons</span></h2>
+    <h3>1. The 4-second bridge after a build</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">use-preview-generation-overlay.ts</span></figcaption><pre><code>const prevIsGenerating = useRef(isGenerating);
+const [bridging, setBridging] = useState(false);
+
+useEffect(() =&gt; {
+  // detect the &quot;build ended&quot; edge by hand
+  const wasGenerating = prevIsGenerating.current;
+  prevIsGenerating.current = isGenerating;
+  if (!wasGenerating || isGenerating) return;
+  setBridging(true);
+  void queryClientRef.current.invalidateQueries(/* app GET */);
+  const id = setTimeout(() =&gt; setBridging(false), BRIDGE_MS);
+  // remember to cancel it
+  return () =&gt; clearTimeout(id);
+}, [isGenerating]);
+
+// a second effect ends the bridge early
+useEffect(() =&gt; {
+  if (isSyncing &amp;&amp; bridging) setBridging(false);
+}, [isSyncing, bridging]);</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts</span></figcaption><pre><code>activity: {
+  initial: &quot;idle&quot;,
+  states: {
+    idle: {
+      always: { guard: &quot;isGenerating&quot;, target: &quot;generating&quot; },
+    },
+    generating: {
+      always: {
+        guard: &quot;generationEnded&quot;,
+        target: &quot;bridging&quot;,
+        actions: &quot;invalidateDeployment&quot;,
+      },
+    },
+    bridging: {
+      always: [
+        { guard: &quot;isGenerating&quot;, target: &quot;generating&quot; },
+        { guard: &quot;isSyncing&quot;, target: &quot;idle&quot; },
+      ],
+      // the timer dies when the state is left
+      after: { generationBridge: &quot;idle&quot; },
+    },
+  },
+},</code></pre></figure>
+</div>
+<p class="prose why">Without XState, the hook kept the previous value in a ref to spot the end of a build, started a timer, cancelled it in a cleanup, and used a second effect to end the bridge early. With XState, <code>bridging</code> is a state: entering it starts the timer, and leaving it for any reason cancels the timer.</p>
+    <h3>2. "A timeout must never clear an error"</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-provider.tsx</span></figcaption><pre><code>const beginFade = useCallback((fromError = false) =&gt; {
+  clearTimeout(timeoutRef.current);
+  setLifecycle((current) =&gt; {
+    if (current.phase === &quot;hidden&quot;) return current;
+    // The safety timeout must NOT fade an error.
+    if (current.phase === &quot;error&quot; &amp;&amp; !fromError)
+      return current;
+    return { phase: &quot;fading&quot;, error: null };
+  });
+  fadeRef.current = setTimeout(
+    () =&gt; setLifecycle({ phase: &quot;hidden&quot;, error: null }), FADE_MS);
+}, []);
+// …and every caller must pass the right fromError flag.</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts</span></figcaption><pre><code>visible: {
+  after: {
+    lifecycleInit: { actions: &quot;sendLifecycleInit&quot; },
+    // the 30 s safety timer lives here
+    coldStartDeadline: &quot;fading&quot;,
+  },
+  on: {
+    FRAME_READY: { target: &quot;fading&quot;, actions: &quot;sendLifecycleInit&quot; },
+  },
+},
+error: {
+  // No `after` in this state: no timer can ever fire here.
+  on: {
+    FRAME_READY: {
+      target: &quot;fading&quot;,
+      actions: [&quot;clearFrameError&quot;, &quot;sendLifecycleInit&quot;],
+    },
+  },
+},</code></pre></figure>
+</div>
+<p class="prose why">Before, the rule was an <code>if</code> in a shared function plus a flag that every caller had to pass correctly. After, the rule is built into the structure: the 30-second timer belongs to <code>visible</code>, and <code>error</code> has no timer, so nothing can fire there.</p>
+    <h3>3. Which screen wins</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-content.tsx</span></figcaption><pre><code>// PreviewContent: the order of these checks IS the rule.
+if (ensureState.isVerifying) return &lt;PreviewLoadingScene … /&gt;;
+if (activeGeneration?.is_bootstrap &amp;&amp;
+    (status === &quot;running&quot; || status === &quot;syncing&quot;))
+  return &lt;PreviewLoadingScene … /&gt;;
+switch (previewState.status) {
+  case &quot;running&quot;: case &quot;syncing&quot;:
+    return (&lt;&gt;
+      &lt;PreviewIframe … /&gt;
+      &lt;PreviewGenerationOverlay {...generationOverlay} /&gt;
+      {isTesting &amp;&amp; &lt;PreviewTestingBadge /&gt;}
+      &lt;PreviewColdStartOverlay
+        suppressed={generationOverlay.phase !== &quot;hidden&quot;} /&gt;
+    &lt;/&gt;);
+  …
+}</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts + selectors</span></figcaption><pre><code>screen: {
+  initial: &quot;deciding&quot;,
+  on: { RECONCILE: { target: &quot;.deciding&quot; } },
+  states: {
+    deciding: {
+      always: [                       // first match wins, in this order
+        { guard: &quot;isVerifying&quot;, target: &quot;verifying&quot; },
+        { guard: &quot;isBootstrap&quot;, target: &quot;bootstrap&quot; },
+        { guard: &quot;isLoading&quot;, target: &quot;loading&quot; },
+        { guard: &quot;isTimedOut&quot;, target: &quot;timeout&quot; },
+        { guard: &quot;isProvisioning&quot;, target: &quot;provisioning&quot; },
+        { guard: &quot;isPreviewAvailable&quot;, target: &quot;preview&quot; },
+        …
+      ],
+    },
+  },
+},
+// selector: the cold-start overlay waits for the build overlay
+showColdStart:
+  snapshot.value.generation === &quot;hidden&quot; &amp;&amp;
+  snapshot.value.coldStart !== &quot;hidden&quot;</code></pre></figure>
+</div>
+<p class="prose why">Before, the order of <code>if</code> statements in a render function was the precedence, and the wake-up overlay learned about the build overlay through a prop. After, the order is an explicit list of named guards, the cross-overlay rule is one line in the selector, and both show in the generated diagram.</p>
+    <h3>4. Testing a timer</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">old preview-generation-overlay.test.tsx</span></figcaption><pre><code>// old overlay test: real timers, the test waits it out
+await act(() =&gt; new Promise((r) =&gt;
+  setTimeout(r, PREVIEW_GENERATION_TO_SYNCING_BRIDGE_MS + 50)));</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.test.ts</span></figcaption><pre><code>// machine test: a simulated clock, no React, no waiting
+observe({ isGenerating: true });
+observe({ isGenerating: false });
+clock.increment(PREVIEW_GENERATION_TO_SYNCING_BRIDGE_MS - 1);
+expect(view().generation.phase).toBe(&quot;visible&quot;);
+clock.increment(1);
+expect(view().generation.phase).toBe(&quot;fading&quot;);</code></pre></figure>
+</div>
+<p class="prose why">The old test rendered the hook and really waited more than 4 seconds. The machine test moves a simulated clock, checks the exact millisecond the bridge ends, and runs without rendering.</p>
+  </section>
+
+  <section id="costs" aria-labelledby="costs-title">
+    <h2 id="costs-title">Gains and costs <span class="count">7 gains · 4 costs</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Question</th><th scope="col">Without XState</th><th scope="col">With XState</th></tr></thead>
+      <tbody>
+        <tr><td>Where is the logic?</td><td>Three hooks and a provider, plus the order of checks in a render function</td><td><code>preview-loading.machine.ts</code> and a small selector file</td></tr>
+        <tr><td>Who owns the timers?</td><td>Five timers in three files, in refs and effects, cancelled by hand</td><td>Five named <code>delays</code>, started and stopped with their states</td></tr>
+        <tr><td>Can you see the flow?</td><td>Only by reading all the code</td><td>A generated diagram in <code>docs/flows/editor-preview-loading.md</code>, checked by a test</td></tr>
+        <tr><td>Impossible combinations?</td><td>Possible: flags and phases could disagree across hooks</td><td>Each region is in exactly one state; a test proves every state is reachable and has a way out</td></tr>
+        <tr><td>Timer tests</td><td>Real waiting in rendered hooks</td><td>Simulated clock, no React</td></tr>
+        <tr><td>Debugging</td><td>Log lines in each hook</td><td>One subscription logs every region change to <code>DEWA_PREVIEW_DEBUG</code></td></tr>
+        <tr><td>Reviewing a change</td><td>Read the effects and imagine the timing</td><td>Read the machine diff and the diagram diff</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Costs</h3>
+    <div class="prose"><ul>
+      <li><strong>More lines.</strong> About 670 lines in five files became about 910 in seven; the machine file alone is 304. The gain is in finding and checking rules, not in typing less.</li>
+      <li><strong>Two packages.</strong> <code>xstate</code> 5.33.2 and <code>@xstate/react</code> 6.1.0. The bundle cost for this app is not measured yet (Sitrep measured about 14 KiB gzipped).</li>
+      <li><strong>New ideas to learn.</strong> The table of XState ideas above is the minimum a reader needs.</li>
+      <li><strong>Its own traps.</strong> <code>LOAD_ARMED</code> once used <code>reenter: true</code> to move from a region to its own child. In a parallel machine that restarts every region, so each iframe load cut the bridge and the fade short. The debug log caught it, not the tests. Commit <code>2d808714</code> fixed it and added a regression test.</li>
+    </ul></div>
+    <div class="callout prose">
+      <p><strong>What XState does not fix.</strong> The machine is only as correct as its inputs. When a build ends, the live stream stops before the next poll arrives, so for about half a second the machine still sees the last polled build record, Validating, and starts to fade the overlay. The old code did the same. Fixing it needs better data, such as clearing the cached record when the stream ends. That is a decision for LB-2.</p>
+    </div>
+  </section>
+
+  <section id="change" aria-labelledby="change-title">
+    <h2 id="change-title">How to change the machine <span class="count">5 steps</span></h2>
+    <ol class="steps">
+      <li><div class="rail"><span class="code">1</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Edit the machine</span></div><p>Add a state, guard or delay by name in <code>preview-loading.machine.ts</code>. Keep React and fetching out of it.</p></div></li>
+      <li><div class="rail"><span class="code">2</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Update the selector</span></div><p>If what the panel shows changes, update <code>preview-loading.selectors.ts</code>.</p></div></li>
+      <li><div class="rail"><span class="code">3</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Add a test</span></div><p>Add it to <code>__tests__/preview-loading.machine.test.ts</code>, with the simulated clock for anything timed.</p></div></li>
+      <li><div class="rail"><span class="code">4</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Regenerate the diagram</span></div><p>Run <code>pnpm --dir apps/web vitest run src/domains/editor/preview/__tests__/preview-loading.machine.test.ts -u</code> and review the diagram's diff.</p></div></li>
+      <li><div class="rail"><span class="code">5</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Check it in a browser</span></div><p>Run <code>pnpm --dir apps/web test:editor-loading</code>, then open the editor with <code>localStorage.setItem("DEWA_PREVIEW_DEBUG", "1")</code> and watch the log.</p></div></li>
+    </ol>
+  </section>
+
+  <footer class="mono">Written for MR !718, 11 Nov 2026. Built with the proposed Kiln design system: tokens, fonts and theme convention from the Kiln artifact guide proposal.</footer>
+</div>
+</body>
+</html>
