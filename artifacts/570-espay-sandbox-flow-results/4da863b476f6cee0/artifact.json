@@ -1,0 +1,17 @@
+{
+  "slug": "570-espay-sandbox-flow-results",
+  "title": "Espay sandbox: whole-flow test results (#570)",
+  "framework": "html",
+  "metadata": {
+    "description": "Espay sandbox results for issue #570 and the proposed payment flow: one-time card and VA payments work end to end; saved-card renewals fail with IRF and capture, void and refund lack a privilege after Espay enabled the card endpoints.",
+    "tags": [
+      "570",
+      "espay",
+      "payments",
+      "spike",
+      "sandbox"
+    ]
+  },
+  "revision": "4da863b476f6cee0",
+  "updated_at": "2026-11-11T06:45:10.468Z"
+}
