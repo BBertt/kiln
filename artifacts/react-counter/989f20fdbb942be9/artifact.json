@@ -1,0 +1,13 @@
+{
+  "slug": "react-counter",
+  "title": "React counter",
+  "framework": "react",
+  "metadata": {
+    "description": "An interactive React island.",
+    "tags": [
+      "example"
+    ]
+  },
+  "revision": "989f20fdbb942be9",
+  "updated_at": "2026-11-11T06:46:05.974Z"
+}
