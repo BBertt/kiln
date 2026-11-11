@@ -1,0 +1,2 @@
+<script setup>import { ref } from 'vue'; const count = ref(0);</script>
+<template><main class="p-10"><h1 class="text-3xl font-medium tracking-tight mb-6">Vue workshop</h1><button class="rounded-xl bg-kiln-accent-wash text-kiln-accent-text p-4 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kiln-accent-strong" @click="count++">Count: {{ count }}</button></main></template>
