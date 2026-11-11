@@ -1,0 +1,18 @@
+{
+  "slug": "563-xstate-loading-machine-explained",
+  "title": "How XState runs the editor's loading flow (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "Explainer of preview-loading.machine.ts in the proposed Kiln design system: what the machine decides, XState ideas mapped to the file, the five regions during a recorded build, side-by-side comparisons with the pre-XState code, gains and costs.",
+    "tags": [
+      "563",
+      "xstate",
+      "editor",
+      "statechart",
+      "explainer",
+      "kiln-design-proposal"
+    ]
+  },
+  "revision": "25c36ff330ed5baa",
+  "updated_at": "2026-11-11T04:24:35.882Z"
+}
