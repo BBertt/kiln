@@ -1,0 +1,17 @@
+{
+  "slug": "563-xstate-loading-machine-explained",
+  "title": "How XState runs the editor's loading flow (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "Plain-English explainer of preview-loading.machine.ts: what it decides, XState ideas mapped to the file, the five regions during a real recorded build, side-by-side comparisons with the pre-XState code, and what XState costs.",
+    "tags": [
+      "563",
+      "xstate",
+      "editor",
+      "statechart",
+      "explainer"
+    ]
+  },
+  "revision": "a6fc477dc9841203",
+  "updated_at": "2026-11-11T04:16:18.080Z"
+}
