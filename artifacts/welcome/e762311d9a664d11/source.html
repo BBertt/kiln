@@ -1,0 +1,7 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  body { margin: 0; background: var(--kiln-bg); color: var(--kiln-text); font-family: var(--kiln-font-sans); }
+</style>
+<main class="min-h-screen p-10"><h1 class="text-3xl font-medium tracking-tight">Your ideas, fired into form.</h1><p class="text-kiln-muted">Revision two. Updated live through MCP.</p><button class="mt-6 rounded-xl bg-kiln-accent-wash text-kiln-accent-text p-4 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kiln-accent-strong" onclick="this.textContent='It works!'">Try this artifact</button></main>
