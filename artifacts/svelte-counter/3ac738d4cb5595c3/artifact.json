@@ -1,0 +1,12 @@
+{
+  "slug": "svelte-counter",
+  "title": "Svelte counter",
+  "framework": "svelte",
+  "metadata": {
+    "tags": [
+      "example"
+    ]
+  },
+  "revision": "3ac738d4cb5595c3",
+  "updated_at": "2026-11-11T06:46:44.980Z"
+}
