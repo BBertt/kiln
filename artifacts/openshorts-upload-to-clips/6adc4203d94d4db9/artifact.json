@@ -1,0 +1,16 @@
+{
+  "slug": "openshorts-upload-to-clips",
+  "title": "How OpenShorts turns uploads into clips",
+  "framework": "html",
+  "metadata": {
+    "description": "A plain-English walkthrough of the uploaded-video clipping pipeline, AI calls, local processing and BytePlus implications.",
+    "tags": [
+      "openshorts",
+      "video",
+      "pipeline",
+      "explainer"
+    ]
+  },
+  "revision": "6adc4203d94d4db9",
+  "updated_at": "2026-11-11T08:47:24.489Z"
+}
