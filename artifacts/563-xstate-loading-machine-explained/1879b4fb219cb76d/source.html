@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From backend progress to the editor screen (#563)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..600&family=JetBrains+Mono:wght@400..500&display=swap">
+<style>
+  /* Kiln design system (proposal, 10 Nov 2026). Every color comes from this token block. */
+  :root {
+    color-scheme: light;
+    --kiln-bg: #faf9f5; --kiln-surface: #ffffff; --kiln-surface-2: #f0eee6;
+    --kiln-line: #e8e6dc; --kiln-line-strong: #d1cfc5;
+    --kiln-text: #141413; --kiln-muted: #5e5d59;
+    --kiln-accent: #d97757; --kiln-accent-strong: #c6613f;
+    --kiln-ok: #1d6956; --kiln-ok-wash: #e9f3ef;
+    --kiln-warn: #8a5a00; --kiln-warn-wash: #faf7e6;
+    --kiln-bad: #b3261e; --kiln-bad-wash: #fbeceb;
+    --kiln-accent-wash: color-mix(in srgb, var(--kiln-accent) 16%, var(--kiln-surface));
+    --kiln-sans: "Anthropic Sans", "Hanken Grotesk", system-ui, sans-serif;
+    --kiln-mono: "Anthropic Mono", "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --kiln-bg: #191919; --kiln-surface: #1f1f1f; --kiln-surface-2: #2a2a2a;
+      --kiln-line: #2e2e2e; --kiln-line-strong: #3d3d3d;
+      --kiln-text: #efefef; --kiln-muted: #9c9c9c;
+      --kiln-ok: #53c556; --kiln-ok-wash: #263627; --kiln-warn: #e49c06; --kiln-warn-wash: #3b301c;
+      --kiln-bad: #f17778; --kiln-bad-wash: #3c2b2b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --kiln-bg: #191919; --kiln-surface: #1f1f1f; --kiln-surface-2: #2a2a2a;
+    --kiln-line: #2e2e2e; --kiln-line-strong: #3d3d3d;
+    --kiln-text: #efefef; --kiln-muted: #9c9c9c;
+    --kiln-ok: #53c556; --kiln-ok-wash: #263627; --kiln-warn: #e49c06; --kiln-warn-wash: #3b301c;
+    --kiln-bad: #f17778; --kiln-bad-wash: #3c2b2b;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--kiln-bg); }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font-family: var(--kiln-sans); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-block: 40px 72px; }
+  .prose { max-width: 68ch; }
+  a { color: var(--kiln-text); text-decoration: underline; text-decoration-color: var(--kiln-accent); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; border-radius: 4px; }
+  .mono { font-family: var(--kiln-mono); font-size: 12.5px; letter-spacing: 0.01em; }
+  .muted { color: var(--kiln-muted); }
+  h1 { margin: 0; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; text-wrap: balance; }
+  h2 { margin: 0 0 16px; font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  h2 .count { font-family: var(--kiln-mono); font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--kiln-muted); }
+  h3 { margin: 28px 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--kiln-muted); }
+  code { font-variant-ligatures: none; font-family: var(--kiln-mono); font-size: 0.84em; background: var(--kiln-surface-2); border-radius: 5px; padding: 1px 5px; }
+  pre { font-family: var(--kiln-mono); font-size: 12px; line-height: 1.6; background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 10px; padding: 14px 16px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-variant-ligatures: none; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  header.top { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
+  header.top .lead { margin: 0; color: var(--kiln-muted); font-size: 17px; max-width: 64ch; }
+  nav.toc { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--kiln-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--kiln-line); margin: 0 -16px 40px; padding: 8px 16px; }
+  nav.toc ul { overflow-x: auto; list-style: none; display: flex; gap: 4px 18px; margin: 0; padding: 2px 0; white-space: nowrap; font-size: 14px; }
+  nav.toc li { margin: 0; }
+  nav.toc a { text-decoration: none; color: var(--kiln-muted); }
+  nav.toc a:hover { color: var(--kiln-text); text-decoration: underline; text-decoration-color: var(--kiln-accent); }
+  section { padding-bottom: 48px; margin-bottom: 48px; border-bottom: 1px solid var(--kiln-line); scroll-margin-top: 64px; }
+  section:last-of-type { border-bottom: 0; margin-bottom: 0; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-family: var(--kiln-mono); font-size: 12px; line-height: 1.5; white-space: nowrap; background: var(--kiln-surface-2); color: var(--kiln-muted); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border: 1px solid var(--kiln-line); border-radius: 16px; background: var(--kiln-surface); margin: 0 0 18px; }
+  .stat { padding: 16px 18px; border-right: 1px solid var(--kiln-line); }
+  .stat:last-child { border-right: 0; }
+  .stat .n { font-size: 28px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.1; }
+  .stat .l { font-family: var(--kiln-mono); font-size: 12px; color: var(--kiln-muted); margin-top: 6px; }
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .verdict, .pair { grid-template-columns: 1fr; } .stat { border-right: 0; border-bottom: 1px solid var(--kiln-line); } }
+  .side { border-top: 2px solid var(--kiln-line-strong); padding-top: 10px; }
+  .side.ok { border-top-color: var(--kiln-ok); }
+  .side.warn { border-top-color: var(--kiln-warn); }
+  .side h3 { margin: 0 0 6px; font-size: 15px; }
+  .side ul { margin: 0; font-size: 15px; color: var(--kiln-muted); }
+
+  .figure { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 14px; margin: 0 0 14px; overflow-x: auto; }
+  .figure svg { display: block; width: 100%; min-width: 880px; height: auto; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface); margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.5; }
+  th { text-align: left; font-family: var(--kiln-mono); font-weight: 400; font-size: 12px; color: var(--kiln-muted); background: var(--kiln-surface-2); padding: 9px 12px; border-bottom: 1px solid var(--kiln-line); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--kiln-line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: 12.5px; }
+  td:first-child { font-weight: 600; }
+  .callout { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 12px 16px; margin: 0 0 18px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 10px; }
+  .snippet { margin: 0; min-width: 0; }
+  .snippet figcaption { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+  .why { color: var(--kiln-muted); font-size: 15px; }
+  .regions { list-style: none; padding: 0; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .regions li { margin: 0; font-size: 15px; color: var(--kiln-muted); }
+  .regions code { color: var(--kiln-text); }
+
+  .steps { list-style: none; padding: 0; margin: 0; }
+  .steps > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 14px; margin: 0; }
+  .steps .rail { display: flex; flex-direction: column; align-items: center; }
+  .steps .code { font-family: var(--kiln-mono); font-size: 12px; font-weight: 500; width: 36px; height: 30px; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--kiln-line); background: var(--kiln-bg); }
+  .steps .line { flex: 1; width: 2px; background: var(--kiln-line); margin-block: 4px; min-height: 16px; }
+  .steps > li:last-child .line { display: none; }
+  .steps .body { padding-bottom: 20px; min-width: 0; }
+  .steps .head { min-height: 30px; display: flex; align-items: center; }
+  .steps .title { font-size: 16px; font-weight: 600; }
+  .steps .body p { color: var(--kiln-muted); font-size: 15px; margin: 2px 0 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 0 0 18px; }
+  .io { border-top: 2px solid var(--kiln-line-strong); padding-top: 10px; }
+  .io p { margin: 8px 0 0; font-size: 15px; color: var(--kiln-muted); }
+  .io code { color: var(--kiln-text); }
+  td .pill { margin-left: 6px; }
+  footer { color: var(--kiln-muted); }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="mono muted" style="margin:0">Issue #563 · MR !718 · commit 25ac80b0 · updated 11 Nov 2026</p>
+    <h1>From backend progress to the editor screen</h1>
+    <p class="lead">Two API paths carry generation progress: the live chat stream and the saved app response. Follow their data into the frontend, then see how XState chooses the loading screen.</p>
+  </header>
+
+  <nav class="toc" aria-label="Sections">
+    <ul>
+      <li><a href="#requests">API requests</a></li>
+      <li><a href="#transport">Phase journey</a></li>
+      <li><a href="#reload">After a reload</a></li>
+      <li><a href="#input-sources">All inputs</a></li>
+      <li><a href="#boundary">XState boundary</a></li>
+      <li><a href="#glance">At a glance</a></li>
+      <li><a href="#decides">What it decides</a></li>
+      <li><a href="#before">Before</a></li>
+      <li><a href="#after">After</a></li>
+      <li><a href="#files">Files</a></li>
+      <li><a href="#wiring">Frontend wiring</a></li>
+      <li><a href="#ideas">XState ideas</a></li>
+      <li><a href="#regions">Regions</a></li>
+      <li><a href="#phases">Phases</a></li>
+      <li><a href="#build">A real build</a></li>
+      <li><a href="#compare">Side by side</a></li>
+      <li><a href="#costs">Gains and costs</a></li>
+      <li><a href="#change">Changing it</a></li>
+    </ul>
+  </nav>
+
+<section id="requests" aria-labelledby="requests-title">
+    <h2 id="requests-title">Which requests does the browser make? <span class="count">2 reads · 1 workspace check</span></h2>
+    <div class="callout prose"><p>The backend reports generation progress and deployment state. The frontend combines those reports with iframe readiness. XState decides what the editor displays.</p><p>Adding <code>phase</code> to <code>active_generations</code> preserves it across a browser reload. It does not make the database the only retrieval path. The browser still receives phase through the live stream and the app GET.</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Request</th><th>When the frontend uses it</th><th>What the backend returns</th><th>Frontend receiver</th></tr></thead><tbody>
+    <tr><td><code>POST /api/v1/chat/stream</code></td><td>Sends chat commands with <code>app_id</code>. A generation runs through this connection.</td><td>An ongoing response stream. Its decoded state includes <code>status</code> and <code>progress</code>: phase, label, plan and file changes.</td><td><code>ChatRuntimeProvider</code> → chat runtime → <code>BuildProgressMirror</code> → build-progress store</td></tr>
+    <tr><td><code>GET /api/v1/apps/{app_id}</code></td><td>Reads the app on load and polls it while the editor runs.</td><td>A JSON snapshot with <code>active_generation</code> and <code>current_dev_deployment</code>.</td><td>React Query, the shared cache of API results. Preview and chat hooks read the same cached app.</td></tr>
+    <tr><td><code>POST /api/v1/apps/{app_id}/deployments/dev/ensure</code></td><td>Checks the workspace on editor load when an existing dev deployment is present, or on retry.</td><td>The deployment response. The hook refreshes the app query.</td><td><code>useEnsureDevDeployment</code>. Its pending flag becomes <code>isVerifying</code>.</td></tr>
+    </tbody></table></div>
+    <div class="prose"><p>These are the requests relevant to this loading flow, not every editor endpoint. The API reads the database. The browser never connects to the database directly.</p><p>Polling means fetching the same endpoint repeatedly. The preview requests a new app snapshot every 5 seconds when running, and every 3 seconds otherwise. Chat recovery also requests it every 3 seconds while an active-generation marker exists. These hooks share a cache, not separate app endpoints.</p></div>
+  </section>
+  <section id="transport" aria-labelledby="transport-title">
+    <h2 id="transport-title">Follow one phase from backend to screen <span class="count">writing_code</span></h2>
+    <div class="prose"><p>The turn writes its phase into live chat state and persists progress on its active-generation marker. These are separate updates. The stream and a polled app response can briefly disagree.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 520" role="img" aria-label="A generation phase travels through the live stream or the app GET, then the frontend chooses a phase and draws the screen">
+<defs><marker id="net563arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.net563box{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong)}.net563txt{fill:var(--kiln-text);font:600 14px var(--kiln-sans)}.net563sub{fill:var(--kiln-muted);font:12px var(--kiln-sans)}.net563code{fill:var(--kiln-text);font:11px var(--kiln-mono)}.net563line{fill:none;stroke:var(--kiln-muted);stroke-width:1.5;marker-end:url(#net563arrow)}</style>
+<text class="net563txt" x="20" y="24">BACKEND</text><text class="net563txt" x="425" y="24">HTTP</text><text class="net563txt" x="670" y="24">FRONTEND</text>
+<line x1="382" y1="40" x2="382" y2="350" stroke="var(--kiln-line)" stroke-dasharray="4 4"/>
+<line x1="643" y1="40" x2="643" y2="350" stroke="var(--kiln-line)" stroke-dasharray="4 4"/>
+<rect class="net563box" x="20" y="65" width="330" height="100" rx="10"/>
+<text class="net563txt" x="36" y="91">The turn reports writing_code</text><text class="net563code" x="36" y="117">ChatState.progress.phase</text><text class="net563sub" x="36" y="142">In-memory state of the live turn</text>
+<path class="net563line" d="M350 115H665"/><text class="net563code" x="402" y="88">POST /api/v1/chat/stream</text><text class="net563sub" x="407" y="138">ongoing response stream →</text>
+<rect class="net563box" x="670" y="65" width="290" height="100" rx="10"/>
+<text class="net563txt" x="686" y="91">Chat runtime → mirror</text><text class="net563code" x="686" y="117">build-progress-store.progress</text><text class="net563sub" x="686" y="142">phase + label + file counts</text>
+<path class="net563line" d="M185 165V221"/><text class="net563sub" x="201" y="199">also persists progress*</text>
+<rect class="net563box" x="20" y="225" width="330" height="100" rx="10"/>
+<text class="net563txt" x="36" y="251">active_generations row</text><text class="net563code" x="36" y="277">phase = writing_code</text><text class="net563sub" x="36" y="302">Survives a browser reload</text>
+<path class="net563line" d="M350 275H665"/><text class="net563code" x="399" y="248">GET /api/v1/apps/{app_id}</text><text class="net563sub" x="409" y="298">repeated JSON responses →</text>
+<rect class="net563box" x="670" y="225" width="290" height="100" rx="10"/>
+<text class="net563txt" x="686" y="251">React Query cache</text><text class="net563code" x="686" y="277">app.active_generation.phase</text><text class="net563sub" x="686" y="302">Also contains deployment state</text>
+<path class="net563line" d="M940 165V370H680V389"/><path class="net563line" d="M815 325V365H480V389"/>
+<rect class="net563box" x="290" y="393" width="670" height="65" rx="10"/>
+<text class="net563txt" x="308" y="419">usePreviewLoadingViewModel → OBSERVE → XState</text><text class="net563sub" x="308" y="443">Live progress exists? Use its phase. Otherwise use the saved marker phase.</text>
+<path class="net563line" d="M625 458V487"/><text class="net563txt" x="411" y="509">Selector → PreviewContent → screen + animation</text>
+<text class="net563sub" x="20" y="366">*Separate writes, not an atomic broadcast.</text>
+</svg></div>
+    <h3>What the backend gives the frontend</h3>
+    <div class="prose"><p>These are illustrative payload fragments, not a network capture. The left side shows decoded stream state, not the stream protocol. The right side shows app JSON. Omitted fields and example values are marked.</p></div>
+    <div class="pair"><figure class="snippet"><figcaption>Live stream · decoded state</figcaption><pre><code>// Relevant decoded state, not raw stream bytes.
+// Other fields are omitted.
+{
+  status: &quot;generating&quot;,
+  progress: {
+    phase: &quot;writing_code&quot;,
+    label: &quot;Menulis kode…&quot;,
+    plan: { editable_files: [/* planned paths */] },
+    fileChanges: [/* written-file receipts */]
+  }
+}</code></pre></figure><figure class="snippet"><figcaption>App GET · example response fragment</figcaption><pre><code>// Relevant fields in the app GET response body.
+// Other fields are omitted.
+{
+  active_generation: {
+    phase: &quot;writing_code&quot;,
+    progress_label: &quot;Menulis kode…&quot;,
+    is_bootstrap: true
+  },
+  current_dev_deployment: {
+    status: &quot;running&quot;,
+    preview_url: &quot;https://preview.example&quot;,
+    files_syncing: false,
+    synced_snapshot_version: 12
+  }
+}</code></pre></figure></div>
+    <div class="prose"><p>The stream supplies the plan and file receipts. <code>BuildProgressMirror</code> turns those into <code>filesWritten</code> and <code>filesPlanned</code>. The saved marker contains only <code>phase</code>, <code>progress_label</code> and <code>is_bootstrap</code>. It does not recover the live file counts.</p></div>
+    <h3>Which phase wins if both paths have data?</h3>
+    <pre><code>// preview-loading.machine.ts: generationPhase
+return context.progress
+  ? (context.progress.phase ?? null)
+  : (context.activeGeneration?.phase ?? null);</code></pre>
+    <div class="prose"><p>If live progress exists, its phase wins. If it does not, the saved marker supplies the phase. Live progress with a missing phase returns <code>null</code>, even when the saved marker has a phase.</p><p>This rule chooses the phase, not every display field. The overlay copy separately prefers the marker's <code>progress_label</code>. Live phase and displayed copy can therefore reflect different update times.</p><p><code>updating_preview</code> is stream-only. The backend reports it after terminal persistence removes the marker. It does not recreate an active-generation row for that final step.</p></div>
+  </section>
+  <section id="reload" aria-labelledby="reload-title">
+    <h2 id="reload-title">What changes when I reload? <span class="count">live turn vs recovered turn</span></h2>
+    <div class="verdict"><div class="side"><h3>While this tab has the live stream</h3><ol><li>The browser sends the chat POST.</li><li>The response keeps delivering chat state.</li><li>The mirror copies live progress into the store.</li><li>The phase rule uses that live progress.</li></ol></div>
+    <div class="side"><h3>After the browser reloads</h3><ol><li>The original live connection is gone.</li><li>The browser fetches the app GET.</li><li>The saved marker says that generation is still running and supplies its phase.</li><li>The editor polls until the marker clears, then refreshes chat history.</li></ol></div></div>
+    <div class="prose"><p>The reload path does not reconnect to the original generation stream. The saved marker keeps the editor informed while the backend continues.</p><p>The backend removes the marker when it saves the terminal result. The recovery hook then fetches the final chat history. During a live turn, the stream's completion callback refreshes the app instead.</p></div>
+    <div class="callout prose"><p>One phase vocabulary, two delivery paths. The new column removes the need to infer phase from label text after a reload. It does not unify the stream and app response into one channel.</p></div>
+  </section>
+  <section id="input-sources" aria-labelledby="input-sources-title">
+    <h2 id="input-sources-title">Where do all the screen inputs come from? <span class="count">backend + browser</span></h2>
+    <div class="table-wrap"><table><thead><tr><th>Input to the loading flow</th><th>Original source</th><th>Frontend path</th></tr></thead><tbody>
+    <tr><td><code>progress</code></td><td>Chat stream: phase, label, plan and file receipts</td><td>Chat runtime → mirror → build-progress store → <code>OBSERVE</code></td></tr>
+    <tr><td><code>activeGeneration</code></td><td>App GET: <code>active_generation</code></td><td>Query cache → <code>useActiveGenerationSignal</code> → <code>OBSERVE</code></td></tr>
+    <tr><td><code>previewState</code></td><td>App GET: <code>current_dev_deployment</code></td><td><code>usePreviewViewModel</code> derives loading, provisioning, running, syncing, failed or stopped → <code>OBSERVE</code></td></tr>
+    <tr><td><code>isGenerating</code></td><td>Local live-request flag OR presence of the saved marker</td><td>Editor store + app query → view model → <code>OBSERVE</code></td></tr>
+    <tr><td><code>isVerifying</code></td><td>Local pending flag for the workspace-check request</td><td>Ensure hook → <code>PreviewContent</code> → view model → <code>OBSERVE</code>. This is not a backend generation phase.</td></tr>
+    <tr><td><code>LOAD_ARMED</code>, <code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code></td><td>Iframe mounting or reloading, and browser <code>postMessage</code> events from the preview page</td><td>Provider → actor directly. The provider checks the message source and origin.</td></tr>
+    <tr><td>Timeouts and fades</td><td>XState's own timers</td><td>Timers update the actor. No backend request reports a fade.</td></tr>
+    </tbody></table></div>
+    <div class="prose"><p>A running deployment does not prove that its iframe is ready. That is why the frontend needs browser messages as well as the app GET.</p></div>
+  </section>
+  <section id="boundary" aria-labelledby="boundary-title">
+    <h2 id="boundary-title">What does XState do with these inputs? <span class="count">no network requests</span></h2>
+    <div class="prose"><p>The view model gathers values. The actor applies display rules. The selector prepares props. The component draws them. Only the code outside the actor talks to the API.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 640" role="img" aria-label="Frontend interaction loop: inputs go through view model, actor, selector and screen. An emitted refresh goes through the provider and React Query back to the backend.">
+<defs><marker id="obs563arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--kiln-muted)"/></marker><marker id="obs563green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--kiln-ok)"/></marker></defs>
+<style>.obs563box{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong);stroke-width:1.4}.obs563actor{fill:var(--kiln-surface);stroke:var(--kiln-text);stroke-width:1.6}.obs563head{font:600 14px var(--kiln-sans);fill:var(--kiln-text)}.obs563code{font:11.5px var(--kiln-mono);fill:var(--kiln-text)}.obs563sub{font:12px var(--kiln-sans);fill:var(--kiln-muted)}.obs563line{fill:none;stroke:var(--kiln-muted);stroke-width:1.6;marker-end:url(#obs563arr)}.obs563effect{fill:none;stroke:var(--kiln-ok);stroke-width:1.6;stroke-dasharray:6 4;marker-end:url(#obs563green)}</style>
+<text class="obs563sub" x="20" y="22">Solid arrows: data to draw. Dashed arrows: an optional refresh request after generation ends.</text>
+<rect class="obs563box" x="20" y="85" width="210" height="100" rx="10"/>
+<text class="obs563head" x="35" y="111">Backend API</text><text class="obs563code" x="35" y="139">GET /api/v1/apps/{id}</text><text class="obs563sub" x="35" y="163">Also: the live chat stream</text>
+<rect class="obs563box" x="340" y="85" width="270" height="100" rx="10"/>
+<text class="obs563head" x="355" y="111">Frontend inputs</text><text class="obs563code" x="355" y="137">React Query + local stores</text><text class="obs563sub" x="355" y="160">App response, live progress, local flags</text>
+<path class="obs563line" d="M230 135H334"/><text class="obs563sub" x="247" y="123">response</text>
+<rect class="obs563box" x="675" y="85" width="285" height="100" rx="10"/>
+<text class="obs563head" x="690" y="111">View model gathers inputs</text><text class="obs563code" x="690" y="137">usePreviewLoadingViewModel</text><text class="obs563sub" x="690" y="160">Reads values after React updates</text>
+<path class="obs563line" d="M610 135H669"/><text class="obs563sub" x="621" y="123">1. read</text>
+<path class="obs563line" d="M817 185V277"/><text class="obs563code" x="832" y="224">2. send(OBSERVE)</text><text class="obs563sub" x="832" y="246">current input values</text>
+<rect class="obs563actor" x="675" y="283" width="285" height="120" rx="10"/>
+<text class="obs563head" x="690" y="309">XState actor</text><text class="obs563sub" x="690" y="334">Updates context, applies rules</text><text class="obs563sub" x="690" y="355">and owns timers and region states</text><text class="obs563code" x="690" y="382">NO fetch / DB / stream decoding</text>
+<rect class="obs563box" x="340" y="283" width="270" height="120" rx="10"/>
+<text class="obs563head" x="355" y="309">Selector</text><text class="obs563code" x="355" y="335">selectPreviewLoading</text><text class="obs563sub" x="355" y="359">snapshot → display props</text><text class="obs563sub" x="355" y="382">useSelector subscribes to changes</text>
+<path class="obs563line" d="M675 343H616"/><text class="obs563sub" x="612" y="270">3. snapshot</text>
+<rect class="obs563box" x="20" y="283" width="210" height="120" rx="10"/>
+<text class="obs563head" x="35" y="309">PreviewContent</text><text class="obs563sub" x="35" y="335">Draws the main screen,</text><text class="obs563sub" x="35" y="357">overlays and animation</text><text class="obs563code" x="35" y="382">switch (loading.screen)</text>
+<path class="obs563line" d="M340 343H236"/><text class="obs563sub" x="246" y="328">4. props</text>
+<rect class="obs563box" x="340" y="480" width="270" height="95" rx="10"/>
+<text class="obs563head" x="355" y="506">PreviewProvider handles the effect</text><text class="obs563code" x="355" y="531">loadingActor.on(...)</text><text class="obs563sub" x="355" y="555">Calls queryClient.invalidateQueries</text>
+<path class="obs563effect" d="M817 403V527H616"/><text class="obs563code" x="665" y="467">emit invalidateDeployment</text>
+<path class="obs563effect" d="M340 527H285V215H460V191"/><text class="obs563sub" x="299" y="239">mark app query stale</text>
+<path class="obs563effect" d="M405 85V52H125V79"/><text class="obs563sub" x="149" y="45">React Query fetches a fresh app GET</text>
+<text class="obs563sub" x="20" y="610">Iframe messages enter the actor through the provider. They do not pass through OBSERVE.</text>
+<text class="obs563sub" x="20" y="631">Timer transitions can also produce a new snapshot without any API response.</text>
+</svg></div>
+    <div class="prose"><p>The refresh loop is optional. When generation ends, the actor emits <code>invalidateDeployment</code>. The provider marks the app query stale. React Query fetches it again, and fresh values return through <code>OBSERVE</code>.</p><p>For the full event sequence, see <a href="#wiring">Frontend wiring</a>. For the display rules, see <a href="#regions">Regions</a>.</p></div>
+  </section>
+  <section id="glance" aria-labelledby="glance-title">
+    <h2 id="glance-title">At a glance</h2>
+    <div class="stats">
+      <div class="stat"><div class="n">1</div><div class="l">event in: OBSERVE</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">parallel regions</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">timers, all owned by the machine</div></div>
+      <div class="stat"><div class="n">15</div><div class="l">machine tests, simulated clock</div></div>
+      <div class="stat"><div class="n">670 → 910</div><div class="l">lines of loading code</div></div>
+    </div>
+    <div class="verdict">
+      <div class="side ok"><h3>What XState gives</h3><ul>
+        <li>Every loading rule in one file, each with a name.</li>
+        <li>Timers start and stop with their states; none is cancelled by hand.</li>
+        <li>A diagram generated from the code, and a test that fails when it is stale.</li>
+        <li>Timer tests that run in milliseconds, without React.</li>
+      </ul></div>
+      <div class="side warn"><h3>What it costs</h3><ul>
+        <li>About 240 more lines, and two new packages.</li>
+        <li>New ideas for the team: regions, guards, eventless and delayed transitions.</li>
+        <li>Its own traps: one <code>reenter: true</code> restarted every region on each iframe load.</li>
+        <li>It cannot fix stale inputs.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="decides" aria-labelledby="decides-title">
+    <h2 id="decides-title">What the machine decides <span class="count">4 sources · 5 timers</span></h2>
+    <div class="prose">
+      <p>At every moment the preview panel shows one main screen, plus up to three layers on top:</p>
+      <ul>
+        <li>The main screen: a skeleton, the workspace check (Verifying), the workspace start (Provisioning), the first-build scene, the live preview, or a status message such as "failed" or "timed out".</li>
+        <li>The build overlay, with one of the ten #556 animations, which fades in and out.</li>
+        <li>The wake-up overlay while the preview page starts, and its error panel.</li>
+        <li>The testing badge, while the AI validates or repairs the site.</li>
+      </ul>
+      <p>The inputs come from four sources: the live chat stream, the build record the server saves, the deployment status the editor polls every few seconds, and messages from the preview page. Five timers also matter: a 60-second limit for starting the workspace, a 4-second bridge after a build ends, two 0.5-second fades, and a 30-second safety limit for the wake-up overlay.</p>
+    </div>
+  </section>
+
+  <section id="before" aria-labelledby="before-title">
+    <h2 id="before-title">Before: the state was spread out <span class="count">5 files</span></h2>
+    <div class="prose"><p>Each box kept its own state with React hooks (<code>useState</code>, <code>useReducer</code>, <code>useRef</code>) and started its own timers in effects. The red dashed lines are rules that crossed files. For example, the wake-up overlay was hidden by a prop set from the build overlay's phase, in a third file.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 470" role="img" aria-label="Before: loading state spread across four hooks and a provider">
+<defs><marker id="bfm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.bfst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.5}.bfold{fill:var(--kiln-surface);stroke:var(--kiln-warn);stroke-width:1.6}.bfnw{fill:var(--kiln-surface);stroke:var(--kiln-ok);stroke-width:2}.bfin{fill:var(--kiln-surface-2);stroke:var(--kiln-line);stroke-width:1.2}.bft{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.bfs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.bfln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}.bfhd{stroke:var(--kiln-bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}.bflb{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.bflr{fill:var(--kiln-bad);font:600 11px var(--kiln-sans)}</style>
+<rect class="bfin" x="10" y="15" width="300" height="95" rx="9"/>
+<text class="bft" x="22" y="35">Inputs</text>
+<text class="bfs" x="22" y="53">editor-store: live stream flag</text>
+<text class="bfs" x="22" y="68">build-progress-store: label, files</text>
+<text class="bfs" x="22" y="83">app GET poll: deployment + marker</text>
+<text class="bfs" x="22" y="98">iframe postMessage: boot / ready / error</text>
+<rect class="bfold" x="350" y="15" width="300" height="110" rx="9"/>
+<text class="bft" x="362" y="35">usePreviewViewModel</text>
+<text class="bfs" x="362" y="53">useState isTimedOut</text>
+<text class="bfs" x="362" y="68">effect: setTimeout 60 s while provisioning</text>
+<text class="bfs" x="362" y="83">effect cleanup resets the flag</text>
+<text class="bfs" x="362" y="98">returns status, or &#x27;timeout&#x27;</text>
+<rect class="bfold" x="670" y="15" width="300" height="110" rx="9"/>
+<text class="bft" x="682" y="35">usePreviewTestingSignal</text>
+<text class="bfs" x="682" y="53">matches label text against</text>
+<text class="bfs" x="682" y="68">PREVIEW_TESTING_LABELS</text>
+<text class="bfs" x="682" y="83">(&quot;Memvalidasi…&quot;, &quot;Memperbaiki…&quot;)</text>
+<text class="bfs" x="682" y="98">returns isTesting</text>
+<rect class="bfold" x="350" y="160" width="300" height="140" rx="9"/>
+<text class="bft" x="362" y="180">usePreviewGenerationOverlay</text>
+<text class="bfs" x="362" y="198">useReducer: hidden | visible | fading</text>
+<text class="bfs" x="362" y="213">useState bridging + 3 refs</text>
+<text class="bfs" x="362" y="228">effect: previous-value edge → bridge,</text>
+<text class="bfs" x="362" y="243">  invalidate query, setTimeout 4 s</text>
+<text class="bfs" x="362" y="258">effect: syncing seen → clear bridge</text>
+<text class="bfs" x="362" y="273">effect: setTimeout 0.5 s fade</text>
+<rect class="bfold" x="670" y="160" width="300" height="140" rx="9"/>
+<text class="bft" x="682" y="180">PreviewProvider</text>
+<text class="bfs" x="682" y="198">useState lifecycle: hidden | visible |</text>
+<text class="bfs" x="682" y="213">  fading | error</text>
+<text class="bfs" x="682" y="228">timeoutRef (30 s) + fadeRef (0.5 s)</text>
+<text class="bfs" x="682" y="243">beginFade(fromError) rule:</text>
+<text class="bfs" x="682" y="258">  &#x27;a timeout must not clear an error&#x27;</text>
+<text class="bfs" x="682" y="273">message listener → set state</text>
+<rect class="bfold" x="350" y="340" width="620" height="110" rx="9"/>
+<text class="bft" x="362" y="360">PreviewContent (render)</text>
+<text class="bfs" x="362" y="378">if verifying → scene   else if bootstrap marker → scene   else switch(status) …</text>
+<text class="bfs" x="362" y="393">  running|syncing → iframe + &lt;GenerationOverlay&gt; + testing badge +</text>
+<text class="bfs" x="362" y="408">  &lt;ColdStartOverlay suppressed={generationOverlay.phase !== &#x27;hidden&#x27;} /&gt;</text>
+<text class="bfs" x="362" y="423">The order of these checks is the precedence. It exists only in this function.</text>
+<path class="bfln" d="M310,60 L348,60" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,90 C330,150 330,200 348,215" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,100 C560,135 640,120 668,60" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,80 C600,150 640,140 668,215" marker-end="url(#bfm)"/>
+<path class="bfln" d="M500,125 L500,158" marker-end="url(#bfm)"/>
+<path class="bfhd" d="M820,125 L820,142 L660,142 L660,338" marker-end="url(#bfm)"/><text class="bflb" x="668" y="152" text-anchor="start">isTesting passed down</text>
+<path class="bfhd" d="M500,300 L500,338" marker-end="url(#bfm)"/><text class="bflb" x="492" y="322" text-anchor="end">overlay phase hides cold start</text>
+<path class="bfhd" d="M820,300 L820,338" marker-end="url(#bfm)"/><text class="bflb" x="828" y="322" text-anchor="start">lifecycle phase</text>
+<text class="bflr" x="10" y="150">Red dashed:</text><text class="bfs" x="10" y="166">rules that cross files.</text><text class="bfs" x="10" y="181">No single place shows</text><text class="bfs" x="10" y="196">how they combine.</text>
+<text class="bflr" x="10" y="240">5 timers</text><text class="bfs" x="10" y="256">in 3 files, each started</text><text class="bfs" x="10" y="271">and cleared by hand in</text><text class="bfs" x="10" y="286">effects or refs.</text>
+</svg></div>
+    <div class="prose"><p>This code worked. Its difficulty was that no single place described the whole flow. To answer "what does the user see if the preview page reports ready while a build is fading out?", a reviewer had to read all five files and simulate the effects in their head.</p></div>
+  </section>
+
+  <section id="after" aria-labelledby="after-title">
+    <h2 id="after-title">After: one machine owns the decisions <span class="count">1 machine</span></h2>
+    <div class="figure"><svg viewBox="0 0 980 430" role="img" aria-label="After: one machine owns every loading decision">
+<defs><marker id="afm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.afst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.5}.afold{fill:var(--kiln-surface);stroke:var(--kiln-warn);stroke-width:1.6}.afnw{fill:var(--kiln-surface);stroke:var(--kiln-ok);stroke-width:2}.afin{fill:var(--kiln-surface-2);stroke:var(--kiln-line);stroke-width:1.2}.aft{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.afs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.afln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}.afhd{stroke:var(--kiln-bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}.aflb{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.aflr{fill:var(--kiln-bad);font:600 11px var(--kiln-sans)}</style>
+<rect class="afin" x="10" y="20" width="270" height="95" rx="9"/>
+<text class="aft" x="22" y="40">Inputs (unchanged)</text>
+<text class="afs" x="22" y="58">editor-store: live stream flag</text>
+<text class="afs" x="22" y="73">build-progress-store: phase, label, files</text>
+<text class="afs" x="22" y="88">app GET poll: deployment + marker</text>
+<text class="afs" x="22" y="103">ensure call: verifying</text>
+<rect class="afin" x="10" y="300" width="270" height="95" rx="9"/>
+<text class="aft" x="22" y="320">Preview iframe</text>
+<text class="afs" x="22" y="338">postMessage boot / ready / error</text>
+<text class="afs" x="22" y="353">provider checks source + origin</text>
+<rect class="afnw" x="330" y="20" width="300" height="95" rx="9"/>
+<text class="aft" x="342" y="40">usePreviewLoadingViewModel</text>
+<text class="afs" x="342" y="58">reads the inputs, sends ONE event:</text>
+<text class="afs" x="342" y="73">OBSERVE {appId, previewState,</text>
+<text class="afs" x="342" y="88">isVerifying, isGenerating, marker, progress}</text>
+<rect class="afnw" x="330" y="160" width="300" height="170" rx="9"/>
+<text class="aft" x="342" y="180">previewLoadingMachine (actor)</text>
+<text class="afs" x="342" y="198">5 parallel regions:</text>
+<text class="afs" x="342" y="213">  provisioning · activity · generation</text>
+<text class="afs" x="342" y="228">  coldStart · screen</text>
+<text class="afs" x="342" y="243">owns all 5 timers (after: …)</text>
+<text class="afs" x="342" y="258">guards = named rules</text>
+<text class="afs" x="342" y="273">no React, no fetching, no DOM</text>
+<text class="afs" x="342" y="288"></text>
+<rect class="afst" x="330" y="370" width="300" height="50" rx="9"/>
+<text class="aft" x="342" y="390">PreviewProvider</text>
+<text class="afs" x="342" y="408">starts the actor · performs emitted effects</text>
+<rect class="afnw" x="680" y="160" width="290" height="80" rx="9"/>
+<text class="aft" x="692" y="180">selectPreviewLoading</text>
+<text class="afs" x="692" y="198">snapshot → { screen, animation,</text>
+<text class="afs" x="692" y="213">copy, overlays, isTesting }</text>
+<rect class="afst" x="680" y="280" width="290" height="80" rx="9"/>
+<text class="aft" x="692" y="300">PreviewContent + overlays</text>
+<text class="afs" x="692" y="318">render what the selector says;</text>
+<text class="afs" x="692" y="333">no decisions left in render</text>
+<path class="afln" d="M280,67 L328,67" marker-end="url(#afm)"/>
+<path class="afln" d="M480,115 L480,158" marker-end="url(#afm)"/><text class="aflb" x="488" y="140" text-anchor="start">OBSERVE</text>
+<path class="afln" d="M280,380 C300,390 310,395 328,395" marker-end="url(#afm)"/>
+<path class="afln" d="M420,368 L420,332" marker-end="url(#afm)"/><text class="aflb" x="428" y="352" text-anchor="start">LOAD_ARMED, FRAME_*</text>
+<path class="afln" d="M560,332 L560,368" marker-end="url(#afm)"/><text class="aflb" x="568" y="352" text-anchor="start">emit: init, invalidate</text>
+<path class="afln" d="M630,200 L678,200" marker-end="url(#afm)"/><text class="aflb" x="636" y="192" text-anchor="start">snapshot</text>
+<path class="afln" d="M825,240 L825,278" marker-end="url(#afm)"/><text class="aflb" x="833" y="262" text-anchor="start">useSelector</text>
+
+</svg></div>
+    <div class="prose">
+      <p>The inputs did not change. One hook, <code>usePreviewLoadingViewModel</code>, reads them and sends a single <code>OBSERVE</code> event. The provider forwards checked iframe messages as events. The machine updates its state, and a selector, <code>selectPreviewLoading</code>, turns that state into what to render. The components no longer decide anything.</p>
+      <p>The machine never touches the browser or the query cache. When it needs a side effect, it emits a named event (<code>sendLifecycleInit</code>, <code>invalidateDeployment</code>), and the provider performs it. That keeps the machine plain data that a test can run without React.</p>
+    </div>
+  </section>
+
+  <section id="files" aria-labelledby="files-title">
+    <h2 id="files-title">The files, before and after <span class="count">editor domain: 9 added · 2 deleted · 24 changed</span></h2>
+    <div class="prose"><p>Most of the change sits in one folder, <code>apps/web/src/domains/editor/preview/</code>. Two hooks were deleted, and the new machine, its selectors and the view model that feeds it were added next to the components that use them. The ten animation files were already there from #556; before this change nothing used them. The tree shows the loading-related files; the counts above cover the whole editor domain.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 702" role="img" aria-label="Directory tree of the loading code before and after the change">
+<style>.dttr{font:12.5px var(--kiln-mono);fill:var(--kiln-muted)}.dtnm{font:12.5px var(--kiln-mono);fill:var(--kiln-text)}.dtdir{font-weight:600}.dtdel{fill:var(--kiln-bad);text-decoration:line-through}.dtadd{fill:var(--kiln-ok);font-weight:600}.dtun{fill:var(--kiln-muted)}.dth{font:600 14px var(--kiln-sans);fill:var(--kiln-text)}.dtlg{font:11.5px var(--kiln-sans);fill:var(--kiln-muted)}</style>
+<text class="dth" x="10" y="20">Before (staging)</text><text class="dth" x="500" y="20">After (MR !718)</text>
+<rect x="10" y="32" width="10" height="10" rx="2" fill="var(--kiln-ok)"/><text class="dtlg" x="25" y="41">added</text>
+<rect x="67.5" y="32" width="10" height="10" rx="2" fill="var(--kiln-text)"/><text class="dtlg" x="82.5" y="41">changed</text>
+<rect x="137.6" y="32" width="10" height="10" rx="2" fill="var(--kiln-bad)"/><text class="dtlg" x="152.6" y="41">deleted</text>
+<rect x="207.7" y="32" width="10" height="10" rx="2" fill="var(--kiln-muted)"/><text class="dtlg" x="222.7" y="41">unchanged</text>
+<line x1="490" y1="8" x2="490" y2="696" stroke="var(--kiln-line)"/>
+<text class="dttr" x="10" y="70" xml:space="preserve">├─ </text>
+<text class="dtnm dtdir" x="32.8" y="70">domains/editor/</text>
+<text class="dttr" x="10" y="91" xml:space="preserve">│  ├─ </text>
+<rect x="55.599999999999994" y="82" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="68.6" y="91">chat/build-progress-mirror.tsx</text>
+<text class="dttr" x="10" y="112" xml:space="preserve">│  ├─ </text>
+<rect x="55.599999999999994" y="103" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="68.6" y="112">stores/build-progress-store.ts</text>
+<text class="dttr" x="10" y="133" xml:space="preserve">│  ├─ </text>
+<rect x="55.599999999999994" y="124" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="68.6" y="133">components/editor-layout.tsx</text>
+<text class="dttr" x="10" y="154" xml:space="preserve">│  └─ </text>
+<text class="dtnm dtdir" x="55.599999999999994" y="154">preview/</text>
+<text class="dttr" x="10" y="175" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="166" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="175">constants.ts</text>
+<text class="dttr" x="10" y="196" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="187" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="dtnm dtun" x="91.39999999999999" y="196">lifecycle/bus.ts</text>
+<text class="dttr" x="10" y="217" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="208" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="dtnm dtun" x="91.39999999999999" y="217">loading-animations/  (10, unused)</text>
+<text class="dttr" x="10" y="238" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="229" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="238">preview-cold-start-overlay.tsx</text>
+<text class="dttr" x="10" y="259" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="250" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="259">preview-content.tsx</text>
+<text class="dttr" x="10" y="280" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="271" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="280">preview-generation-overlay.tsx</text>
+<text class="dttr" x="10" y="301" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="292" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="301">preview-loading-scene.tsx</text>
+<text class="dttr" x="10" y="322" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="313" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="322">preview-panel.tsx</text>
+<text class="dttr" x="10" y="343" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="334" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="343">preview-provider.tsx</text>
+<text class="dttr" x="10" y="364" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="355" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="364">preview-testing-badge.tsx</text>
+<text class="dttr" x="10" y="385" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="376" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="dtnm dtdel" x="91.39999999999999" y="385">use-preview-generation-overlay.ts</text>
+<text class="dttr" x="10" y="406" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="397" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="dtnm dtdel" x="91.39999999999999" y="406">use-preview-testing-signal.ts</text>
+<text class="dttr" x="10" y="427" xml:space="preserve">│     ├─ </text>
+<rect x="78.39999999999999" y="418" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="91.39999999999999" y="427">use-preview-view-model.ts</text>
+<text class="dttr" x="10" y="448" xml:space="preserve">│     └─ </text>
+<text class="dtnm dtdir" x="78.39999999999999" y="448">__tests__/</text>
+<text class="dttr" x="10" y="469" xml:space="preserve">│        ├─ </text>
+<rect x="101.19999999999999" y="460" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="114.19999999999999" y="469">preview-generation-overlay.test.tsx</text>
+<text class="dttr" x="10" y="490" xml:space="preserve">│        └─ </text>
+<rect x="101.19999999999999" y="481" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="114.19999999999999" y="490">…7 more test files</text>
+<text class="dttr" x="10" y="511" xml:space="preserve">└─ </text>
+<text class="dtnm dtdir" x="32.8" y="511">docs/flows/</text>
+<text class="dttr" x="10" y="532" xml:space="preserve">   └─ </text>
+<rect x="55.599999999999994" y="523" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="68.6" y="532">editor-interactivity.md</text>
+<text class="dttr" x="500" y="70" xml:space="preserve">├─ </text>
+<text class="dtnm dtdir" x="522.8" y="70">domains/editor/</text>
+<text class="dttr" x="500" y="91" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="82" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="558.6" y="91">chat/build-progress-mirror.tsx</text>
+<text class="dttr" x="500" y="112" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="103" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="558.6" y="112">stores/build-progress-store.ts</text>
+<text class="dttr" x="500" y="133" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="124" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="558.6" y="133">components/editor-layout.tsx</text>
+<text class="dttr" x="500" y="154" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="145" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="558.6" y="154">mocks/preview-loading-backend.ts</text>
+<text class="dttr" x="500" y="175" xml:space="preserve">│  └─ </text>
+<text class="dtnm dtdir" x="545.6" y="175">preview/</text>
+<text class="dttr" x="500" y="196" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="187" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="196">constants.ts</text>
+<text class="dttr" x="500" y="217" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="208" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="dtnm dtun" x="581.4" y="217">lifecycle/bus.ts</text>
+<text class="dttr" x="500" y="238" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="229" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="dtnm dtun" x="581.4" y="238">loading-animations/  (10, now used)</text>
+<text class="dttr" x="500" y="259" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="250" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="259">preview-cold-start-overlay.tsx</text>
+<text class="dttr" x="500" y="280" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="271" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="280">preview-content.tsx</text>
+<text class="dttr" x="500" y="301" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="292" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="301">preview-generation-overlay.tsx</text>
+<text class="dttr" x="500" y="322" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="313" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="322">preview-loading-scene.tsx</text>
+<text class="dttr" x="500" y="343" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="334" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="581.4" y="343">preview-loading.machine.ts</text>
+<text class="dttr" x="500" y="364" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="355" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="581.4" y="364">preview-loading.selectors.ts</text>
+<text class="dttr" x="500" y="385" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="376" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="581.4" y="385">preview-loading.stories.tsx</text>
+<text class="dttr" x="500" y="406" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="397" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="406">preview-panel.tsx</text>
+<text class="dttr" x="500" y="427" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="418" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="581.4" y="427">preview-phase-animation.tsx</text>
+<text class="dttr" x="500" y="448" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="439" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="448">preview-provider.tsx</text>
+<text class="dttr" x="500" y="469" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="460" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="581.4" y="469">preview-state.ts</text>
+<text class="dttr" x="500" y="490" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="481" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="490">preview-testing-badge.tsx</text>
+<text class="dttr" x="500" y="511" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="502" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="581.4" y="511">use-preview-loading-view-model.ts</text>
+<text class="dttr" x="500" y="532" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="523" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="581.4" y="532">use-preview-view-model.ts</text>
+<text class="dttr" x="500" y="553" xml:space="preserve">│     └─ </text>
+<text class="dtnm dtdir" x="568.4" y="553">__tests__/</text>
+<text class="dttr" x="500" y="574" xml:space="preserve">│        ├─ </text>
+<rect x="591.2" y="565" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="604.2" y="574">preview-loading.machine.test.ts</text>
+<text class="dttr" x="500" y="595" xml:space="preserve">│        ├─ </text>
+<rect x="591.2" y="586" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="604.2" y="595">machine-diagram.ts</text>
+<text class="dttr" x="500" y="616" xml:space="preserve">│        └─ </text>
+<rect x="591.2" y="607" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="604.2" y="616">…8 more test files</text>
+<text class="dttr" x="500" y="637" xml:space="preserve">└─ </text>
+<text class="dtnm dtdir" x="522.8" y="637">docs/flows/</text>
+<text class="dttr" x="500" y="658" xml:space="preserve">   ├─ </text>
+<rect x="545.6" y="649" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="dtnm" x="558.6" y="658">editor-interactivity.md</text>
+<text class="dttr" x="500" y="679" xml:space="preserve">   └─ </text>
+<rect x="545.6" y="670" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="dtnm dtadd" x="558.6" y="679">editor-preview-loading.md</text>
+</svg></div>
+    <h3>Where each old piece went</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Before</th><th scope="col">What it did</th><th scope="col">Now</th></tr></thead>
+      <tbody>
+        <tr><td><code>use-preview-generation-overlay.ts</code> <span class="pill bad">deleted</span></td><td>Build overlay phase, the bridge, two timers</td><td>The <code>activity</code> and <code>generation</code> regions</td></tr>
+        <tr><td><code>use-preview-testing-signal.ts</code> <span class="pill bad">deleted</span></td><td>Matched label text to spot testing</td><td>The <code>isTesting</code> guard, reading the phase key</td></tr>
+        <tr><td><code>preview-provider.tsx</code></td><td>Wake-up state, 30-second and fade timers</td><td>The <code>coldStart</code> region. The provider now starts the actor, forwards checked iframe messages and performs emitted effects</td></tr>
+        <tr><td><code>use-preview-view-model.ts</code></td><td>Polling plus the 60-second timer</td><td>Polling only. The timer is the <code>provisioning</code> region</td></tr>
+        <tr><td><code>preview-content.tsx</code></td><td>The if-chain that picked the screen</td><td>The <code>screen</code> region and the selector; the component only switches on <code>loading.screen</code></td></tr>
+        <tr><td><code>PreviewState</code> type, in the view model</td><td>The deployment status union</td><td><code>preview-state.ts</code>, so the machine imports no hook</td></tr>
+        <tr><td>(none)</td><td></td><td><code>preview-phase-animation.tsx</code> maps a phase to one of the ten animations</td></tr>
+        <tr><td>(none)</td><td></td><td><code>use-preview-loading-view-model.ts</code> is the one place that feeds the machine</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="wiring" aria-labelledby="wiring-title">
+    <h2 id="wiring-title">How the wiring works <span class="count">events in · snapshots out</span></h2>
+    <div class="callout prose">
+      <p><strong>Does the frontend just call the XState file?</strong> No. <code>preview-loading.machine.ts</code> is a blueprint: states, rules and timers written as data. Nothing calls a function in it. The editor makes one running copy of it, called an actor. Components talk to the actor in only two ways: they <em>send it events</em>, and they <em>read its snapshots</em>.</p>
+    </div>
+    <div class="grid3">
+      <div class="io"><div class="pill">1 · create</div><p><code>PreviewProvider</code> calls <code>useActorRef(previewLoadingMachine)</code>. That creates one actor and starts it after the provider mounts. The editor remounts the provider for each app, so each app gets a fresh actor.</p></div>
+      <div class="io"><div class="pill">2 · input</div><p>Code sends events with <code>loadingActor.send(…)</code>. The view model sends <code>OBSERVE</code>; the provider sends <code>LOAD_ARMED</code> and <code>FRAME_*</code>. Events sent before the actor starts wait in its mailbox.</p></div>
+      <div class="io"><div class="pill ok">3 · output</div><p>Each event produces a new snapshot. <code>useSelector</code> re-renders a component when its selected value changes. Effects come out as emitted events, which the provider handles with <code>loadingActor.on(…)</code>.</p></div>
+    </div>
+    <h3>One round trip, step by step</h3>
+    <div class="prose"><p>Black arrows are events going into the actor, green arrows are its output, and grey arrows are ordinary calls. The actor handles each event straight away, then waits. The only things it does on its own are its timers.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 665" role="img" aria-label="How events go into the actor and where its output goes">
+<defs><marker id="wrm" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.wrhd{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong)}.wrhdc{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.wrt{font:600 12.5px var(--kiln-sans);fill:var(--kiln-text)}.wrs{font:10.5px var(--kiln-sans);fill:var(--kiln-muted)}.wrlife{stroke:var(--kiln-line-strong);stroke-dasharray:3 4}.wrin{stroke:var(--kiln-text);stroke-width:1.6;fill:none}.wrout{stroke:var(--kiln-ok);stroke-width:1.6;fill:none}.wrplain{stroke:var(--kiln-muted);stroke-width:1.2;fill:none}.wrself{stroke:var(--kiln-muted);stroke-width:1.2;fill:none}.wrlb{font:11.5px var(--kiln-sans);fill:var(--kiln-text)}.wrn{font:600 10.5px var(--kiln-mono);fill:var(--kiln-muted)}.wract{fill:var(--kiln-accent-wash);stroke:none}</style>
+<rect class="wrhd" x="9" y="8" width="172" height="46" rx="10"/><text class="wrt" x="95" y="28" text-anchor="middle">Stores &amp; queries</text><text class="wrs" x="95" y="44" text-anchor="middle">two stores · app GET poll</text>
+<line class="wrlife" x1="95" y1="56" x2="95" y2="659"/>
+<rect class="wrhd" x="214" y="8" width="172" height="46" rx="10"/><text class="wrt" x="300" y="28" text-anchor="middle">View model + PreviewContent</text><text class="wrs" x="300" y="44" text-anchor="middle">usePreviewLoadingViewModel</text>
+<line class="wrlife" x1="300" y1="56" x2="300" y2="659"/>
+<rect class="wrhdc" x="419" y="8" width="172" height="46" rx="10"/><text class="wrt" x="505" y="28" text-anchor="middle">Actor</text><text class="wrs" x="505" y="44" text-anchor="middle">running previewLoadingMachine</text>
+<line class="wrlife" x1="505" y1="56" x2="505" y2="659"/>
+<rect class="wrhd" x="614" y="8" width="172" height="46" rx="10"/><text class="wrt" x="700" y="28" text-anchor="middle">PreviewProvider</text><text class="wrs" x="700" y="44" text-anchor="middle">owns the actor</text>
+<line class="wrlife" x1="700" y1="56" x2="700" y2="659"/>
+<rect class="wrhd" x="799" y="8" width="172" height="46" rx="10"/><text class="wrt" x="885" y="28" text-anchor="middle">Browser</text><text class="wrs" x="885" y="44" text-anchor="middle">iframe · React Query cache</text>
+<line class="wrlife" x1="885" y1="56" x2="885" y2="659"/>
+<rect class="wract" x="499" y="68" width="12" height="561" rx="4"/>
+<text class="wrn" x="12" y="90"> 1</text>
+<path class="wrin" d="M694,86 L511,86" marker-end="url(#wrm)"/>
+<text class="wrlb" x="513" y="81">create once with useActorRef, start after mount</text>
+<text class="wrn" x="12" y="123"> 2</text>
+<path class="wrplain" d="M101,119 L294,119" marker-end="url(#wrm)"/>
+<text class="wrlb" x="103" y="114">read the latest values</text>
+<text class="wrn" x="12" y="156"> 3</text>
+<path class="wrin" d="M306,152 L499,152" marker-end="url(#wrm)"/>
+<text class="wrlb" x="308" y="147">send OBSERVE { appId, previewState, isGenerating, … }</text>
+<text class="wrn" x="12" y="189"> 4</text>
+<path class="wrself" d="M511,179 h34 v14 h-32" marker-end="url(#wrm)"/>
+<text class="wrlb" x="551" y="190">update context · check rules · start or stop timers</text>
+<text class="wrn" x="12" y="222"> 5</text>
+<path class="wrout" d="M499,218 L306,218" marker-end="url(#wrm)"/>
+<text class="wrlb" x="308" y="213">new snapshot → useSelector(selectPreviewLoading)</text>
+<text class="wrn" x="12" y="255"> 6</text>
+<path class="wrself" d="M306,245 h34 v14 h-32" marker-end="url(#wrm)"/>
+<text class="wrlb" x="346" y="256">render loading.screen and the overlays</text>
+<text class="wrn" x="12" y="288"> 7</text>
+<path class="wrout" d="M511,284 L694,284" marker-end="url(#wrm)"/>
+<text class="wrlb" x="513" y="279">emit invalidateDeployment (a build just ended)</text>
+<text class="wrn" x="12" y="321"> 8</text>
+<path class="wrplain" d="M706,317 L879,317" marker-end="url(#wrm)"/>
+<text class="wrlb" x="708" y="312">queryClient.invalidateQueries(app GET)</text>
+<text class="wrn" x="12" y="354"> 9</text>
+<path class="wrplain" d="M879,350 L101,350" marker-end="url(#wrm)"/>
+<text class="wrlb" x="103" y="345">fresh deployment status → back to step 2</text>
+<text class="wrn" x="12" y="387">10</text>
+<path class="wrplain" d="M306,383 L694,383" marker-end="url(#wrm)"/>
+<text class="wrlb" x="308" y="378">iframe mounts → armPreviewLoad()</text>
+<text class="wrn" x="12" y="420">11</text>
+<path class="wrin" d="M694,416 L511,416" marker-end="url(#wrm)"/>
+<text class="wrlb" x="513" y="411">send LOAD_ARMED</text>
+<text class="wrn" x="12" y="453">12</text>
+<path class="wrout" d="M511,449 L694,449" marker-end="url(#wrm)"/>
+<text class="wrlb" x="513" y="444">emit sendLifecycleInit</text>
+<text class="wrn" x="12" y="486">13</text>
+<path class="wrplain" d="M706,482 L879,482" marker-end="url(#wrm)"/>
+<text class="wrlb" x="708" y="477">iframe.postMessage(init)</text>
+<text class="wrn" x="12" y="519">14</text>
+<path class="wrplain" d="M879,515 L706,515" marker-end="url(#wrm)"/>
+<text class="wrlb" x="708" y="510">dewa:preview:ready (source and origin checked)</text>
+<text class="wrn" x="12" y="552">15</text>
+<path class="wrin" d="M694,548 L511,548" marker-end="url(#wrm)"/>
+<text class="wrlb" x="513" y="543">send FRAME_READY</text>
+<text class="wrn" x="12" y="585">16</text>
+<path class="wrself" d="M511,575 h34 v14 h-32" marker-end="url(#wrm)"/>
+<text class="wrlb" x="551" y="586">later: a timer ends by itself (0.5 s fade)</text>
+<text class="wrn" x="12" y="618">17</text>
+<path class="wrout" d="M499,614 L306,614" marker-end="url(#wrm)"/>
+<text class="wrlb" x="308" y="609">new snapshot → re-render</text>
+</svg></div>
+    <h3>What goes in and what comes out</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Direction</th><th scope="col">What</th><th scope="col">From or to</th></tr></thead>
+      <tbody>
+        <tr><td>In</td><td><code>OBSERVE</code> with the latest observation</td><td>From <code>usePreviewLoadingViewModel</code>, whenever a store, query or the verify flag changes</td></tr>
+        <tr><td>In</td><td><code>LOAD_ARMED</code></td><td>From the provider when the iframe mounts or reloads</td></tr>
+        <tr><td>In</td><td><code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code></td><td>From the provider's message listener, after it checks the message's source and origin</td></tr>
+        <tr><td>Out</td><td>Snapshot through <code>selectPreviewLoading</code></td><td>To <code>PreviewContent</code> and its overlays</td></tr>
+        <tr><td>Out</td><td>Snapshot through <code>selectPreviewStatus</code></td><td>To <code>PreviewPanel</code>, for the toolbar's status dot</td></tr>
+        <tr><td>Out</td><td>Every snapshot, by subscription</td><td>To the <code>DEWA_PREVIEW_DEBUG</code> log in the provider</td></tr>
+        <tr><td>Out</td><td>Emitted <code>invalidateDeployment</code></td><td>To the provider, which asks React Query for a fresh app GET</td></tr>
+        <tr><td>Out</td><td>Emitted <code>sendLifecycleInit</code></td><td>To the provider, which posts <code>init</code> to the iframe</td></tr>
+      </tbody>
+    </table></div>
+    <h3>The data at one moment</h3>
+    <div class="prose"><p>These are the real shapes, filled in with values from the recorded first build while it was writing code.</p></div>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill">In</span><span class="mono muted">usePreviewLoadingViewModel</span></figcaption><pre><code>// IN — the view model sends this at the &quot;writing code&quot; moment
+loadingActor.send({
+  type: &quot;OBSERVE&quot;,
+  appId: &quot;86803fdd-…&quot;,
+  previewState: { status: &quot;running&quot;, previewUrl: &quot;http://127.0.0.1:54461&quot;,
+                  syncedSnapshotVersion: null },
+  isVerifying: false,
+  isGenerating: true,                       // live stream OR saved record
+  activeGeneration: { is_bootstrap: true, phase: &quot;writing_code&quot;,
+                      progress_label: &quot;Menulis kode…&quot; },
+  progress: { phase: &quot;writing_code&quot;, label: &quot;Menulis kode…&quot;,
+              filesWritten: 12, filesPlanned: 20 },
+});</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">Out</span><span class="mono muted">machine → selectPreviewLoading</span></figcaption><pre><code>// INSIDE — the snapshot after the event (snapshot.value)
+{
+  provisioning: &quot;idle&quot;,
+  activity: &quot;generating&quot;,
+  generation: &quot;visible&quot;,
+  coldStart: &quot;hidden&quot;,
+  screen: &quot;bootstrap&quot;,
+}
+
+// OUT — useSelector(loadingActor, selectPreviewLoading)
+{
+  screen: &quot;bootstrap&quot;,
+  generation: {
+    phase: &quot;visible&quot;, animation: &quot;writing_code&quot;,
+    copy: &quot;Menulis kode…&quot;, ariaLabel: &quot;Membuat preview&quot;,
+    progress: { filesWritten: 12, filesPlanned: 20, … },
+  },
+  coldStart: { phase: &quot;hidden&quot;, error: null },
+  showColdStart: false,
+  isTesting: false,
+  animation: &quot;writing_code&quot;,
+}</code></pre></figure>
+    </div>
+    <div class="prose"><p class="why">Tests skip React entirely: they create their own actor with <code>createActor</code> and a simulated clock, send the same events, and check the same selector output.</p></div>
+  </section>
+
+  <section id="ideas" aria-labelledby="ideas-title">
+    <h2 id="ideas-title">XState ideas, mapped to this file <span class="count">10 ideas</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Idea</th><th scope="col">What it means</th><th scope="col">In preview-loading.machine.ts</th></tr></thead>
+      <tbody>
+        <tr><td>Context</td><td>The data the machine remembers: the latest observation and the last fatal frame error.</td><td><code>context</code>, <code>PreviewLoadingContext</code></td></tr>
+        <tr><td>Event</td><td>Something that happened. The machine reacts only to events.</td><td><code>OBSERVE</code>, <code>LOAD_ARMED</code>, <code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code>, <code>RECONCILE</code></td></tr>
+        <tr><td>State</td><td>A named mode, such as <code>bridging</code> or <code>fading</code>. One at a time per region.</td><td>the <code>states</code> objects</td></tr>
+        <tr><td>Parallel regions</td><td>Several independent state machines side by side inside one actor.</td><td><code>type: "parallel"</code>, five regions</td></tr>
+        <tr><td>Transition</td><td>A move to another state when an event arrives.</td><td><code>on: { FRAME_READY: { target: "fading" } }</code></td></tr>
+        <tr><td>Eventless transition</td><td>A move checked after every event, taken when its condition becomes true.</td><td><code>always: { guard: "isGenerating", … }</code></td></tr>
+        <tr><td>Guard</td><td>A named yes-or-no rule that allows or blocks a move.</td><td><code>isTesting</code>, <code>showGenerationOverlay</code>, …</td></tr>
+        <tr><td>Delayed transition</td><td>A move after a set time. The timer starts on entering the state and stops on leaving it.</td><td><code>after: { generationBridge: "idle" }</code>, durations in <code>delays</code></td></tr>
+        <tr><td>Action</td><td>Work done on a move: update context, or emit an effect for the host.</td><td><code>observe</code>, <code>recordFrameError</code>, <code>emit(…)</code></td></tr>
+        <tr><td>Actor, snapshot</td><td>A running copy of the machine, and its state at one moment.</td><td><code>useActorRef</code> in the provider, <code>useSelector</code> for snapshots</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="regions" aria-labelledby="regions-title">
+    <h2 id="regions-title">The five regions <span class="count">5</span></h2>
+    <div class="prose"><p>Each region answers one question. Because they run in parallel, a change in one region never resets another, and each region's timers belong to it alone.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 420" role="img" aria-label="The five parallel regions of the loading machine">
+<defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.rgrg{fill:none;stroke:var(--kiln-line);stroke-width:1.5;stroke-dasharray:5 4}.rgst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.6}.rgt{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.rgh{fill:var(--kiln-text);font:700 14px var(--kiln-mono)}.rgs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.rgln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}</style>
+<text class="rgs" x="490.0" y="16" text-anchor="middle">All five regions run at the same time inside one actor. Dashed borders mark parallel regions.</text>
+<rect class="rgrg" x="5" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="98.0" y="54" text-anchor="middle">provisioning</text>
+<text class="rgs" x="98.0" y="72" text-anchor="middle">60-second deadline</text>
+<rect class="rgst" x="27" y="92" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="114" text-anchor="middle">idle</text>
+<path class="rgln" d="M98.0,126 L98.0,164" marker-end="url(#ma)"/>
+<rect x="27.0" y="137" width="142.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="98.0" y="149" text-anchor="middle">status is provisioning</text>
+<rect class="rgst" x="27" y="166" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="188" text-anchor="middle">waiting</text>
+<path class="rgln" d="M98.0,200 L98.0,238" marker-end="url(#ma)"/>
+<rect x="63.0" y="211" width="70.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="98.0" y="223" text-anchor="middle">after 60 s</text>
+<rect class="rgst" x="27" y="240" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="262" text-anchor="middle">timedOut</text>
+<text class="rgs" x="98.0" y="322" text-anchor="middle">Leaves for idle once</text>
+<text class="rgs" x="98.0" y="337" text-anchor="middle">provisioning ends.</text>
+<rect class="rgrg" x="200" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="293.0" y="54" text-anchor="middle">activity</text>
+<text class="rgs" x="293.0" y="72" text-anchor="middle">is a build running?</text>
+<rect class="rgst" x="222" y="92" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="114" text-anchor="middle">idle</text>
+<path class="rgln" d="M293.0,126 L293.0,164" marker-end="url(#ma)"/>
+<rect x="222.0" y="137" width="142.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="293.0" y="149" text-anchor="middle">stream or saved marker</text>
+<rect class="rgst" x="222" y="166" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="188" text-anchor="middle">generating</text>
+<path class="rgln" d="M293.0,200 L293.0,238" marker-end="url(#ma)"/>
+<rect x="207.0" y="211" width="172.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="293.0" y="223" text-anchor="middle">build ended: refresh status</text>
+<rect class="rgst" x="222" y="240" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="262" text-anchor="middle">bridging</text>
+<text class="rgs" x="293.0" y="322" text-anchor="middle">Back to idle after 4 s, or</text>
+<text class="rgs" x="293.0" y="337" text-anchor="middle">as soon as syncing is seen.</text>
+<rect class="rgrg" x="395" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="488.0" y="54" text-anchor="middle">generation</text>
+<text class="rgs" x="488.0" y="72" text-anchor="middle">build overlay</text>
+<rect class="rgst" x="417" y="92" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="114" text-anchor="middle">hidden</text>
+<path class="rgln" d="M488.0,126 L488.0,164" marker-end="url(#ma)"/>
+<rect x="396.0" y="137" width="184.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="488.0" y="149" text-anchor="middle">building, bridging or syncing</text>
+<rect class="rgst" x="417" y="166" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="188" text-anchor="middle">visible</text>
+<path class="rgln" d="M488.0,200 L488.0,238" marker-end="url(#ma)"/>
+<rect x="468.0" y="211" width="40.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="488.0" y="223" text-anchor="middle">0.5 s</text>
+<rect class="rgst" x="417" y="240" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="262" text-anchor="middle">fading</text>
+<text class="rgs" x="488.0" y="322" text-anchor="middle">Steps aside while</text>
+<text class="rgs" x="488.0" y="337" text-anchor="middle">validating or repairing.</text>
+<rect class="rgrg" x="590" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="683.0" y="54" text-anchor="middle">coldStart</text>
+<text class="rgs" x="683.0" y="72" text-anchor="middle">wake-up overlay</text>
+<rect class="rgst" x="612" y="92" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="114" text-anchor="middle">hidden</text>
+<path class="rgln" d="M683.0,126 L683.0,164" marker-end="url(#ma)"/>
+<rect x="603.0" y="137" width="160.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="683.0" y="149" text-anchor="middle">iframe armed; 30 s safety</text>
+<rect class="rgst" x="612" y="166" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="188" text-anchor="middle">visible</text>
+<path class="rgln" d="M683.0,200 L683.0,238" marker-end="url(#ma)"/>
+<rect x="636.0" y="211" width="94.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="683.0" y="223" text-anchor="middle">ready, or 30 s</text>
+<rect class="rgst" x="612" y="240" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="262" text-anchor="middle">fading</text>
+<text class="rgs" x="683.0" y="322" text-anchor="middle">error on a fatal page</text>
+<text class="rgs" x="683.0" y="337" text-anchor="middle">error; a later ready clears</text>
+<text class="rgs" x="683.0" y="352" text-anchor="middle">it.</text>
+<rect class="rgrg" x="785" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="878.0" y="54" text-anchor="middle">screen</text>
+<text class="rgs" x="878.0" y="72" text-anchor="middle">what fills the panel</text>
+<rect class="rgst" x="807" y="92" width="142" height="34" rx="9"/><text class="rgt" x="878.0" y="114" text-anchor="middle">deciding</text>
+<path class="rgln" d="M878.0,126 L878.0,164" marker-end="url(#ma)"/>
+<rect x="825.0" y="137" width="106.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="878.0" y="149" text-anchor="middle">first match wins</text>
+<rect class="rgst" x="807" y="166" width="142" height="34" rx="9"/><text class="rgt" x="878.0" y="188" text-anchor="middle">one of 9 screens</text>
+<text class="rgs" x="803" y="210" font-weight="600">Order checked:</text>
+<text class="rgs" x="811" y="228">1. verifying</text>
+<text class="rgs" x="811" y="243">2. bootstrap</text>
+<text class="rgs" x="811" y="258">3. loading</text>
+<text class="rgs" x="811" y="273">4. timeout</text>
+<text class="rgs" x="811" y="288">5. provisioning</text>
+<text class="rgs" x="811" y="303">6. preview</text>
+<text class="rgs" x="811" y="318">7. failed</text>
+<text class="rgs" x="811" y="333">8. stopped</text>
+<text class="rgs" x="811" y="348">9. unavailable</text>
+<text class="rgs" x="878.0" y="377" text-anchor="middle">Re-decides on every OBSERVE.</text>
+</svg></div>
+    <ul class="regions">
+      <li><code>provisioning</code> runs the 60-second limit for starting a workspace. When it expires, the screen shows the timeout message.</li>
+      <li><code>activity</code> answers "is a build running?". When a build ends it enters <code>bridging</code>, asks for fresh status, and holds the overlay up to 4 seconds until syncing is seen.</li>
+      <li><code>generation</code> is the build overlay: hidden, visible or fading. It steps aside during validating and repairing.</li>
+      <li><code>coldStart</code> is the wake-up overlay. It follows the preview page's messages, with a 30-second safety limit and an error state.</li>
+      <li><code>screen</code> picks the main screen. It re-decides on every observation, checking its rules in a fixed order.</li>
+    </ul>
+  </section>
+
+  <section id="phases" aria-labelledby="phases-title">
+    <h2 id="phases-title">Phases and regions <span class="count">10 phases · 1 region reacts</span></h2>
+    <div class="prose">
+      <p>A region is the editor's own state: the machine moves it, by its rules and timers. The phase is data from the backend, stored in the machine's context: the machine only reads it. Each region reads a few inputs, and only one region, <code>generation</code>, reads the phase at all.</p>
+    </div>
+    <div class="figure"><svg viewBox="0 0 980 560" role="img" aria-label="Which inputs each region reads, and where each build phase goes">
+<defs><marker id="pmm" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.pmin{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong)}.pmph{fill:var(--kiln-surface);stroke:var(--kiln-line-strong)}.pmhot{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.pmrg{fill:var(--kiln-surface);stroke:var(--kiln-text);stroke-width:1.4}.pmout{fill:var(--kiln-ok-wash);stroke:var(--kiln-ok)}.pmt{font:600 12.5px var(--kiln-sans);fill:var(--kiln-text)}.pmm{font:12px var(--kiln-mono);fill:var(--kiln-text)}.pms{font:11px var(--kiln-sans);fill:var(--kiln-muted)}.pmh{font:600 13px var(--kiln-sans);fill:var(--kiln-muted)}.pmln{stroke:var(--kiln-muted);stroke-width:1.2;fill:none}.pmhl{stroke:var(--kiln-accent);stroke-width:2;fill:none}</style>
+<text class="pmh" x="10" y="18">INPUTS (context)</text><text class="pmh" x="380" y="18">REGIONS (state)</text><text class="pmh" x="745" y="18">WHAT IS DRAWN</text>
+<rect class="pmin" x="10" y="40" width="230" height="40" rx="8"/><text class="pmm" x="22" y="57">previewState.status</text><text class="pms" x="22" y="72">deployment poll</text>
+<rect class="pmin" x="10" y="92" width="230" height="40" rx="8"/><text class="pmm" x="22" y="109">isVerifying</text><text class="pms" x="22" y="124">workspace check</text>
+<rect class="pmin" x="10" y="144" width="230" height="40" rx="8"/><text class="pmm" x="22" y="161">isGenerating</text><text class="pms" x="22" y="176">live stream OR saved record</text>
+<rect class="pmin" x="10" y="196" width="230" height="40" rx="8"/><text class="pmm" x="22" y="213">marker.is_bootstrap</text><text class="pms" x="22" y="228">saved record</text>
+<rect class="pmin" x="10" y="248" width="230" height="40" rx="8"/><text class="pmm" x="22" y="265">iframe events</text><text class="pms" x="22" y="280">LOAD_ARMED, FRAME_*</text>
+<rect class="pmhot" x="10" y="310" width="230" height="236" rx="10"/><text class="pmm" x="22" y="330">phase</text><text class="pms" x="70" y="330">from the backend</text>
+<rect class="pmph" x="22" y="342.0" width="206" height="16" rx="5"/><text class="pmm" x="30" y="354.0" style="font-size:11px">preparing</text>
+<rect class="pmph" x="22" y="361.5" width="206" height="16" rx="5"/><text class="pmm" x="30" y="373.5" style="font-size:11px">planning</text>
+<rect class="pmph" x="22" y="381.0" width="206" height="16" rx="5"/><text class="pmm" x="30" y="393.0" style="font-size:11px">writing_code</text>
+<rect class="pmph" x="22" y="400.5" width="206" height="16" rx="5"/><text class="pmm" x="30" y="412.5" style="font-size:11px">making_images</text>
+<rect class="pmph" x="22" y="420.0" width="206" height="16" rx="5"/><text class="pmm" x="30" y="432.0" style="font-size:11px">syncing</text>
+<rect class="pmph" x="22" y="439.5" width="206" height="16" rx="5"/><text class="pmm" x="30" y="451.5" style="font-size:11px">saving_files</text>
+<rect class="pmph" x="22" y="459.0" width="206" height="16" rx="5"/><text class="pmm" x="30" y="471.0" style="font-size:11px">updating_preview</text>
+<rect class="pmhot" x="22" y="478.5" width="206" height="16" rx="5"/><text class="pmm" x="30" y="490.5" style="font-size:11px">validating</text>
+<rect class="pmhot" x="22" y="498.0" width="206" height="16" rx="5"/><text class="pmm" x="30" y="510.0" style="font-size:11px">repairing</text>
+<rect class="pmph" x="22" y="517.5" width="206" height="16" rx="5"/><text class="pmm" x="30" y="529.5" style="font-size:11px">none / unknown</text>
+<rect class="pmrg" x="380" y="40" width="190" height="46" rx="10"/><text class="pmm" x="395" y="60" style="font-weight:600">provisioning</text>
+<rect class="pmrg" x="380" y="110" width="190" height="46" rx="10"/><text class="pmm" x="395" y="130" style="font-weight:600">activity</text>
+<rect class="pmrg" x="380" y="180" width="190" height="46" rx="10"/><text class="pmm" x="395" y="200" style="font-weight:600">generation</text>
+<rect class="pmrg" x="380" y="250" width="190" height="46" rx="10"/><text class="pmm" x="395" y="270" style="font-weight:600">coldStart</text>
+<rect class="pmrg" x="380" y="320" width="190" height="46" rx="10"/><text class="pmm" x="395" y="340" style="font-weight:600">screen</text>
+<text class="pms" x="395" y="76">60 s workspace limit</text>
+<text class="pms" x="395" y="146">is a build running?</text>
+<text class="pms" x="395" y="216">build overlay</text>
+<text class="pms" x="395" y="286">wake-up overlay</text>
+<text class="pms" x="395" y="356">main screen</text>
+<path class="pmln" d="M240,60 C310.0,60 310.0,58 378,58" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,60 C310.0,60 310.0,332 378,332" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,112 C310.0,112 310.0,340 378,340" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,164 C310.0,164 310.0,133 378,133" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,164 C310.0,164 310.0,198 378,198" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,216 C310.0,216 310.0,348 378,348" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,268 C310.0,268 310.0,273 378,273" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,60 C310.0,60 310.0,208 378,208" marker-end="url(#pmm)"/>
+<path class="pmhl" d="M228,486.5 C304.0,486.5 304.0,216 378,216" marker-end="url(#pmm)"/>
+<path class="pmhl" d="M228,506.0 C304.0,506.0 304.0,218 378,218" marker-end="url(#pmm)"/>
+<text class="pms" x="300" y="460" style="font-weight:600">validating, repairing → isTesting</text>
+<rect class="pmout" x="740" y="70" width="230" height="60" rx="10"/><text class="pmt" x="754" y="89">Full-panel scene</text>
+<text class="pms" x="754" y="105">Verifying · Provisioning</text>
+<text class="pms" x="754" y="120">first-build scene</text>
+<rect class="pmout" x="740" y="170" width="230" height="45" rx="10"/><text class="pmt" x="754" y="189">Build overlay</text>
+<text class="pms" x="754" y="205">animation picked by phase</text>
+<rect class="pmout" x="740" y="250" width="230" height="45" rx="10"/><text class="pmt" x="754" y="269">Testing badge</text>
+<text class="pms" x="754" y="285">Validating · Repairing</text>
+<rect class="pmout" x="740" y="330" width="230" height="45" rx="10"/><text class="pmt" x="754" y="349">Wake-up overlay</text>
+<text class="pms" x="754" y="365">Cold start · error panel</text>
+<rect class="pmout" x="740" y="410" width="230" height="45" rx="10"/><text class="pmt" x="754" y="429">Toolbar status dot</text>
+<text class="pms" x="754" y="445">selectPreviewStatus</text>
+<path class="pmln" d="M570,343 C655.0,343 655.0,85 738,85" marker-end="url(#pmm)"/>
+<path class="pmln" d="M570,343 C655.0,343 655.0,425 738,425" marker-end="url(#pmm)"/>
+<path class="pmln" d="M570,203 C655.0,203 655.0,185 738,185" marker-end="url(#pmm)"/>
+<path class="pmln" d="M570,273 C655.0,273 655.0,345 738,345" marker-end="url(#pmm)"/>
+<path class="pmln" d="M570,203 C655.0,203 655.0,265 738,265" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,420 C540,470 640,300 738,205" stroke-dasharray="5 4" marker-end="url(#pmm)"/>
+<path class="pmln" d="M240,428 C560,500 660,330 738,282" stroke-dasharray="5 4" marker-end="url(#pmm)"/><path class="pmln" d="M240,412 C520,440 640,140 738,112" stroke-dasharray="5 4" marker-end="url(#pmm)"/>
+<text class="pms" x="470" y="470">dashed: the selector reads the phase to pick the animation;</text><text class="pms" x="470" y="485">no region changes</text>
+<path class="pmln" d="M475,156 L475,178" marker-end="url(#pmm)"/><text class="pms" x="482" y="171">bridging holds it up</text></svg></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Phase</th><th scope="col">Region it changes</th><th scope="col">What the reader sees</th></tr></thead>
+      <tbody><tr><td><code>preparing, planning, writing_code, making_images, syncing</code></td><td>none</td><td>Picks the animation in the build overlay, or in the first-build scene</td></tr><tr><td><code>saving_files, updating_preview</code></td><td>none</td><td>Shows the Syncing animation</td></tr><tr><td><code>validating, repairing</code></td><td><code>generation</code>: the <code>isTesting</code> guard turns true, so the overlay fades and hides</td><td>Testing badge with a small Validating or Repairing animation; the preview stays visible. On a first build the full scene stays (decision 4)</td></tr><tr><td><code>none, or a value the editor does not know</code></td><td>none</td><td>Today's generic loading scene, with no phase animation</td></tr></tbody>
+    </table></div>
+    <div class="prose">
+      <p>Three animations do not come from a phase at all. Verifying and Provisioning come from the <code>screen</code> region, and Cold start comes from the <code>coldStart</code> region.</p>
+      <p>Planning and writing are both just <code>generating</code> to the <code>activity</code> region. The machine does not copy the backend's steps into regions, because the backend already runs its own state machine for them, and its steps can go backwards. The editor only needs to know whether the AI is testing, and which animation to draw.</p>
+    </div>
+  </section>
+
+  <section id="build" aria-labelledby="build-title">
+    <h2 id="build-title">The regions during a real build <span class="count">6 lanes · 6 min</span></h2>
+    <div class="prose"><p>This is the first build recorded for !718, redrawn from its debug log. Each row is a region, and each bar is how long it stayed in a state. Orange bars are the active states. About five minutes of writing code are cut from the middle.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 330" role="img" aria-label="How each region of the machine moved during the recorded first build">
+<style>.tlb{fill:var(--kiln-text);font:600 12.5px var(--kiln-mono)}.tls{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.tlv{font:11px var(--kiln-sans);fill:var(--kiln-text)}.tloff{fill:var(--kiln-surface-2);stroke:var(--kiln-line)}.tlon{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.tlgood{fill:var(--kiln-ok-wash);stroke:var(--kiln-ok)}.tlwarn{fill:var(--kiln-warn-wash);stroke:var(--kiln-warn)}.tlbad{fill:var(--kiln-bad-wash);stroke:var(--kiln-bad)}.tlph{fill:var(--kiln-surface);stroke:var(--kiln-line)}.tlax{stroke:var(--kiln-line);stroke-width:1}</style>
+<text class="tlb" x="8" y="60">provisioning</text>
+<rect class="tloff" x="178.7" y="44" width="130.0" height="24" rx="4"/>
+<text class="tlv" x="243.7" y="60" text-anchor="middle">idle</text>
+<rect class="tlon" x="308.7" y="44" width="75.8" height="24" rx="4"/>
+<text class="tlv" x="346.6" y="60" text-anchor="middle">waiting</text>
+<rect class="tloff" x="384.5" y="44" width="45.5" height="24" rx="4"/>
+<text class="tlv" x="407.2" y="60" text-anchor="middle">idle</text>
+<rect class="tloff" x="520.0" y="44" width="445.0" height="24" rx="4"/>
+<text class="tlv" x="742.5" y="60" text-anchor="middle">idle</text>
+<text class="tlb" x="8" y="100">activity</text>
+<rect class="tlon" x="178.7" y="84" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="100" text-anchor="middle">generating</text>
+<rect class="tlon" x="520.0" y="84" width="370.8" height="24" rx="4"/>
+<text class="tlv" x="705.4" y="100" text-anchor="middle">generating</text>
+<rect class="tlwarn" x="890.8" y="84" width="45.6" height="24" rx="4"/>
+<rect class="tloff" x="936.5" y="84" width="28.5" height="24" rx="4"/>
+<text class="tlv" x="950.7" y="100" text-anchor="middle">idle</text>
+<text class="tlb" x="8" y="140">generation</text>
+<rect class="tlon" x="178.7" y="124" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="140" text-anchor="middle">visible</text>
+<rect class="tlon" x="520.0" y="124" width="73.0" height="24" rx="4"/>
+<text class="tlv" x="556.5" y="140" text-anchor="middle">visible</text>
+<rect class="tlwarn" x="593.0" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="598.7" y="124" width="194.0" height="24" rx="4"/>
+<text class="tlv" x="695.7" y="140" text-anchor="middle">hidden</text>
+<rect class="tlon" x="792.7" y="124" width="19.4" height="24" rx="4"/>
+<rect class="tlwarn" x="812.1" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="817.8" y="124" width="54.8" height="24" rx="4"/>
+<text class="tlv" x="845.2" y="140" text-anchor="middle">hidden</text>
+<rect class="tlon" x="872.6" y="124" width="13.7" height="24" rx="4"/>
+<rect class="tlwarn" x="886.3" y="124" width="4.6" height="24" rx="4"/>
+<rect class="tlon" x="890.8" y="124" width="45.6" height="24" rx="4"/>
+<text class="tlv" x="913.7" y="140" text-anchor="middle">visible</text>
+<rect class="tlwarn" x="936.5" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="942.2" y="124" width="22.8" height="24" rx="4"/>
+<text class="tlb" x="8" y="180">coldStart</text>
+<rect class="tloff" x="178.7" y="164" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="180" text-anchor="middle">hidden</text>
+<rect class="tloff" x="520.0" y="164" width="372.0" height="24" rx="4"/>
+<text class="tlv" x="706.0" y="180" text-anchor="middle">hidden</text>
+<rect class="tlon" x="892.0" y="164" width="5.7" height="24" rx="4"/>
+<rect class="tlwarn" x="897.7" y="164" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="903.4" y="164" width="61.6" height="24" rx="4"/>
+<text class="tlv" x="934.2" y="180" text-anchor="middle">hidden</text>
+<text class="tlb" x="8" y="220">screen</text>
+<rect class="tloff" x="178.7" y="204" width="130.0" height="24" rx="4"/>
+<text class="tlv" x="243.7" y="220" text-anchor="middle">unavailable</text>
+<rect class="tlon" x="308.7" y="204" width="75.8" height="24" rx="4"/>
+<text class="tlv" x="346.6" y="220" text-anchor="middle">provisioning</text>
+<rect class="tlon" x="384.5" y="204" width="45.5" height="24" rx="4"/>
+<rect class="tlon" x="520.0" y="204" width="370.8" height="24" rx="4"/>
+<text class="tlv" x="705.4" y="220" text-anchor="middle">bootstrap</text>
+<rect class="tlgood" x="890.8" y="204" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="927.9" y="220" text-anchor="middle">preview</text>
+<text class="tlb" x="8" y="260">phase (context)</text>
+<rect class="tlph" x="178.7" y="244" width="58.5" height="24" rx="4"/>
+<text class="tlv" x="207.9" y="260" text-anchor="middle">none</text>
+<rect class="tlph" x="237.2" y="244" width="19.5" height="24" rx="4"/>
+<rect class="tlph" x="256.7" y="244" width="173.3" height="24" rx="4"/>
+<text class="tlv" x="343.3" y="260" text-anchor="middle">planning</text>
+<rect class="tlph" x="520.0" y="244" width="16.0" height="24" rx="4"/>
+<rect class="tlph" x="536.0" y="244" width="57.1" height="24" rx="4"/>
+<text class="tlv" x="564.5" y="260" text-anchor="middle">syncing</text>
+<rect class="tlph" x="593.0" y="244" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="630.1" y="260" text-anchor="middle">validating</text>
+<rect class="tlph" x="667.2" y="244" width="125.5" height="24" rx="4"/>
+<text class="tlv" x="729.9" y="260" text-anchor="middle">repairing</text>
+<rect class="tlph" x="792.7" y="244" width="19.4" height="24" rx="4"/>
+<rect class="tlph" x="812.1" y="244" width="60.5" height="24" rx="4"/>
+<rect class="tlph" x="872.6" y="244" width="2.0" height="24" rx="4"/>
+<rect class="tlph" x="873.7" y="244" width="12.6" height="24" rx="4"/>
+<rect class="tlph" x="886.3" y="244" width="4.6" height="24" rx="4"/>
+<rect class="tlph" x="890.8" y="244" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="927.9" y="260" text-anchor="middle">none</text>
+<line class="tlax" x1="170" y1="286" x2="430" y2="286"/>
+<line class="tlax" x1="520" y1="286" x2="965" y2="286"/>
+<line class="tlax" x1="170.0" y1="286" x2="170.0" y2="291"/><text class="tls" x="170.0" y="304" text-anchor="middle">0:14</text>
+<line class="tlax" x1="235.0" y1="286" x2="235.0" y2="291"/><text class="tls" x="235.0" y="304" text-anchor="middle">0:17</text>
+<line class="tlax" x1="300.0" y1="286" x2="300.0" y2="291"/><text class="tls" x="300.0" y="304" text-anchor="middle">0:20</text>
+<line class="tlax" x1="365.0" y1="286" x2="365.0" y2="291"/><text class="tls" x="365.0" y="304" text-anchor="middle">0:23</text>
+<line class="tlax" x1="430.0" y1="286" x2="430.0" y2="291"/><text class="tls" x="430.0" y="304" text-anchor="middle">0:26</text>
+<line class="tlax" x1="542.8" y1="286" x2="542.8" y2="291"/><text class="tls" x="542.8" y="304" text-anchor="middle">5:30</text>
+<line class="tlax" x1="599.9" y1="286" x2="599.9" y2="291"/><text class="tls" x="599.9" y="304" text-anchor="middle">5:35</text>
+<line class="tlax" x1="656.9" y1="286" x2="656.9" y2="291"/><text class="tls" x="656.9" y="304" text-anchor="middle">5:40</text>
+<line class="tlax" x1="714.0" y1="286" x2="714.0" y2="291"/><text class="tls" x="714.0" y="304" text-anchor="middle">5:45</text>
+<line class="tlax" x1="771.0" y1="286" x2="771.0" y2="291"/><text class="tls" x="771.0" y="304" text-anchor="middle">5:50</text>
+<line class="tlax" x1="828.1" y1="286" x2="828.1" y2="291"/><text class="tls" x="828.1" y="304" text-anchor="middle">5:55</text>
+<line class="tlax" x1="885.1" y1="286" x2="885.1" y2="291"/><text class="tls" x="885.1" y="304" text-anchor="middle">6:00</text>
+<line class="tlax" x1="942.2" y1="286" x2="942.2" y2="291"/><text class="tls" x="942.2" y="304" text-anchor="middle">6:05</text>
+<text class="tls" x="475.0" y="26" text-anchor="middle">≈ 5 min of writing cut</text>
+<path d="M434,34 L516,34" stroke="var(--kiln-muted)" stroke-dasharray="4 4" fill="none"/>
+<text class="tls" x="565" y="320" text-anchor="middle">time since recording start (minutes:seconds)</text>
+<text x="913.7" y="99" text-anchor="middle" style="font:9.5px var(--kiln-sans);fill:var(--kiln-text)">bridging</text></svg></div>
+    <div class="prose">
+      <p>During validating and repairing, <code>generation</code> fades and hides, so the preview shows with the testing badge. When the build ends, <code>activity</code> enters <code>bridging</code> and the overlay comes back for 4 seconds. Meanwhile <code>screen</code> switches to the preview, the iframe loads, and <code>coldStart</code> runs its own short show-and-fade cycle. When the bridge ends, the overlay fades and the site is visible. Each region moved on its own clock, and no code coordinated them by hand.</p>
+      <p class="muted">The phase row is not a region; it is the build phase stored in the machine's context, which the animation follows. The short <code>validating*</code> after <code>updating_preview</code> is a stale value, explained under "Gains and costs".</p>
+    </div>
+  </section>
+
+  <section id="compare" aria-labelledby="compare-title">
+    <h2 id="compare-title">The same rules, written both ways <span class="count">5 comparisons</span></h2>
+    <h3>1. The 4-second bridge after a build</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">use-preview-generation-overlay.ts</span></figcaption><pre><code>const prevIsGenerating = useRef(isGenerating);
+const [bridging, setBridging] = useState(false);
+
+useEffect(() =&gt; {
+  // detect the &quot;build ended&quot; edge by hand
+  const wasGenerating = prevIsGenerating.current;
+  prevIsGenerating.current = isGenerating;
+  if (!wasGenerating || isGenerating) return;
+  setBridging(true);
+  void queryClientRef.current.invalidateQueries(/* app GET */);
+  const id = setTimeout(() =&gt; setBridging(false), BRIDGE_MS);
+  // remember to cancel it
+  return () =&gt; clearTimeout(id);
+}, [isGenerating]);
+
+// a second effect ends the bridge early
+useEffect(() =&gt; {
+  if (isSyncing &amp;&amp; bridging) setBridging(false);
+}, [isSyncing, bridging]);</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts</span></figcaption><pre><code>activity: {
+  initial: &quot;idle&quot;,
+  states: {
+    idle: {
+      always: { guard: &quot;isGenerating&quot;, target: &quot;generating&quot; },
+    },
+    generating: {
+      always: {
+        guard: &quot;generationEnded&quot;,
+        target: &quot;bridging&quot;,
+        actions: &quot;invalidateDeployment&quot;,
+      },
+    },
+    bridging: {
+      always: [
+        { guard: &quot;isGenerating&quot;, target: &quot;generating&quot; },
+        { guard: &quot;isSyncing&quot;, target: &quot;idle&quot; },
+      ],
+      // the timer dies when the state is left
+      after: { generationBridge: &quot;idle&quot; },
+    },
+  },
+},</code></pre></figure>
+</div>
+<p class="prose why">Without XState, the hook kept the previous value in a ref to spot the end of a build, started a timer, cancelled it in a cleanup, and used a second effect to end the bridge early. With XState, <code>bridging</code> is a state: entering it starts the timer, and leaving it for any reason cancels the timer.</p>
+    <h3>2. "A timeout must never clear an error"</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-provider.tsx</span></figcaption><pre><code>const beginFade = useCallback((fromError = false) =&gt; {
+  clearTimeout(timeoutRef.current);
+  setLifecycle((current) =&gt; {
+    if (current.phase === &quot;hidden&quot;) return current;
+    // The safety timeout must NOT fade an error.
+    if (current.phase === &quot;error&quot; &amp;&amp; !fromError)
+      return current;
+    return { phase: &quot;fading&quot;, error: null };
+  });
+  fadeRef.current = setTimeout(
+    () =&gt; setLifecycle({ phase: &quot;hidden&quot;, error: null }), FADE_MS);
+}, []);
+// …and every caller must pass the right fromError flag.</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts</span></figcaption><pre><code>visible: {
+  after: {
+    lifecycleInit: { actions: &quot;sendLifecycleInit&quot; },
+    // the 30 s safety timer lives here
+    coldStartDeadline: &quot;fading&quot;,
+  },
+  on: {
+    FRAME_READY: { target: &quot;fading&quot;, actions: &quot;sendLifecycleInit&quot; },
+  },
+},
+error: {
+  // No `after` in this state: no timer can ever fire here.
+  on: {
+    FRAME_READY: {
+      target: &quot;fading&quot;,
+      actions: [&quot;clearFrameError&quot;, &quot;sendLifecycleInit&quot;],
+    },
+  },
+},</code></pre></figure>
+</div>
+<p class="prose why">Before, the rule was an <code>if</code> in a shared function plus a flag that every caller had to pass correctly. After, the rule is built into the structure: the 30-second timer belongs to <code>visible</code>, and <code>error</code> has no timer, so nothing can fire there.</p>
+    <h3>3. Which screen wins</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-content.tsx</span></figcaption><pre><code>// PreviewContent: the order of these checks IS the rule.
+if (ensureState.isVerifying) return &lt;PreviewLoadingScene … /&gt;;
+if (activeGeneration?.is_bootstrap &amp;&amp;
+    (status === &quot;running&quot; || status === &quot;syncing&quot;))
+  return &lt;PreviewLoadingScene … /&gt;;
+switch (previewState.status) {
+  case &quot;running&quot;: case &quot;syncing&quot;:
+    return (&lt;&gt;
+      &lt;PreviewIframe … /&gt;
+      &lt;PreviewGenerationOverlay {...generationOverlay} /&gt;
+      {isTesting &amp;&amp; &lt;PreviewTestingBadge /&gt;}
+      &lt;PreviewColdStartOverlay
+        suppressed={generationOverlay.phase !== &quot;hidden&quot;} /&gt;
+    &lt;/&gt;);
+  …
+}</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts + selectors</span></figcaption><pre><code>screen: {
+  initial: &quot;deciding&quot;,
+  on: { RECONCILE: { target: &quot;.deciding&quot; } },
+  states: {
+    deciding: {
+      always: [                       // first match wins, in this order
+        { guard: &quot;isVerifying&quot;, target: &quot;verifying&quot; },
+        { guard: &quot;isBootstrap&quot;, target: &quot;bootstrap&quot; },
+        { guard: &quot;isLoading&quot;, target: &quot;loading&quot; },
+        { guard: &quot;isTimedOut&quot;, target: &quot;timeout&quot; },
+        { guard: &quot;isProvisioning&quot;, target: &quot;provisioning&quot; },
+        { guard: &quot;isPreviewAvailable&quot;, target: &quot;preview&quot; },
+        …
+      ],
+    },
+  },
+},
+// selector: the cold-start overlay waits for the build overlay
+showColdStart:
+  snapshot.value.generation === &quot;hidden&quot; &amp;&amp;
+  snapshot.value.coldStart !== &quot;hidden&quot;</code></pre></figure>
+</div>
+<p class="prose why">Before, the order of <code>if</code> statements in a render function was the precedence, and the wake-up overlay learned about the build overlay through a prop. After, the order is an explicit list of named guards, the cross-overlay rule is one line in the selector, and both show in the generated diagram.</p>
+    <h3>4. Testing a timer</h3>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">old preview-generation-overlay.test.tsx</span></figcaption><pre><code>// old overlay test: real timers, the test waits it out
+await act(() =&gt; new Promise((r) =&gt;
+  setTimeout(r, PREVIEW_GENERATION_TO_SYNCING_BRIDGE_MS + 50)));</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.test.ts</span></figcaption><pre><code>// machine test: a simulated clock, no React, no waiting
+observe({ isGenerating: true });
+observe({ isGenerating: false });
+clock.increment(PREVIEW_GENERATION_TO_SYNCING_BRIDGE_MS - 1);
+expect(view().generation.phase).toBe(&quot;visible&quot;);
+clock.increment(1);
+expect(view().generation.phase).toBe(&quot;fading&quot;);</code></pre></figure>
+</div>
+<p class="prose why">The old test rendered the hook and really waited more than 4 seconds. The machine test moves a simulated clock, checks the exact millisecond the bridge ends, and runs without rendering.</p>
+  <h3>5. How a state reaches the screen</h3>
+    <div class="prose"><p>The panel is four layers. Each layer is drawn from one field of the selector's output, so a component never works out on its own whether it should show.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 300" role="img" aria-label="The four layers of the preview panel and the selector field that controls each">
+<style>.lyl{fill:var(--kiln-surface);stroke:var(--kiln-line-strong)}.lytop{fill:var(--kiln-surface);stroke:var(--kiln-text);stroke-width:1.4}.lyt{font:600 13px var(--kiln-sans);fill:var(--kiln-text)}.lys{font:11.5px var(--kiln-sans);fill:var(--kiln-muted)}.lym{font:12px var(--kiln-mono);fill:var(--kiln-text)}.lyz{font:11px var(--kiln-mono);fill:var(--kiln-muted)}</style>
+<rect class="lytop" x="20" y="14" width="480" height="58" rx="12"/>
+<text class="lyz" x="34" y="36">layer 4</text><text class="lyt" x="92" y="36">Wake-up overlay</text><text class="lys" x="34" y="56">shown only once the build overlay is fully hidden</text>
+<line x1="500" y1="43" x2="530" y2="43" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="47">showColdStart, coldStart</text>
+<rect class="lyl" x="36" y="84" width="464" height="58" rx="12"/>
+<text class="lyz" x="50" y="106">layer 3</text><text class="lyt" x="108" y="106">Testing badge</text><text class="lys" x="50" y="126">small animation while the AI tests the preview</text>
+<line x1="500" y1="113" x2="530" y2="113" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="117">isTesting, animation</text>
+<rect class="lyl" x="52" y="154" width="448" height="58" rx="12"/>
+<text class="lyz" x="66" y="176">layer 2</text><text class="lyt" x="124" y="176">Build overlay</text><text class="lys" x="66" y="196">full animation, label, file count; fades out</text>
+<line x1="500" y1="183" x2="530" y2="183" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="187">generation (phase, animation, copy, progress)</text>
+<rect class="lyl" x="68" y="224" width="432" height="58" rx="12"/>
+<text class="lyz" x="82" y="246">layer 1</text><text class="lyt" x="140" y="246">Main screen</text><text class="lys" x="82" y="266">skeleton, Verifying, Provisioning, first build, preview, or a message</text>
+<line x1="500" y1="253" x2="530" y2="253" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="257">screen, previewState</text>
+<text class="lys" x="540" y="292">fields of the object returned by selectPreviewLoading</text>
+</svg></div>
+    <div class="pair">
+  <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-content.tsx and the overlays</span></figcaption><pre><code>// preview-content.tsx — three hooks, then an if-chain
+const isTesting = usePreviewTestingSignal(appId);
+const generationOverlay = usePreviewGenerationOverlay({
+  appId,
+  isSyncing: previewState.status === &quot;syncing&quot;,
+  isTesting,
+});
+const activeGeneration = useActiveGenerationSignal(appId);
+
+if (ensureState.isVerifying)
+  return &lt;PreviewLoadingScene copy=&quot;Memverifikasi workspace...&quot; /&gt;;
+…
+&lt;PreviewGenerationOverlay {...generationOverlay} /&gt;
+&lt;PreviewColdStartOverlay
+  suppressed={generationOverlay.phase !== &quot;hidden&quot;} /&gt;
+
+// each overlay also fetched its own pieces
+function PreviewGenerationOverlay({ phase, copy, ariaLabel }) {
+  const buildProgress = useBuildProgressStore((s) =&gt; s.progress);
+  …
+}
+function PreviewColdStartOverlay({ suppressed }) {
+  const { lifecycle } = usePreview();
+  if (suppressed || lifecycle.phase === &quot;hidden&quot;) return null;
+  …
+}</code></pre></figure>
+  <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-content.tsx and the overlays</span></figcaption><pre><code>// preview-content.tsx — one object, one switch
+const loading = usePreviewLoadingViewModel({
+  appId,
+  previewState,
+  isVerifying: ensureState.isVerifying,
+});
+
+switch (loading.screen) {
+  case &quot;verifying&quot;:
+    return &lt;PreviewLoadingScene
+      copy=&quot;Memverifikasi workspace...&quot; animation=&quot;verifying&quot; /&gt;;
+  case &quot;preview&quot;:
+    return (&lt;&gt;
+      &lt;PreviewIframe previewUrl={…} /&gt;
+      &lt;PreviewGenerationOverlay {...loading.generation} /&gt;
+      {loading.isTesting &amp;&amp; (
+        &lt;PreviewTestingBadge animation={loading.animation} /&gt;
+      )}
+      &lt;PreviewColdStartOverlay
+        lifecycle={loading.coldStart}
+        visible={loading.showColdStart} /&gt;
+    &lt;/&gt;);
+  …
+}
+
+// overlays only draw the props they receive
+function PreviewColdStartOverlay({ lifecycle, visible }) {
+  if (!visible) return null;
+  …
+}</code></pre></figure>
+</div>
+<p class="prose why">Before, <code>PreviewContent</code> called three hooks and combined them in an if-chain, and each overlay also fetched its own data: the build overlay read the progress store, and the wake-up overlay read the provider's lifecycle and a <code>suppressed</code> prop. After, <code>PreviewContent</code> receives one ready-made object and switches on <code>loading.screen</code>, and each overlay draws exactly the props it is given. Changing which layer wins means changing the machine or the selector, never a component.</p>
+  </section>
+
+  <section id="costs" aria-labelledby="costs-title">
+    <h2 id="costs-title">Gains and costs <span class="count">7 gains · 4 costs</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Question</th><th scope="col">Without XState</th><th scope="col">With XState</th></tr></thead>
+      <tbody>
+        <tr><td>Where is the logic?</td><td>Three hooks and a provider, plus the order of checks in a render function</td><td><code>preview-loading.machine.ts</code> and a small selector file</td></tr>
+        <tr><td>Who owns the timers?</td><td>Five timers in three files, in refs and effects, cancelled by hand</td><td>Five named <code>delays</code>, started and stopped with their states</td></tr>
+        <tr><td>Can you see the flow?</td><td>Only by reading all the code</td><td>A generated diagram in <code>docs/flows/editor-preview-loading.md</code>, checked by a test</td></tr>
+        <tr><td>Impossible combinations?</td><td>Possible: flags and phases could disagree across hooks</td><td>Each region is in exactly one state; a test proves every state is reachable and has a way out</td></tr>
+        <tr><td>Timer tests</td><td>Real waiting in rendered hooks</td><td>Simulated clock, no React</td></tr>
+        <tr><td>Debugging</td><td>Log lines in each hook</td><td>One subscription logs every region change to <code>DEWA_PREVIEW_DEBUG</code></td></tr>
+        <tr><td>Reviewing a change</td><td>Read the effects and imagine the timing</td><td>Read the machine diff and the diagram diff</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Costs</h3>
+    <div class="prose"><ul>
+      <li><strong>More lines.</strong> About 670 lines in five files became about 910 in seven; the machine file alone is 304. The gain is in finding and checking rules, not in typing less.</li>
+      <li><strong>Two packages.</strong> <code>xstate</code> 5.33.2 and <code>@xstate/react</code> 6.1.0. The bundle cost for this app is not measured yet (Sitrep measured about 14 KiB gzipped).</li>
+      <li><strong>New ideas to learn.</strong> The table of XState ideas above is the minimum a reader needs.</li>
+      <li><strong>Its own traps.</strong> <code>LOAD_ARMED</code> once used <code>reenter: true</code> to move from a region to its own child. In a parallel machine that restarts every region, so each iframe load cut the bridge and the fade short. The debug log caught it, not the tests. Commit <code>2d808714</code> fixed it and added a regression test.</li>
+    </ul></div>
+    <div class="callout prose">
+      <p><strong>What XState does not fix.</strong> The machine is only as correct as its inputs. When a build ends, the live stream stops before the next poll arrives, so for about half a second the machine still sees the last polled build record, Validating, and starts to fade the overlay. The old code did the same. Fixing it needs better data, such as clearing the cached record when the stream ends. That is a decision for LB-2.</p>
+    </div>
+  </section>
+
+  <section id="change" aria-labelledby="change-title">
+    <h2 id="change-title">How to change the machine <span class="count">5 steps</span></h2>
+    <ol class="steps">
+      <li><div class="rail"><span class="code">1</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Edit the machine</span></div><p>Add a state, guard or delay by name in <code>preview-loading.machine.ts</code>. Keep React and fetching out of it.</p></div></li>
+      <li><div class="rail"><span class="code">2</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Update the selector</span></div><p>If what the panel shows changes, update <code>preview-loading.selectors.ts</code>.</p></div></li>
+      <li><div class="rail"><span class="code">3</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Add a test</span></div><p>Add it to <code>__tests__/preview-loading.machine.test.ts</code>, with the simulated clock for anything timed.</p></div></li>
+      <li><div class="rail"><span class="code">4</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Regenerate the diagram</span></div><p>Run <code>pnpm --dir apps/web vitest run src/domains/editor/preview/__tests__/preview-loading.machine.test.ts -u</code> and review the diagram's diff.</p></div></li>
+      <li><div class="rail"><span class="code">5</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Check it in a browser</span></div><p>Run <code>pnpm --dir apps/web test:editor-loading</code>, then open the editor with <code>localStorage.setItem("DEWA_PREVIEW_DEBUG", "1")</code> and watch the log.</p></div></li>
+    </ol>
+  </section>
+
+  <footer class="mono">Written for MR !718, 11 Nov 2026. Built with the proposed Kiln design system: tokens, fonts and theme convention from the Kiln artifact guide proposal.</footer>
+</div>
+<script>
+  // Kiln renders artifacts in a srcdoc frame whose base URL is the Kiln page, so
+  // a plain "#section" link would load that page inside the frame. Scroll instead.
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const target = document.getElementById(link.getAttribute("href").slice(1));
+    if (!target) return;
+    event.preventDefault();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    const heading = target.querySelector("h2");
+    if (heading) { heading.setAttribute("tabindex", "-1"); heading.focus({ preventScroll: true }); }
+  });
+</script>
+</body>
+</html>

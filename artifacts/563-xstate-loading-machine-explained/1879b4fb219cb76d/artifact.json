@@ -1,0 +1,18 @@
+{
+  "slug": "563-xstate-loading-machine-explained",
+  "title": "From backend progress to the editor screen (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "API-first explanation of editor loading, with a visual XState input, rendering and optional query-refresh loop. Covers live streaming, app GET, reload recovery and source priority.",
+    "tags": [
+      "563",
+      "xstate",
+      "editor",
+      "explainer",
+      "api",
+      "kiln-design-proposal"
+    ]
+  },
+  "revision": "1879b4fb219cb76d",
+  "updated_at": "2026-11-11T07:41:26.999Z"
+}
