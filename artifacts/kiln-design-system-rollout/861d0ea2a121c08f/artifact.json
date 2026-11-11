@@ -1,0 +1,16 @@
+{
+  "slug": "kiln-design-system-rollout",
+  "title": "Inter and themes: Kiln rollout tracker",
+  "framework": "html",
+  "metadata": {
+    "description": "Reference work tracker for the real Kiln guide, Inter font, system-default light and dark themes, and artifact migration.",
+    "tags": [
+      "kiln",
+      "design-system",
+      "guide",
+      "themes"
+    ]
+  },
+  "revision": "861d0ea2a121c08f",
+  "updated_at": "2026-11-11T06:55:13.724Z"
+}
