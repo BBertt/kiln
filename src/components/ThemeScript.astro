@@ -1,0 +1,16 @@
+---
+// Runs before first paint so pages never flash the wrong theme. Keep in step with theme.ts.
+---
+<script is:inline>
+  (() => {
+    const root = document.documentElement;
+    let choice = 'system';
+    try {
+      const stored = localStorage.getItem('kiln-theme');
+      if (stored === 'light' || stored === 'dark') choice = stored;
+    } catch {}
+    root.dataset.themePref = choice;
+    root.dataset.theme = choice === 'dark' || (choice === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    if (window.self !== window.top) root.dataset.embedded = '';
+  })();
+</script>

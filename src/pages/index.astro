@@ -1,6 +1,7 @@
 ---
 import { ArrowDownUp, ArrowUpRight, Box, Check, ChevronDown, Code2, Flame, Layers3, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import GalleryLayout from '../layouts/GalleryLayout.astro';
+import ThemeSwitch from '../components/ThemeSwitch.astro';
 import { artifactUrl, getLatestArtifacts, homeUrl } from '../components/catalog';
 
 const artifacts = getLatestArtifacts();
@@ -16,6 +17,7 @@ const plural = (count: number) => count === 1 ? 'artifact' : 'artifacts';
       <span class="header-divider" aria-hidden="true"></span>
       <span class="header-label">THE ARTIFACT WORKSHOP</span>
       <div class="header-status"><span class="status-dot"></span>Your personal collection</div>
+      <ThemeSwitch />
     </header>
 
     <main>

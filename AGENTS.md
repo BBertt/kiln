@@ -6,27 +6,9 @@ Do not put secrets, private data, or credentials in artifacts.
 
 ## Authoring
 
-1. Call `list_artifacts` before you choose a slug.
-2. Call `create_or_update_artifact` with `slug`, `title`, `framework`, and `code`.
-3. Give the user the returned `local_url` and public links from `publication`.
-4. Open the preview and exercise its controls before you report success.
-5. If the tool rejects the code, fix the reported error and call it again.
-
-Use lowercase hyphenated slugs. Reuse the slug when the user requests an edit.
-Supported frameworks are `react`, `vue`, `svelte`, and `html`.
-React code must export a component as its default export.
-Vue and Svelte code must contain a complete single-file component.
-HTML code contains the markup, style, and script for the artifact body.
-Use self-contained components. Import installed packages, not local relative files.
-Use Tailwind classes or component styles. Use `lucide-react` for React icons.
-The installed UI packages include `framer-motion` and `recharts`.
-
-## Design
-
-Use a mobile-first layout with readable type, clear spacing, and visible focus states.
-Include meaningful empty, loading, and error states when the interface needs them.
-Keep state inside the component. Do not require a backend server.
-Respect reduced-motion preferences. Label inputs and interactive controls.
+Read `src/guide/authoring.md` before you create or update an artifact. MCP clients receive the same guide as the resource `kiln://guide/authoring`.
+It covers formats, light and dark themes, design tokens, the Inter font, templates, and the checks before you report success.
+Every artifact must work in both themes with Kiln's theme switch. Never add your own switch.
 Use sample data only when the user does not provide data. Label sample data clearly.
 
 ## Publishing

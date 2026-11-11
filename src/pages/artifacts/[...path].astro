@@ -17,6 +17,7 @@ export function getStaticPaths() {
 
 interface Props { artifact: ArtifactRecord }
 const { artifact } = Astro.props;
+const isRevision = Astro.params.path?.includes('/revisions/') ?? false;
 const extension = { react: 'tsx', vue: 'vue', svelte: 'svelte', html: 'html' }[artifact.framework];
 const source = `/artifacts/${artifact.slug}/${artifact.revision}/source.${extension}`;
 const htmlSources = import.meta.glob<string>('/artifacts/**/source.html', {
@@ -26,7 +27,7 @@ const htmlSources = import.meta.glob<string>('/artifacts/**/source.html', {
 });
 const html = artifact.framework === 'html' ? htmlSources[source] : undefined;
 ---
-<ArtifactLayout title={artifact.title} description={artifact.metadata.description}>
+<ArtifactLayout title={artifact.title} description={artifact.metadata.description} revision={isRevision ? artifact.revision : undefined}>
   {artifact.framework === 'react' && <ReactArtifact source={source} client:load />}
   {artifact.framework === 'vue' && <VueArtifact source={source} client:only="vue">
     <div slot="fallback" class="artifact-status" role="status"><span class="artifact-spinner"></span>Loading artifact…</div>
@@ -40,7 +41,10 @@ const html = artifact.framework === 'html' ? htmlSources[source] : undefined;
 </ArtifactLayout>
 
 <script>
-  document.querySelectorAll<HTMLIFrameElement>('[data-html-source]').forEach((frame) => {
+  import { currentTheme, themeChangeEvent, type Theme } from '../../components/theme';
+
+  const frames = Array.from(document.querySelectorAll<HTMLIFrameElement>('[data-html-source]'));
+  frames.forEach((frame) => {
     const source = frame.dataset.htmlSource!;
     const documentSource = new DOMParser().parseFromString(source, 'text/html');
     const sharedStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map((style) => {
@@ -49,7 +53,13 @@ const html = artifact.framework === 'html' ? htmlSources[source] : undefined;
       return clone;
     });
     documentSource.head.prepend(...sharedStyles);
+    // The theme mark is set before the frame paints, then kept in step with Kiln's switch.
+    documentSource.documentElement.dataset.theme = currentTheme();
     frame.srcdoc = `<!doctype html>\n${documentSource.documentElement.outerHTML}`;
     delete frame.dataset.htmlSource;
+  });
+  document.addEventListener(themeChangeEvent, (event) => {
+    const theme = (event as CustomEvent<Theme>).detail;
+    frames.forEach((frame) => frame.contentDocument?.documentElement.setAttribute('data-theme', theme));
   });
 </script>

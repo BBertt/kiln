@@ -1,17 +1,30 @@
 ---
+import { ArrowLeft } from 'lucide-react';
 import '../styles/artifact.css';
-interface Props { title: string; description?: string }
-const { title, description } = Astro.props;
+import ThemeScript from '../components/ThemeScript.astro';
+import ThemeSwitch from '../components/ThemeSwitch.astro';
+import { homeUrl } from '../components/catalog';
+interface Props { title: string; description?: string; revision?: string }
+const { title, description, revision } = Astro.props;
 ---
 <!doctype html>
-<html lang="en">
+<html lang="en" class="kiln-shell">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     {description && <meta name="description" content={description} />}
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf9f5" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#191919" />
     <title>{title} · Kiln</title>
+    <ThemeScript />
   </head>
-  <body>
+  <body class="kiln-page">
+    <header class="kiln-bar">
+      <a class="kiln-bar-home" href={homeUrl()} aria-label="Back to the Kiln gallery"><ArrowLeft size={16} aria-hidden="true" /><span>Gallery</span></a>
+      <span class="kiln-bar-title">{title}</span>
+      {revision && <span class="kiln-bar-revision" title={`Revision ${revision}`}>rev {revision.slice(0, 7)}</span>}
+      <ThemeSwitch />
+    </header>
     <slot />
     <noscript><div class="artifact-status">Enable JavaScript to view this artifact.</div></noscript>
   </body>

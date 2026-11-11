@@ -1,13 +1,53 @@
 @import 'tailwindcss';
+@import './tokens.css';
 @source '../../artifacts';
 
+/* dark: classes follow Kiln's theme switch, not only the system setting. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@theme inline {
+  --font-sans: var(--kiln-font-sans);
+  --font-mono: var(--kiln-font-mono);
+  --color-kiln-bg: var(--kiln-bg);
+  --color-kiln-surface: var(--kiln-surface);
+  --color-kiln-surface-2: var(--kiln-surface-2);
+  --color-kiln-line: var(--kiln-line);
+  --color-kiln-line-strong: var(--kiln-line-strong);
+  --color-kiln-text: var(--kiln-text);
+  --color-kiln-muted: var(--kiln-muted);
+  --color-kiln-accent: var(--kiln-accent);
+  --color-kiln-accent-strong: var(--kiln-accent-strong);
+  --color-kiln-accent-text: var(--kiln-accent-text);
+  --color-kiln-accent-wash: var(--kiln-accent-wash);
+  --color-kiln-ok: var(--kiln-ok);
+  --color-kiln-ok-wash: var(--kiln-ok-wash);
+  --color-kiln-warn: var(--kiln-warn);
+  --color-kiln-warn-wash: var(--kiln-warn-wash);
+  --color-kiln-bad: var(--kiln-bad);
+  --color-kiln-bad-wash: var(--kiln-bad-wash);
+  --color-kiln-info: var(--kiln-info);
+  --color-kiln-info-wash: var(--kiln-info-wash);
+}
+
 html, body { margin: 0; min-height: 100%; }
-body { min-height: 100vh; }
-.artifact-html { display: block; width: 100%; min-height: 100vh; border: 0; background: white; }
-.artifact-status { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 100vh; padding: 32px; background: #191917; color: #bcb9af; font: 14px/1.6 ui-sans-serif, system-ui, sans-serif; text-align: center; }
-.artifact-status--error { color: #f0c8b6; }
+html.kiln-shell { --kiln-bar-height: 48px; }
+html.kiln-shell[data-embedded] { --kiln-bar-height: 0px; }
+body.kiln-page { min-height: 100vh; background: var(--kiln-bg); color: var(--kiln-text); font-family: var(--kiln-font-sans); }
+
+.kiln-bar { position: sticky; top: 0; z-index: 50; box-sizing: border-box; height: var(--kiln-bar-height); display: flex; align-items: center; gap: 14px; padding: 0 16px; background: var(--kiln-bg); border-bottom: 1px solid var(--kiln-line); font: 14px/1.4 var(--kiln-font-sans); }
+html[data-embedded] .kiln-bar { display: none; }
+.kiln-bar-home { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--kiln-muted); text-decoration: none; }
+.kiln-bar-home:hover { color: var(--kiln-text); }
+.kiln-bar-home:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; border-radius: 4px; }
+.kiln-bar-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.kiln-bar-revision { flex-shrink: 0; font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+@media (max-width: 540px) { .kiln-bar-home span, .kiln-bar-revision { display: none; } }
+
+.artifact-html { display: block; width: 100%; height: calc(100vh - var(--kiln-bar-height)); height: calc(100dvh - var(--kiln-bar-height)); border: 0; background: var(--kiln-bg); }
+.artifact-status { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: calc(100vh - var(--kiln-bar-height)); padding: 32px; background: var(--kiln-bg); color: var(--kiln-muted); font: 14px/1.6 var(--kiln-font-sans); text-align: center; }
+.artifact-status--error { color: var(--kiln-bad); }
 .artifact-status strong { font-size: 17px; font-weight: 600; }
-.artifact-status pre { max-width: min(680px, 100%); overflow-wrap: anywhere; white-space: pre-wrap; text-align: left; font: 12px/1.7 ui-monospace, monospace; }
-.artifact-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #444239; border-top-color: #f38a59; border-radius: 50%; animation: artifact-spin .8s linear infinite; }
+.artifact-status pre { max-width: min(680px, 100%); overflow-wrap: anywhere; white-space: pre-wrap; text-align: left; font: 12px/1.7 var(--kiln-font-mono); }
+.artifact-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--kiln-line-strong); border-top-color: var(--kiln-accent); border-radius: 50%; animation: artifact-spin .8s linear infinite; }
 @keyframes artifact-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .artifact-spinner { animation: none; } }

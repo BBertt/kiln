@@ -42,9 +42,18 @@ The `KILN_ROOT` variable makes the server independent of the agent's working dir
 }
 ```
 
-Ask the agent to read `AGENTS.md`. Then ask it to create an artifact with Kiln.
-For example: “Use Kiln to make and publish an interactive expense dashboard.”
-Your agent decides how to write the interface. Kiln handles files, validation, preview routes, and publishing.
+The server sends short authoring instructions when an agent connects. The full guide is the MCP resource `kiln://guide/authoring`, from `src/guide/authoring.md`.
+The `work-tracker` and `findings-report` prompts start an artifact from the guide's two templates.
+Ask the agent to create an artifact with Kiln. For example: “Use Kiln to make and publish an interactive expense dashboard.”
+Your agent writes the interface. Kiln handles files, validation, preview routes, themes, and publishing.
+
+## Themes and design
+
+Every page uses the Inter font and has a light and a dark theme. The gallery and each artifact page have a System, Light and Dark switch.
+System is the default. The browser remembers the choice for the whole site.
+Kiln sets `data-theme="light"` or `data-theme="dark"` on the root element, including inside HTML artifact frames.
+Artifacts take colors from the `--kiln-*` tokens in `src/styles/tokens.css` or use Tailwind `dark:` classes. The guide explains the rules.
+Older revisions keep their original colors. A revision that hard-codes colors does not follow the switch.
 
 ## Tools
 
@@ -86,7 +95,7 @@ Do not delete revision directories if you need their links to keep working.
 ## GitHub Pages
 
 This project is published at https://bbertt.github.io/kiln/.
-The public template repository is https://github.com/BBertt/kiln.
+The public repository is https://github.com/BBertt/kiln.
 
 Sign in with `gh auth login`. Create a GitHub repository and set it as the `origin` remote.
 The repository needs an initial commit on `main` that contains the complete Kiln project, including its lockfile and deployment workflow.
@@ -115,6 +124,7 @@ npm run build
 ```
 
 The regression tests use temporary projects. They cover rejected updates, retained source revisions, and saved code after automatic publication fails.
+A smoke check connected a fresh MCP client and read the instructions, the guide resource and both prompts.
 
 Smoke checks exercised all three MCP tools and browser interactions for all four frameworks.
 A revision update refreshed the local preview without manual navigation.
