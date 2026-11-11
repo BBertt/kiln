@@ -1,0 +1,17 @@
+{
+  "slug": "562-admin-console-capabilities",
+  "title": "What issue 562 and MR 667 add to the admin console",
+  "framework": "html",
+  "metadata": {
+    "description": "Feature walkthrough of #562 / !667: frontend capabilities, backend enablement, explicit read-only and unsupported surfaces, inherited features and release prerequisites.",
+    "tags": [
+      "562",
+      "667",
+      "admin-console",
+      "capabilities",
+      "feature-walkthrough"
+    ]
+  },
+  "revision": "96f6db4b3319233a",
+  "updated_at": "2026-11-11T06:44:00.651Z"
+}
