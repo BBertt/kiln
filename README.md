@@ -55,6 +55,9 @@ Kiln sets `data-theme="light"` or `data-theme="dark"` on the root element, inclu
 Artifacts take colors from the `--kiln-*` tokens in `src/styles/tokens.css` or use Tailwind `dark:` classes. The guide explains the rules.
 Older revisions keep their original colors. A revision that hard-codes colors does not follow the switch.
 
+The [rollout tracker](https://bbertt.github.io/kiln/artifacts/kiln-design-system-rollout/) and [verification report](https://bbertt.github.io/kiln/artifacts/kiln-theme-verification/) are working examples of the guide's templates.
+Reconnect existing MCP clients after a server update to receive its new instructions, resources and prompts.
+
 ## Tools
 
 `create_or_update_artifact` accepts `slug`, `title`, `framework`, `code`, and optional `metadata`.
@@ -125,6 +128,8 @@ npm run build
 
 The regression tests use temporary projects. They cover rejected updates, retained source revisions, and saved code after automatic publication fails.
 A smoke check connected a fresh MCP client and read the instructions, the guide resource and both prompts.
+Browser checks exercised the shared theme switch across all four frameworks, system changes, saved overrides, keyboard navigation, and gallery preview synchronization.
+The migrated counters still increment, the welcome button responds, and the reference report's filters and tracker details work.
 
 Smoke checks exercised all three MCP tools and browser interactions for all four frameworks.
 A revision update refreshed the local preview without manual navigation.

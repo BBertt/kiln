@@ -55,6 +55,9 @@ const html = artifact.framework === 'html' ? htmlSources[source] : undefined;
     documentSource.head.prepend(...sharedStyles);
     // The theme mark is set before the frame paints, then kept in step with Kiln's switch.
     documentSource.documentElement.dataset.theme = currentTheme();
+    frame.addEventListener('load', () => {
+      frame.contentDocument?.documentElement.setAttribute('data-theme', currentTheme());
+    });
     frame.srcdoc = `<!doctype html>\n${documentSource.documentElement.outerHTML}`;
     delete frame.dataset.htmlSource;
   });

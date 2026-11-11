@@ -69,7 +69,7 @@ body { margin: 0; background: var(--kiln-bg); color: var(--kiln-text); font-fami
 ```
 
 - Never hard-code a color outside these blocks. This includes inline `style` attributes, SVG attributes and markup built by scripts.
-- SVG presentation attributes cannot read CSS variables. Use classes or `style="fill: var(--kiln-text)"`, or use `currentColor`.
+- Use CSS classes, `style="fill: var(--kiln-text)"`, or `currentColor` for SVG fills, strokes and labels. Keep these colors tied to the tokens in both themes.
 - Give charts their colors from tokens.
 - Keep text contrast at 4.5 to 1 or more in both themes.
 
