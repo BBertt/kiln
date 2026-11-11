@@ -1,0 +1,16 @@
+{
+  "slug": "kiln-artifact-guide-proposal",
+  "title": "Kiln artifact guide and design system",
+  "framework": "html",
+  "metadata": {
+    "description": "Accepted design: Inter typography, system-default toggleable light and dark themes, subject palettes and guide delivery through MCP.",
+    "tags": [
+      "kiln",
+      "design-system",
+      "guide",
+      "themes"
+    ]
+  },
+  "revision": "414f0be47d68be05",
+  "updated_at": "2026-11-11T06:55:51.298Z"
+}
