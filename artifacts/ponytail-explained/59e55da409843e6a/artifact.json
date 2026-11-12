@@ -1,0 +1,17 @@
+{
+  "slug": "ponytail-explained",
+  "title": "Ponytail: the lazy senior dev inside your AI agent",
+  "framework": "html",
+  "metadata": {
+    "description": "What the Ponytail skill is, how it decides what code to write, what it measurably saves, what it refuses to cut, and why so many developers use it.",
+    "tags": [
+      "ponytail",
+      "ai-agents",
+      "skills",
+      "explainer",
+      "yagni"
+    ]
+  },
+  "revision": "59e55da409843e6a",
+  "updated_at": "2026-11-12T06:02:18.824Z"
+}

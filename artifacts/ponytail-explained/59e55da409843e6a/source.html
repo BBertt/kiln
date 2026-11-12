@@ -1,0 +1,320 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15.5px/1.58 var(--kiln-font-sans); }
+  .wrap { max-width: 960px; margin: 0 auto; padding-block: 40px 72px; display: flex; flex-direction: column; gap: 48px; }
+  h1 { margin: 6px 0 10px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  h2 { margin: 0 0 6px; font-size: 23px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  p { margin: 0 0 10px; max-width: 68ch; }
+  .muted { color: var(--kiln-muted); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .count { font: 12.5px var(--kiln-font-mono); color: var(--kiln-muted); font-weight: 400; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 14px; }
+  .stat { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 14px 16px; }
+  .stat .label { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .value { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; margin: 2px 0; }
+  .stat .note { font-size: 13px; color: var(--kiln-muted); }
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+  .panel { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 18px 20px; }
+  .panel.before { border-color: var(--kiln-line-strong); }
+  .panel.after { border-color: var(--kiln-ok); }
+  pre { margin: 10px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--kiln-surface-2); font: 13px/1.5 var(--kiln-font-mono); overflow-x: auto; white-space: pre-wrap; }
+  ol.ladder { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 0; position: relative; }
+  ol.ladder li { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 10px 0; position: relative; }
+  ol.ladder li:not(:last-child)::after { content: ""; position: absolute; left: 19px; top: 44px; bottom: -10px; width: 2px; background: var(--kiln-line); }
+  .rung { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--kiln-accent); display: grid; place-items: center; font: 13px var(--kiln-font-mono); color: var(--kiln-accent-text); background: var(--kiln-bg); }
+  ol.ladder li.last .rung { border-color: var(--kiln-line-strong); color: var(--kiln-muted); }
+  .rung-body p { margin: 2px 0 0; color: var(--kiln-muted); font-size: 14.5px; }
+  .table-wrap { overflow-x: auto; margin-top: 14px; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface); }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--kiln-line); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  th { background: var(--kiln-surface-2); font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; }
+  td.num { font-family: var(--kiln-font-mono); font-size: 13px; white-space: nowrap; }
+  .good { color: var(--kiln-ok); }
+  .bad { color: var(--kiln-bad); }
+  .bar { height: 6px; border-radius: 999px; background: var(--kiln-surface-2); margin-top: 5px; width: 90px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 999px; background: var(--kiln-accent); }
+  .row-hl td { background: var(--kiln-accent-wash); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 14px; }
+  .card { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 14px 16px; }
+  .card p { margin: 0; color: var(--kiln-muted); font-size: 14.5px; }
+  .card.keep { border-left: 3px solid var(--kiln-ok); }
+  .callout { background: var(--kiln-warn-wash); border-left: 3px solid var(--kiln-warn); border-radius: 12px; padding: 14px 18px; }
+  .callout ul { margin: 6px 0 0; padding-left: 20px; }
+  .callout li { margin: 4px 0; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .filters button { font: 12.5px var(--kiln-font-mono); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--kiln-line-strong); background: var(--kiln-surface); color: var(--kiln-text); cursor: pointer; }
+  .filters button[aria-pressed="true"] { background: var(--kiln-text); color: var(--kiln-bg); border-color: var(--kiln-text); }
+  .filters button:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+  ol.sources { padding-left: 20px; margin: 10px 0 0; }
+  ol.sources li { margin: 4px 0; font-size: 14px; }
+  a { color: var(--kiln-info); }
+  footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="mono muted">Explainer &middot; Updated 12 Nov 2026</p>
+    <h1>Ponytail: the lazy senior dev inside your AI agent</h1>
+    <p class="muted">Ponytail is a free skill for AI coding agents. It makes them write the smallest code that works, without cutting the safety checks.</p>
+    <div class="chips" id="chips"></div>
+    <div class="stats" id="stats" aria-label="Adoption numbers"></div>
+  </header>
+
+  <section aria-labelledby="what">
+    <h2 id="what">What it is</h2>
+    <p>AI coding agents tend to over-build. They add libraries, wrapper components, config options and "future-proof" layers that nobody asked for. Each extra line must later be reviewed, tested, updated and debugged.</p>
+    <p>Ponytail is a set of instructions the agent reads before it codes. It plays a familiar character: the senior developer who looks at fifty lines, says nothing, and replaces them with one. Lazy here means efficient, not careless.</p>
+    <div class="compare">
+      <div class="panel before">
+        <span class="pill warn">Without Ponytail</span>
+        <h3 style="margin-top:10px">"Add a date picker"</h3>
+        <p class="muted">The agent installs a date library, writes a wrapper component, adds a stylesheet, and starts a discussion about timezones.</p>
+        <pre>npm install flatpickr
++ DatePicker.tsx
++ date-picker.css
++ timezone helpers
+≈ 404 lines</pre>
+      </div>
+      <div class="panel after">
+        <span class="pill ok">With Ponytail</span>
+        <h3 style="margin-top:10px">"Add a date picker"</h3>
+        <p class="muted">The browser already has one, so the agent uses it.</p>
+        <pre>&lt;!-- ponytail: browser has one --&gt;
+&lt;input type="date"&gt;
+
+≈ 23 lines in the real task</pre>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="how">
+    <h2 id="how">How it decides <span class="count">7 rungs, stop at the first that works</span></h2>
+    <p>Before writing code, the agent first reads the task and the code it touches. Then it climbs this ladder and stops at the first rung that solves the problem.</p>
+    <ol class="ladder" id="ladder"></ol>
+  </section>
+
+  <section aria-labelledby="helps">
+    <h2 id="helps">How it helps <span class="count">12 real tasks &middot; 4 runs each</span></h2>
+    <p>The authors ran a real agent (Claude Code with Haiku 4.5) on 12 feature tickets in a real FastAPI and React project. They compared the same agent with and without the skill. Lower is better. The bar shows the result as a share of the no-skill baseline.</p>
+    <div class="filters" role="group" aria-label="Choose a metric" id="filters"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Approach</th><th scope="col" id="metric-head">Change</th><th scope="col">Safety checks kept</th><th scope="col">What it is</th></tr></thead>
+        <tbody id="bench"></tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:10px;font-size:14px">The biggest cuts come from real over-build traps: a date picker went from 404 to 23 lines, a color picker from 287 to 23. Code that was already minimal barely changed.</p>
+  </section>
+
+  <section aria-labelledby="keeps">
+    <h2 id="keeps">What it never cuts <span class="count">5 protected areas</span></h2>
+    <p>This is what separates Ponytail from a plain "keep it short" prompt. In the same tests, a bare "YAGNI + one-liners" prompt dropped a safety check. Ponytail kept all of them, because the skill names what must stay.</p>
+    <div class="grid2" id="keeps-list"></div>
+  </section>
+
+  <section aria-labelledby="daily">
+    <h2 id="daily">What you notice day to day</h2>
+    <div class="grid2" id="daily-list"></div>
+  </section>
+
+  <section aria-labelledby="why">
+    <h2 id="why">Why so many people use it</h2>
+    <p>Ponytail went from a new repository in June 2026 to one of the most-starred agent tools on GitHub in five months. The project itself does not explain why. These are the features that most plausibly drive it.</p>
+    <div class="grid2" id="why-list"></div>
+  </section>
+
+  <section aria-labelledby="modes">
+    <h2 id="modes">Modes and commands <span class="count">3 levels &middot; 5 tools</span></h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+        <tbody id="cmds"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="limits">
+    <div class="callout">
+      <h2 id="limits" style="font-size:18px">Limits to keep in mind</h2>
+      <ul id="limits-list"></ul>
+    </div>
+  </section>
+
+  <section aria-labelledby="src">
+    <h2 id="src">Sources</h2>
+    <ol class="sources" id="sources"></ol>
+  </section>
+
+  <footer class="mono muted">Adoption numbers read from the GitHub and npm APIs on 12 Nov 2026. Benchmark numbers are the Ponytail authors' own results.</footer>
+</div>
+
+<script>
+  const DATA = {
+    chips: [
+      { text: "MIT license", kind: "ok" },
+      { text: "Works with 20 agents", kind: "info" },
+      { text: "Latest v5.3.3 · 29 Oct 2026", kind: "" },
+      { text: "Created 12 Jun 2026", kind: "" }
+    ],
+    stats: [
+      { label: "GitHub stars", value: "189k", note: "189,292 in five months" },
+      { label: "Forks", value: "10.5k", note: "10,534 copies to adapt" },
+      { label: "npm downloads", value: "152k", note: "Last 30 days (12 Oct – 10 Nov)" },
+      { label: "Contributors", value: "133", note: "30 releases so far" }
+    ],
+    ladder: [
+      { q: "Does this need to exist at all?", d: "Speculative needs are skipped, with one line saying so." },
+      { q: "Is it already in this codebase?", d: "Reuse the helper a few files over instead of writing a second one." },
+      { q: "Does the standard library do it?", d: "Use the language's built-in tools." },
+      { q: "Does the platform do it natively?", d: "An HTML input over a picker library, CSS over JavaScript, a database constraint over app code." },
+      { q: "Does an installed dependency solve it?", d: "Use it. Never add a new package for what a few lines can do." },
+      { q: "Can it be one line?", d: "Then it is one line." },
+      { q: "Only then: the minimum code that works.", d: "Nothing scaffolded \"for later\".", last: true }
+    ],
+    metrics: [
+      { id: "loc", label: "Lines of code" },
+      { id: "tokens", label: "Tokens" },
+      { id: "cost", label: "Cost" },
+      { id: "time", label: "Time" }
+    ],
+    bench: [
+      { name: "Ponytail", hl: true, loc: -54, tokens: -22, cost: -20, time: -27, safe: 100, what: "The full skill" },
+      { name: "\"YAGNI + one-liners\" prompt", loc: -33, tokens: -14, cost: -21, time: -30, safe: 95, what: "A one-sentence instruction to keep code minimal" },
+      { name: "Caveman", loc: -20, tokens: 7, cost: 3, time: 2, safe: 100, what: "A skill that only makes replies terse" },
+      { name: "No skill", loc: 0, tokens: 0, cost: 0, time: 0, safe: 100, what: "The baseline agent" }
+    ],
+    keeps: [
+      { t: "Input checks at trust boundaries", d: "Anywhere outside data enters your system." },
+      { t: "Error handling that prevents data loss", d: "Short code that loses data is not lazy, it is broken." },
+      { t: "Security measures", d: "Auth, escaping, secrets handling stay in." },
+      { t: "Accessibility basics", d: "Labels, focus and keyboard use stay in." },
+      { t: "Anything you explicitly asked for", d: "Insist on the full version and it builds it without arguing." }
+    ],
+    daily: [
+      { t: "Smaller pull requests", d: "Less to review, less to break, faster merges." },
+      { t: "Fewer dependencies", d: "Fewer packages to update, audit and patch." },
+      { t: "Root-cause bug fixes", d: "One guard in the shared function instead of a patch in every caller." },
+      { t: "Honest shortcuts", d: "A ponytail: comment marks each cut corner, its limit and the upgrade path. /ponytail-debt lists them." },
+      { t: "Short answers", d: "Code first, then at most three lines on what was skipped and when to add it." },
+      { t: "One check where it counts", d: "Real logic gets one small runnable test. One-liners get none." }
+    ],
+    why: [
+      { t: "It fixes a pain everyone has", d: "Anyone who has reviewed AI-generated code has seen the 400-line date picker. Ponytail targets exactly that." },
+      { t: "It saves money and time, not just lines", d: "Fewer tokens means lower bills and faster sessions, so the benefit is easy to feel." },
+      { t: "It shows its numbers", d: "The benchmark, method and limits are published and can be re-run. The authors even corrected their own earlier, inflated figure." },
+      { t: "It stays safe", d: "Teams can adopt it without fearing the agent will strip validation or security code." },
+      { t: "It works almost everywhere", d: "Claude Code, Codex, Gemini CLI, OpenCode, pi, Cursor, Windsurf, Copilot and more: 20 agents from one project." },
+      { t: "It costs nothing to try", d: "Free, MIT licensed, one install, and one command to turn it off." }
+    ],
+    cmds: [
+      { c: "/ponytail lite", d: "Builds what you ask, and names the lazier option in one line. You pick." },
+      { c: "/ponytail full", d: "The default. The ladder is enforced: shortest working change." },
+      { c: "/ponytail ultra", d: "Deletes before it adds, and questions the requirement itself." },
+      { c: "/ponytail off", d: "Turns it off. \"stop ponytail\" or \"normal mode\" also work." },
+      { c: "/ponytail-review", d: "Reviews code for over-engineering: what to delete or simplify." },
+      { c: "/ponytail-audit", d: "Scans a whole repository for bloat." },
+      { c: "/ponytail-debt", d: "Lists every ponytail: shortcut comment as a debt report." },
+      { c: "/ponytail-gain", d: "Shows the benchmark scoreboard." },
+      { c: "/ponytail-help", d: "Quick reference for commands and modes." }
+    ],
+    limits: [
+      "The benchmark is the authors' own, on one small model (Haiku 4.5) with 4 runs per task. Your results will vary.",
+      "Savings are large on UI and feature work where agents over-build, and near zero on code that is already tight.",
+      "The plain \"YAGNI\" prompt was slightly cheaper and faster. Ponytail's edge is fewer lines and no lost safety checks.",
+      "Sometimes you truly need the full version. Say so, and Ponytail builds it."
+    ],
+    sources: [
+      { text: "Ponytail repository and README", url: "https://github.com/DietrichGebert/ponytail" },
+      { text: "Agentic benchmark write-up (method, per-task tables, limits)", url: "https://github.com/DietrichGebert/ponytail/blob/main/benchmarks/results/2026-06-18-agentic.md" },
+      { text: "npm package @dietrichgebert/ponytail", url: "https://www.npmjs.com/package/@dietrichgebert/ponytail" },
+      { text: "Test project: full-stack-fastapi-template", url: "https://github.com/fastapi/full-stack-fastapi-template" }
+    ]
+  };
+
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+  DATA.chips.forEach(c => document.getElementById("chips").append(el("span", "pill " + c.kind, c.text)));
+
+  DATA.stats.forEach(s => {
+    const card = el("div", "stat");
+    card.append(el("div", "label", s.label), el("div", "value", s.value), el("div", "note", s.note));
+    document.getElementById("stats").append(card);
+  });
+
+  DATA.ladder.forEach((r, i) => {
+    const li = el("li", r.last ? "last" : "");
+    const body = el("div", "rung-body");
+    body.append(el("h3", "", r.q), el("p", "", r.d));
+    li.append(el("div", "rung", String(i + 1)), body);
+    document.getElementById("ladder").append(li);
+  });
+
+  const fill = (list, id, cls) => list.forEach(x => {
+    const card = el("div", "card " + (cls || ""));
+    card.append(el("h3", "", x.t), el("p", "", x.d));
+    document.getElementById(id).append(card);
+  });
+  fill(DATA.keeps, "keeps-list", "keep");
+  fill(DATA.daily, "daily-list");
+  fill(DATA.why, "why-list");
+
+  DATA.cmds.forEach(c => {
+    const tr = el("tr");
+    tr.append(el("td", "num", c.c), el("td", "", c.d));
+    document.getElementById("cmds").append(tr);
+  });
+
+  DATA.limits.forEach(l => document.getElementById("limits-list").append(el("li", "", l)));
+
+  DATA.sources.forEach(s => {
+    const li = el("li");
+    if (/^https:\/\//.test(s.url)) { const a = el("a", "", s.text); a.href = s.url; a.target = "_blank"; a.rel = "noopener noreferrer"; li.append(a); }
+    else li.textContent = s.text;
+    document.getElementById("sources").append(li);
+  });
+
+  let metric = "loc";
+  const filters = document.getElementById("filters");
+  const renderBench = () => {
+    const m = DATA.metrics.find(x => x.id === metric);
+    document.getElementById("metric-head").textContent = m.label + " vs. no skill";
+    const body = document.getElementById("bench");
+    body.replaceChildren();
+    DATA.bench.forEach(b => {
+      const v = b[metric];
+      const tr = el("tr", b.hl ? "row-hl" : "");
+      tr.append(el("td", "", b.name));
+      const td = el("td", "num " + (v < 0 ? "good" : v > 0 ? "bad" : ""), (v > 0 ? "+" : "") + v + "%");
+      const bar = el("div", "bar");
+      bar.setAttribute("role", "img");
+      bar.setAttribute("aria-label", (100 + v) + "% of baseline");
+      const span = el("span");
+      span.style.width = Math.min(100, (100 + v) / 1.1) + "%";
+      bar.append(span);
+      td.append(bar);
+      tr.append(td);
+      tr.append(el("td", "num " + (b.safe === 100 ? "good" : "bad"), b.safe + "%"));
+      tr.append(el("td", "muted", b.what));
+      body.append(tr);
+    });
+    [...filters.children].forEach(btn => btn.setAttribute("aria-pressed", String(btn.dataset.id === metric)));
+  };
+  DATA.metrics.forEach(m => {
+    const btn = el("button", "", m.label);
+    btn.type = "button";
+    btn.dataset.id = m.id;
+    btn.addEventListener("click", () => { metric = m.id; renderBench(); });
+    filters.append(btn);
+  });
+  renderBench();
+</script>
