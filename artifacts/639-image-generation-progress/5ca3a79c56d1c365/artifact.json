@@ -1,0 +1,21 @@
+{
+  "slug": "639-image-generation-progress",
+  "title": "Image generation: one adapter, two transports (#639)",
+  "framework": "html",
+  "metadata": {
+    "description": "Public progress tracker for #639: two explicit image transports, 94/94 primary measured calls, independent blind scores, separate 8/8 winner-ratio proof with one disclosed timeout, 29-sample WebP proof, isolated worker proof, final green verification, live MR !734, and the public benchmark report. No deployment or default switch.",
+    "tags": [
+      "639",
+      "image-generation",
+      "progress",
+      "litellm",
+      "modelark",
+      "byteplus",
+      "adapter",
+      "blind-review",
+      "mr-734"
+    ]
+  },
+  "revision": "5ca3a79c56d1c365",
+  "updated_at": "2026-11-12T11:56:51.527Z"
+}

@@ -1,0 +1,566 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { color-scheme: dark; } }
+  :root[data-theme='dark'] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15px/1.55 var(--kiln-font-sans); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 72px; display: flex; flex-direction: column; gap: 44px; }
+  header { display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 8px 0 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  h2 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -0.02em; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; }
+  p { margin: 0; max-width: 68ch; }
+  .muted { color: var(--kiln-muted); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  a { color: var(--kiln-accent-text); text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); white-space: nowrap; align-self: flex-start; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .notice { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .notice strong { font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .card { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .card .label { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .card .value { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+  .card .note { font-size: 13.5px; color: var(--kiln-muted); }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .panel { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .panel h3 { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
+  .item { display: flex; flex-direction: column; gap: 3px; padding-top: 10px; border-top: 1px solid var(--kiln-line); }
+  .item:first-of-type { padding-top: 0; border-top: 0; }
+  .item .code { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+  .item strong { font-weight: 600; font-size: 14px; }
+  .item p { font-size: 13.5px; color: var(--kiln-muted); max-width: none; }
+  .concerns { display: grid; gap: 12px; }
+  .concern { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .concern .top { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  .concern .top .pill { margin-left: auto; }
+  .concern p { font-size: 14px; color: var(--kiln-muted); }
+  .decisions { display: grid; gap: 12px; }
+  .decision { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .decision .question { font-size: 15.5px; font-weight: 600; }
+  .decision .context { font-size: 14px; color: var(--kiln-muted); }
+  .decision ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--kiln-muted); }
+  .recommended { background: var(--kiln-surface-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; max-width: none; }
+  .recommended strong { font-weight: 600; }
+  .decided { font-size: 13px; color: var(--kiln-muted); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters button { font: 12px var(--kiln-font-mono); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--kiln-line-strong); background: transparent; color: var(--kiln-text); cursor: pointer; }
+  .filters button[aria-pressed='true'] { background: var(--kiln-accent-wash); border-color: var(--kiln-accent-strong); color: var(--kiln-accent-text); }
+  .phases { display: flex; flex-direction: column; gap: 10px; }
+  details.phase { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 0 16px; }
+  details.phase summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 13px 0; }
+  details.phase summary::-webkit-details-marker { display: none; }
+  details.phase summary .caret { font-family: var(--kiln-font-mono); font-size: 11px; color: var(--kiln-muted); width: 10px; }
+  details.phase[open] summary .caret { transform: rotate(90deg); }
+  details.phase summary .code { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+  details.phase summary .title { font-weight: 600; font-size: 14.5px; }
+  details.phase summary .pill { margin-left: auto; }
+  details.phase.done summary .title { text-decoration: line-through; color: var(--kiln-muted); }
+  .phase-body { padding: 0 0 14px 20px; display: flex; flex-direction: column; gap: 6px; }
+  .phase-body p { font-size: 14px; color: var(--kiln-muted); }
+  .phase-body .dep { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+  .scroll { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--kiln-line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { position: sticky; top: 0; background: var(--kiln-surface-2); font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  td.state { white-space: nowrap; font-family: var(--kiln-font-mono); font-size: 12px; }
+  td.detail { color: var(--kiln-muted); }
+  .ratios { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ratio { font: 12.5px var(--kiln-font-mono); padding: 5px 10px; border-radius: 8px; background: var(--kiln-surface-2); border: 1px solid var(--kiln-line); }
+  .ratio.missing { border-color: var(--kiln-warn); color: var(--kiln-warn); }
+  .log { display: flex; flex-direction: column; }
+  .log-row { display: grid; grid-template-columns: 120px 40px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--kiln-line); font-size: 14px; }
+  .log-row:last-child { border-bottom: 0; }
+  .log-row .date { font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+  .log-row .code { font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+  .log-row p { color: var(--kiln-muted); }
+  code { font-family: var(--kiln-font-mono); font-size: 12.5px; background: var(--kiln-surface-2); padding: 1px 5px; border-radius: 5px; }
+  footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; color: var(--kiln-muted); font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  .empty { border: 1px dashed var(--kiln-line-strong); border-radius: 12px; padding: 18px; color: var(--kiln-muted); font-size: 14px; }
+  @media (max-width: 560px) { .log-row { grid-template-columns: 96px 30px 1fr; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } details.phase summary .caret { transform: none !important; } }
+</style>
+<div class="wrap">
+  <header>
+    <div class="chips">
+      <span class="pill info">Public artifact</span>
+      <span class="pill">Updated 12 Nov 2026</span>
+      <span class="pill ok" id="stage-pill">MR !734 open · pipeline running</span>
+    </div>
+    <h1>Image generation: one adapter, two transports (#639)</h1>
+    <p class="muted">Progress tracker for making the image call model-agnostic while the chat call stays the default. Implementation and final validation are green, 94 real images are measured, the blind review is joined, and the public report is live. The MR !734 is open, targets staging and closes #639; the pipeline is running and nothing is merged.</p>
+    <p class="mono muted"><a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/work_items/639" rel="noreferrer">Issue #639</a> · <a href="https://bbertt.github.io/kiln/artifacts/modelark-image-spike/" rel="noreferrer">Prior ModelArk image spike</a> · <a href="https://bbertt.github.io/kiln/artifacts/modelark-image-benchmark/" rel="noreferrer">Benchmark report</a> · <a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/merge_requests/734" rel="noreferrer">MR !734</a> · <a href="https://bbertt.github.io/kiln/artifacts/639-image-generation-progress/" rel="noreferrer">This page</a></p>
+  </header>
+
+  <section aria-labelledby="stage-heading">
+    <div class="notice">
+      <strong id="stage-heading">Public: benchmark, blind review and final validation are complete.</strong>
+      <p>This page carries no credentials, account identifiers, signed URLs, response headers or customer data. All 94 measured calls returned images through the new adapter; an independent reviewer scored all 70 matched core images; the joined ranking is published. The MR !734 is open, targets staging and closes #639; the pipeline is running and nothing is merged. No deployment, no merge and no default-model change.</p>
+    </div>
+    <div class="cards" id="stage-cards"></div>
+  </section>
+
+  <section aria-labelledby="concerns-heading">
+    <h2 id="concerns-heading">Concerns <span class="mono muted" id="concerns-count">—</span></h2>
+    <p class="muted">The risks worth knowing before the benchmark results arrive. Open items are decisions for later review, not prompts to act now.</p>
+    <div class="concerns" id="concerns"></div>
+  </section>
+
+  <section aria-labelledby="now-heading">
+    <h2 id="now-heading">Now</h2>
+    <div class="cols" id="now"></div>
+  </section>
+
+  <section aria-labelledby="decisions-heading">
+    <h2 id="decisions-heading">Decisions <span class="mono muted" id="decisions-count">—</span></h2>
+    <div class="filters" id="decision-filters" role="group" aria-label="Filter decisions"></div>
+    <div class="decisions" id="decisions"></div>
+  </section>
+
+  <section aria-labelledby="phases-heading">
+    <h2 id="phases-heading">Work sequence <span class="mono muted" id="phases-count">—</span></h2>
+    <div class="phases" id="phases"></div>
+  </section>
+
+  <section aria-labelledby="evidence-heading">
+    <h2 id="evidence-heading">Evidence ledger <span class="mono muted">observed vs pending</span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Evidence</th><th>State</th><th>Detail</th></tr></thead>
+        <tbody id="evidence"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h3>Eight aspect ratios required</h3>
+      <div class="ratios" id="ratios"></div>
+      <p class="muted">All eight <code>ImageAspectRatio</code> values are observed through the new transport on three finalists. The earlier spike covered seven; <strong>9:16</strong> is now covered. Each image profile declares its own size map and pixel bounds as data; every returned dimension matched the request.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="gallery-heading">
+    <h2 id="gallery-heading">Gallery <span class="mono muted">benchmark report</span></h2>
+    <div class="empty" id="gallery-empty">The 70 matched images and the 24 ratio results are published in the <a href="https://bbertt.github.io/kiln/artifacts/modelark-image-benchmark/" rel="noreferrer">benchmark findings report</a>, with sanitized 400 px previews, filters, side-by-side comparison and the measured metadata. Full-size outputs stay local; the blind reviewer never received the model mapping.</div>
+  </section>
+
+  <section aria-labelledby="log-heading">
+    <h2 id="log-heading">Log <span class="mono muted" id="log-count">—</span></h2>
+    <div class="log" id="log"></div>
+  </section>
+
+  <footer>
+    <p>Maintained by the delivery coordinator from evidence reported by the implementation and benchmark agents. Updated only when a phase or evidence state changes; each update is a new Kiln revision.</p>
+    <p class="mono">Last update 12 Nov 2026 · Issue #639 · 94 primary images + 8 winner ratio outputs · MR !734 open · pipeline running · no deployment, no merge, defaults unchanged.</p>
+  </footer>
+</div>
+<script>
+  document.documentElement.lang = 'en';
+
+  const stageCards = [
+    { label: 'Adapter', value: 'Done', note: 'Two explicit transports; chat default unchanged; four review fixes applied.' },
+    { label: 'Live benchmark', value: '94 / 94', note: 'Primary 94-call set: 70 matched core + 24 ratio calls; 0 failures, refusals or timeouts.' },
+    { label: 'Blind review', value: 'Done', note: '70 / 70 core images scored; lite 4.584 vs flash 4.530. The 0.054 gap is not decisive.' },
+    { label: 'Defaults and deploy', value: 'Unchanged', note: 'Default stays OpenRouter chat; no staging or production deployment.' },
+    { label: 'MR to staging', value: '!734', note: 'Targets staging; commit 47b5eff…. Pipeline running; no merge.' }
+  ];
+
+  const concerns = [
+    {
+      title: 'Lite’s 0.054 lead is not decisive, and its ratio proof had a timeout',
+      tone: 'bad',
+      label: 'Observed risk',
+      body: 'Lite leads the small blind sample by 0.054 points (4.584 vs 4.530 for flash): not a significance result from one AI reviewer and two repeats. Its separate eight-ratio compatibility proof took nine attempts; the first 1:1 call timed out at 90 s and was resumed at 120 s, with eight outputs succeeding. Lite’s core 4:3 p95 of 40.55 s does not establish bootstrap safety, because deployed queue and concurrency 16 are untested. Flash is nearly tied and more even across the measured prompts; it is the practical 60 s canary candidate, not a guarantee.'
+    },
+    {
+      title: 'Pro’s 86-second tail crosses the 60-second first build',
+      tone: 'bad',
+      label: 'Observed risk',
+      body: 'The quality winner (5.0 lite) stayed inside the window on these single calls, but deployed queue/concurrency 16 is untested and Seedream 5.0 pro did not. Pro took 55.2 s median and 86.4 s maximum across 14 matched core calls; 6 of 14 reached 60 s. The durable worker allows 150 s, but the first build waits 60 s. If a later product decision favours Pro, it needs a separate first-build strategy; no default changes here.'
+    },
+    {
+      title: 'The quality gaps are small and not statistically decisive',
+      tone: 'warn',
+      label: 'Bounded',
+      body: 'Lite weighted 4.584 vs flash 4.530, then 4.0 4.485, pro 4.475 and 4.5 4.375 across 14 core images each. First to second is 0.054; the top four are within 0.11. One AI reviewer and two repeats per prompt describe these 70 outputs, not a universal winner or human user study.'
+    },
+    {
+      title: 'Winner ratio coverage is a separate proof',
+      tone: 'info',
+      label: 'Bounded',
+      body: 'Lite won the matched 4:3 core but was not one of the three primary ratio finalists. A separate final-adapter check now covers all eight ratios at exact requested sizes with zero named-ratio error, and all eight WebP conversions are decodable. One 1:1 attempt timed out at 90 s and was resumed at 120 s; three outputs were resumed. This is a size/WebP compatibility proof, not a latency guarantee, and none are in the 94-call comparison.'
+    },
+    {
+      title: 'The measured adapter is not the final MR commit',
+      tone: 'warn',
+      label: 'Provenance',
+      body: 'All 94 calls imported adapter SHA-256 069ef8a6… at process start. Later code-review fixes changed the adapter and templates. Fresh worker, chat and exact-ratio proofs used final SHA a50b3a27… with a stable hash. Do not label the 94 calls as the final MR commit.'
+    },
+    {
+      title: 'Worker proof is isolated, not staging',
+      tone: 'info',
+      label: 'Bounded',
+      body: 'The real GenerateImageV1Handler, adapter and WebP conversion succeeded with fake DB, object-store and credit boundaries: job SUCCEEDED, usage $0.018, asset 1101×1376 WebP, served locally and decoded by a browser. No real database, bucket, queue, signed-in app or deployment was touched.'
+    },
+    {
+      title: 'Cost and latency are descriptive, not contractual',
+      tone: 'info',
+      label: 'Bounded',
+      body: 'Two repeats per prompt and one region: latency percentiles are descriptive. The 94-call run reports about $4.17 at configured per-image prices, all matching the official list price. This is not an invoice reconciliation, and failed or moderated outputs are unbilled.'
+    },
+    {
+      title: 'Public evidence stays public-safe',
+      tone: 'info',
+      label: 'Guardrail',
+      body: 'Only public model IDs and display names, synthetic prompts, sample IDs, numeric measurements, short failure categories and sanitized 400 px thumbnails are published. No credentials, account identifiers, signed URLs, headers, customer data or private issue content.'
+    }
+  ];
+
+  const now = {
+    working: [
+      { code: 'P4', title: 'Public report live', body: 'The 70-image gallery, core metrics, ratio caveats, blind scores and compatibility proof are published. GitHub Pages deploy succeeded and the public page was checked in both themes.' },
+      { code: 'P4', title: 'Winner ratio proof complete', body: 'A separate final-adapter check covers lite’s eight ratios at exact sizes and all eight WebP conversions. One 1:1 attempt timed out at 90 s and resumed at 120 s, so it is compatibility proof, not latency. Kept outside the immutable 94-call comparison.' },
+      { code: 'P6', title: 'MR !734 open', body: 'MR !734 targets staging, Closes #639, and is linked here. CI pipeline is running; no merge.' }
+    ],
+    next: [
+      { code: 'P6', title: 'Watch CI and review', body: 'Pipeline !9272 / !9271 is running. Address results if needed; no merge and no default switch.' },
+      { code: 'P4', title: 'Report revision', body: 'Add the completed winner ratio evidence to the report without changing the primary run.' },
+      { code: 'P6', title: 'Link MR here', body: 'Add the MR link after it exists; no private content copied.' }
+    ],
+    waiting: [
+      { code: 'P6', title: 'CI pipeline', body: 'Pipeline result pending; MR !734 is already open.' },
+      { code: 'P4', title: 'Report revision', body: 'The winner ratio proof is complete; the public report revision is the remaining artifact task.' }
+    ]
+  };
+
+  const decisions = [
+    {
+      status: 'open',
+      question: 'Does image generation keep a fallback, and may it cross transports?',
+      context: 'Image generation has no fallback today. No automatic cross-transport fallback is enabled in this slice.',
+      options: ['Single route for now', 'Keep OpenRouter as a fallback', 'Allow automatic cross-transport fallback'],
+      recommended: 'Keep the current single route for this slice. Decide after benchmark evidence and a production canary; no automatic cross-transport fallback without a recorded decision.',
+      meta: 'Open for later review; no response needed now.'
+    },
+    {
+      status: 'open',
+      question: 'Which image model, if any, becomes the deployed default?',
+      context: 'All five accessible candidates returned every core image. Seedream 5.0 pro is the slowest (55.2 s core median, 86.4 s max); blind quality scores are still pending. The default deployment stays OpenRouter chat.',
+      options: ['No default change now', 'Switch after blind review', 'Switch after a staging canary'],
+      recommended: 'No default change in this issue. Decide after blind review and a staging canary; selection is not deployment.',
+      meta: 'Open for later review; no response needed now.'
+    },
+    {
+      status: 'open',
+      question: 'How should automatic first builds treat a quality winner slower than 60 seconds?',
+      context: 'The bootstrap deadline remains 60 s. Seedream 5.0 pro had a 55.2 s core median and 86.4 s maximum, with 6 of 14 calls at or above 60 s. The worker attempt ceiling is 150 s.',
+      options: ['Keep the current deadline and accept incomplete first-build images', 'Skip or defer images on first build', 'Raise the bootstrap deadline', 'Use a faster model only for first builds'],
+      recommended: 'Keep the 60 s deadline unchanged for this slice and do not raise it silently. Decide with the joined quality scores and measured first-build data.',
+      meta: 'Open for later review; no response needed now.'
+    },
+    {
+      status: 'settled',
+      question: 'How does the images transport make its HTTP request?',
+      context: 'A local fake-server probe showed hidden LiteLLM image retries: max_retries=0 and num_retries=0 still sent three POSTs on a 500 within 1.8–2.6 s.',
+      recommended: 'Use a minimal generic direct httpx POST for images. LiteLLM still resolves credentials and computes cost. Deliberate safety deviation, not a model or provider branch.',
+      meta: 'Delegated execution decision · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'Which native credential route is selected?',
+      context: 'Native HTTP works for all five accessible candidates; the selected model string is volcengine/<id>.',
+      recommended: 'Use native volcengine/<id> credential resolution. credential_model alias removed.',
+      meta: 'Delegated execution decision · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'What timeout policy applies to a slow image profile?',
+      context: 'Pro 2K discovery took 54–58 s; measured core calls reached 86.4 s. The old 55 s worker attempt ceiling cannot carry a provider timeout up to 120 s.',
+      recommended: 'Configurable provider timeout up to 120 s; fixed worker attempt 150 s (20 s rewrite + 120 s provider + 10 s headroom). Chat and no-profile calls keep the 30 s provider timeout.',
+      meta: 'Delegated execution decision · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'What per-call budget does the quality benchmark use?',
+      context: 'A common budget is required for a fair quality comparison. The first-build deadline is separate and unchanged.',
+      recommended: '90 s per-call budget, one attempt per sample, concurrency 2. Latency reported with the sample-size caveat.',
+      meta: 'Delegated execution decision · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'How is strict image decoding handled?',
+      context: 'Permissive base64 could turn invalid bytes into empty success and retry an already-billed call.',
+      recommended: 'Decode strictly, reject empty bytes as NO_IMAGE_RETURNED, and keep parsed usage/cost on billed no-image failures. Covered by focused regressions.',
+      meta: 'Code review fix · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'How are usage and quality retained for image costing?',
+      context: 'A synthetic response that drops usage makes OpenAI image cost silently zero; omitting quality misprices DALL-E hd.',
+      recommended: 'Pass the real response usage and configured quality to completion_cost; register the exact-key input_cost_per_image. Unknown price stays zero with a warning.',
+      meta: 'Code review fix · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'How do both Compose env templates carry profile JSON?',
+      context: 'Compose env_file interpolates $ and treats # as a comment inside an unquoted single-line JSON value.',
+      recommended: 'Emit # and $ as JSON unicode escapes in both API and worker templates. Proven with actual docker compose config parsing; all eight sizes and special characters survive.',
+      meta: 'Code review fix · 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'Where do per-model values live?',
+      context: 'Timeouts, ratio-to-size maps, pixel bounds, provider options, refusal markers and price differ per model and must not become code branches.',
+      recommended: 'Typed, deploy-owned image profiles keyed by the full LiteLLM model string, resolved after the runtime-selected model. Values are data, not adapter logic.',
+      meta: 'Decided 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'What stays unchanged?',
+      context: 'Existing callers and the chat transport are the safety boundary for this change.',
+      recommended: 'ImageGenerator.generate(prompt, aspect_ratio), ImageGenerationOutcome, all callers and current chat/default behaviour stay unchanged. The 22 existing adapter tests are unedited.',
+      meta: 'Decided 12 Nov 2026.'
+    }
+  ];
+  const phases = [
+    {
+      code: 'P0', title: 'Scope, contract and public-safety rules', status: 'done', label: 'Done',
+      body: 'Delivery contract, ownership, evidence rules and issue read are set. No deployment and no default switch.',
+      dep: 'No dependency.'
+    },
+    {
+      code: 'P1', title: 'Model-agnostic adapter', status: 'done', label: 'Done',
+      body: 'Explicit chat/images setting, direct httpx images POST, native volcengine credentials, typed deploy profiles and unchanged chat path. Four review findings fixed; 56 focused adapter tests pass (22 old unchanged + 34 new).',
+      dep: 'Depends on P0 and the native route result.'
+    },
+    {
+      code: 'P2', title: 'Deploy profiles and docs', status: 'done', label: 'Done',
+      body: 'Compact single-line JSON reaches API and worker templates with #/$ escaped. Provider timeout up to 120 s; worker attempt 150 s; chat/no-profile stays 30 s. Actual Compose parser proof and 24 Ansible checks pass. Docs and ADR-068 amended; deployed defaults untouched.',
+      dep: 'Depends on P1.'
+    },
+    {
+      code: 'P3', title: 'Native route live check', status: 'done', label: 'Done',
+      body: 'All five accessible BytePlus text-to-image candidates returned inline images via native HTTP. A local fake-server probe found hidden retries, which P1 addresses.',
+      dep: 'Completed; outcome feeds P1 and P4.'
+    },
+    {
+      code: 'P4', title: 'Live benchmark and public report', status: 'done', label: 'Done',
+      body: '94 / 94 measured calls through the real adapter: 70 matched core plus 24 ratio calls, zero refusals/errors/timeouts. WebP conversion covered 29 samples and all eight ratios. A separate 8-output final-adapter check covers the quality leader’s ratios; one attempt timed out at 90 s and resumed at 120 s, so it is compatibility proof, not latency. The public report is live with 70 sanitized previews, filters, comparison and measured metadata.',
+      dep: 'Depends on P1 and the route check.'
+    },
+    {
+      code: 'P5', title: 'Independent blind quality review', status: 'done', label: 'Done',
+      body: 'One AI reviewer scored all 70 matched core images on the fixed 1–5 rubric. The model-free manifest was used; scores were joined only after review with predeclared 30/30/20/10/10 weights, N/A text renormalized. Lite 4.584, flash 4.530, 4.0 4.485, pro 4.475, 4.5 4.375.',
+      dep: 'Depends on P4.'
+    },
+    {
+      code: 'P6', title: 'MR and scoped verification', status: 'active', label: 'In progress',
+      body: 'MR !734 is open against staging and Closes #639. Final make verify is exit 0: web 1,134 tests, API 4,492 passed with 439 pg/docker skips, admin 270 passed with 123 DB skips, pyright 0, Black 1,463 unchanged. CI pipeline is running; no deploy and no merge.',
+      dep: 'Depends on P1, P2 and P5.'
+    }
+  ];
+
+  const evidence = [
+    { name: 'Prior spike: openai/ images route', state: 'Observed', detail: 'The generic images route worked in the earlier spike; prior evidence, not a result of this issue.' },
+    { name: 'Native HTTP images route', state: 'Observed', detail: 'All five accessible BytePlus text-to-image candidates returned inline images via native HTTP.' },
+    { name: 'Hidden retry probe', state: 'Observed', detail: 'With max_retries=0 and num_retries=0, a 500 still produced three POSTs within 1.8–2.6 s on a local fake server.' },
+    { name: 'Real adapter benchmark', state: 'Observed', detail: '94 / 94 calls ok through the real new adapter: 70 matched core + 24 ratio calls. Zero refusals, errors or timeouts.' },
+    { name: 'Core latency by model', state: 'Observed', detail: 'Core n=14 each: 4.0 median 8.1 s / p95 11.0 / max 14.6; 4.5 10.9/20.1/20.9; flash 16.2/18.4/21.2; lite 29.7/40.5/45.6; pro 55.2/84.6/86.4. Descriptive only.' },
+    { name: 'Aspect-ratio coverage', state: 'Observed', detail: '24 / 24 requested sizes matched exactly. Named-ratio error is 0 for flash/pro; 4.5 official 16:9 and 9:16 presets are ~0.125% off. Fresh 4.5 exact recipes 2816×1584 / 1584×2816 returned zero named-ratio error.' },
+    { name: 'Cost and price basis', state: 'Observed', detail: 'All 94 adapter-reported costs matched the official per-image list price. Known total ≈ $4.17; not an invoice.' },
+    { name: 'WebP conversion', state: 'Observed', detail: '29 real samples through the worker convert_to_webp: all decodable, longest side 1376 px, aspect preserved, no crop, all eight ratios.' },
+    { name: 'Worker harness', state: 'Observed', detail: 'Real handler + adapter + conversion with fake DB/S3/credits: job SUCCEEDED, usage $0.018, asset 1101×1376 WebP, served locally and decoded by a browser.' },
+    { name: 'Default chat path', state: 'Observed', detail: 'No-profile call resolved the current OpenRouter default, returned one image ok at $0.018, WebP 1376×1032. Compatibility only, not a BytePlus ranking sample.' },
+    { name: 'Blind quality review', state: 'Observed', detail: '70 / 70 core images scored by one AI reviewer: lite 4.584, flash 4.530, 4.0 4.485, pro 4.475, 4.5 4.375. Top four within 0.11; not statistically decisive.' },
+    { name: 'Public benchmark report', state: 'Observed', detail: 'Published at https://bbertt.github.io/kiln/artifacts/modelark-image-benchmark/ with 70 sanitized previews; GitHub Pages deploy successful and public page checked in light and dark.' },
+    { name: 'Focused and broad checks', state: 'Observed', detail: '56 focused adapter tests; 24 Ansible checks; actual Compose profile round-trip; final make verify exit 0 with web/API/admin green.' },
+    { name: 'Winner ratio + WebP proof', state: 'Observed', detail: 'Separate final-adapter check for 5.0 lite: 8/8 exact requested sizes, zero named-ratio error using exact 16:9/9:16 overrides, all WebP decodable. One 1:1 attempt timed out at 90 s and resumed at 120 s; three outputs resumed. Compatibility only, not latency; not part of the 94-call run.' },
+    { name: 'MR and staging E2E', state: 'Observed', detail: 'MR !734 is open against staging, Closes #639, commit 47b5eff…. CI pipeline is running. No staging/browser end-to-end run, no real DB/S3/queue writes, no deployment and no default switch; no merge.' }
+  ];
+  const ratios = ['16:9', '4:3', '3:2', '1:1', '4:5', '3:4', '2:3', '9:16'];
+
+  const log = [
+    { date: '12 Nov 2026', code: 'P6', text: 'MR !734 opened against staging, Closes #639, commit 47b5eff…; final verify green, pipeline running, no merge.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Public benchmark report published: 70-image gallery, 94-call metrics, blind scores and compatibility proof. Pages deploy succeeded; public light/dark, filters, compare and viewer checked.' },
+    { date: '12 Nov 2026', code: 'P5', text: 'Blind review completed 70/70 core images. Joined ranking: lite 4.584, flash 4.530, 4.0 4.485, pro 4.475, 4.5 4.375; top four within 0.11.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Core p95 corrected to inclusive linear interpolation: 4.0 11.02, 4.5 20.09, lite 40.55, flash 18.38, pro 84.64.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Named-ratio reporting corrected: requested sizes matched exactly, but 4.5 official 16:9/9:16 presets are ~0.125% off. Fresh 4.5 exact recipes 2816×1584 / 1584×2816 returned zero error.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Winner ratio proof completed: lite 8/8 exact requested sizes, zero named-ratio error, all WebP decodable. One 1:1 attempt timed out at 90 s and resumed at 120 s; compatibility only, outside the 94 primary calls.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Benchmark finished: 94 / 94 images through the real adapter, 70 matched core + 24 ratio calls, zero refusals/errors/timeouts.' },
+    { date: '12 Nov 2026', code: 'P4', text: '29 actual samples converted through the worker WebP path: decodable, max side 1376, aspect preserved, all eight ratios.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Isolated worker harness: real handler + adapter + conversion, fake DB/S3/credits; job SUCCEEDED, asset served locally and decoded by a browser.' },
+    { date: '12 Nov 2026', code: 'P1', text: 'Four review findings fixed: OpenAI base/key resolution, usage/quality costing, strict base64 with usage retained, Compose-safe JSON in both templates.' },
+    { date: '12 Nov 2026', code: 'P2', text: 'Final make verify exit 0; 56 focused adapter tests, 24 Ansible checks, actual Compose profile round-trip, pyright and Black clean.' },
+    { date: '12 Nov 2026', code: 'P6', text: 'MR draft ready (targets staging, Closes #639); not opened. No deploy, no merge, no default change.' },
+    { date: '12 Nov 2026', code: 'P3', text: 'Native images route observed: all five accessible candidates return inline images; pinned LiteLLM volcengine images also works.' },
+    { date: '12 Nov 2026', code: 'P1', text: 'Fake-server probe: three POSTs on a 500 despite max_retries=0 and num_retries=0; minimal direct httpx images POST approved.' },
+    { date: '12 Nov 2026', code: 'P1', text: 'Native volcengine/<id> credential resolution selected; credential_model alias removed unless proven needed.' },
+    { date: '12 Nov 2026', code: 'P2', text: 'Provider timeout up to 120 s and fixed worker attempt 150 s approved; chat and no-profile calls stay at 30 s.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Common 90 s per-call benchmark budget adopted; Pro 2K discovery measured at 54–58 s.' },
+    { date: '12 Nov 2026', code: 'P0', text: 'Delivery contract fixed: two transports, chat default, typed deploy profiles, eight ratios, no deploy.' },
+    { date: '12 Nov 2026', code: 'P0', text: 'This progress page created. No measured result is claimed.' }
+  ];
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function pill(tone, label) {
+    return el('span', 'pill ' + tone, label);
+  }
+
+  function renderStage() {
+    const root = document.getElementById('stage-cards');
+    for (const card of stageCards) {
+      const node = el('div', 'card');
+      node.append(el('span', 'label', card.label), el('span', 'value', card.value), el('span', 'note', card.note));
+      root.append(node);
+    }
+  }
+
+  function renderConcerns() {
+    const root = document.getElementById('concerns');
+    const attention = concerns.filter((item) => item.tone === 'warn' || item.tone === 'bad').length;
+    document.getElementById('concerns-count').textContent = concerns.length + ' tracked · ' + attention + ' need attention';
+    for (const item of concerns) {
+      const node = el('article', 'concern');
+      const top = el('div', 'top');
+      top.append(el('h3', '', item.title), pill(item.tone, item.label));
+      node.append(top, el('p', '', item.body));
+      root.append(node);
+    }
+  }
+
+  function renderNow() {
+    const root = document.getElementById('now');
+    const columns = [
+      { key: 'working', title: 'Working on', tone: '' },
+      { key: 'next', title: 'Next', tone: '' },
+      { key: 'waiting', title: 'Waiting on', tone: '' }
+    ];
+    for (const column of columns) {
+      const panel = el('div', 'panel');
+      panel.append(el('h3', '', column.title));
+      for (const item of now[column.key]) {
+        const row = el('div', 'item');
+        row.append(el('span', 'code', item.code), el('strong', '', item.title), el('p', '', item.body));
+        panel.append(row);
+      }
+      root.append(panel);
+    }
+  }
+
+  let decisionFilter = 'all';
+  const filterButtons = [
+    { key: 'all', label: 'All' },
+    { key: 'open', label: 'Open' },
+    { key: 'settled', label: 'Settled' }
+  ];
+
+  function renderDecisionFilters() {
+    const root = document.getElementById('decision-filters');
+    root.replaceChildren();
+    for (const filter of filterButtons) {
+      const button = el('button', '', filter.label);
+      button.type = 'button';
+      button.dataset.decisionFilter = filter.key;
+      button.setAttribute('aria-pressed', String(decisionFilter === filter.key));
+      button.addEventListener('click', () => {
+        decisionFilter = filter.key;
+        renderDecisionFilters();
+        renderDecisions();
+      });
+      root.append(button);
+    }
+  }
+
+  function renderDecisions() {
+    const root = document.getElementById('decisions');
+    root.replaceChildren();
+    const open = decisions.filter((item) => item.status === 'open').length;
+    document.getElementById('decisions-count').textContent = open + ' open · ' + (decisions.length - open) + ' settled';
+    const visible = decisions.filter((item) => decisionFilter === 'all' || item.status === decisionFilter);
+    for (const item of visible) {
+      const node = el('article', 'decision');
+      const top = el('div', 'chips');
+      top.append(pill(item.status === 'open' ? 'warn' : 'ok', item.status === 'open' ? 'Open for later review' : 'Settled'));
+      node.append(top, el('p', 'question', item.question), el('p', 'context', item.context));
+      if (item.options && item.options.length) {
+        const list = el('ul');
+        for (const option of item.options) list.append(el('li', '', option));
+        node.append(list);
+      }
+      const recommended = el('p', 'recommended');
+      recommended.append(el('strong', '', item.status === 'open' ? 'Recommended: ' : 'Decided: '), document.createTextNode(item.recommended));
+      node.append(recommended, el('p', 'decided', item.meta));
+      root.append(node);
+    }
+    if (!visible.length) root.append(el('div', 'empty', 'No decisions in this filter.'));
+  }
+
+  function renderPhases() {
+    const root = document.getElementById('phases');
+    const done = phases.filter((item) => item.status === 'done').length;
+    const active = phases.filter((item) => item.status === 'active').length;
+    const waiting = phases.length - done - active;
+    document.getElementById('phases-count').textContent = phases.length + ' phases · ' + done + ' done, ' + active + ' active, ' + waiting + ' waiting or pending';
+    for (const phase of phases) {
+      const details = el('details', 'phase ' + phase.status);
+      if (phase.status === 'active') details.open = true;
+      const summary = el('summary');
+      const tone = phase.status === 'done' ? 'ok' : phase.status === 'active' ? 'warn' : phase.status === 'waiting' ? 'info' : '';
+      summary.append(el('span', 'caret', '▸'), el('span', 'code', phase.code), el('span', 'title', phase.title), pill(tone, phase.label));
+      const body = el('div', 'phase-body');
+      body.append(el('p', '', phase.body), el('span', 'dep', phase.dep));
+      details.append(summary, body);
+      root.append(details);
+    }
+  }
+
+  function renderEvidence() {
+    const root = document.getElementById('evidence');
+    for (const row of evidence) {
+      const tr = el('tr');
+      const stateTone = row.state === 'Observed' ? 'ok' : row.state === 'Not observed' ? 'warn' : '';
+      const state = el('td', 'state');
+      if (stateTone) state.append(pill(stateTone, row.state));
+      else state.textContent = row.state;
+      tr.append(el('td', '', row.name), state, el('td', 'detail', row.detail));
+      root.append(tr);
+    }
+  }
+
+  function renderRatios() {
+    const root = document.getElementById('ratios');
+    for (const ratio of ratios) {
+      root.append(el('span', 'ratio' + (ratio === '9:16' ? ' missing' : ''), ratio));
+    }
+  }
+
+  function renderLog() {
+    const root = document.getElementById('log');
+    document.getElementById('log-count').textContent = log.length + ' entries, newest first';
+    for (const row of log) {
+      const node = el('div', 'log-row');
+      node.append(el('span', 'date', row.date), el('span', 'code', row.code), el('p', '', row.text));
+      root.append(node);
+    }
+  }
+
+  renderStage();
+  renderConcerns();
+  renderNow();
+  renderDecisionFilters();
+  renderDecisions();
+  renderPhases();
+  renderEvidence();
+  renderRatios();
+  renderLog();
+</script>
