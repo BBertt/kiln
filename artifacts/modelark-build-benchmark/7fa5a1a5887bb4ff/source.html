@@ -1,0 +1,333 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { color-scheme: dark; } }
+  :root[data-theme='dark'] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15px/1.55 var(--kiln-font-sans); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding-block: 40px 72px; display: flex; flex-direction: column; gap: 48px; }
+  header { display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 8px 0 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  h2 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -0.02em; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  p { margin: 0; max-width: 68ch; }
+  .muted { color: var(--kiln-muted); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); white-space: nowrap; align-self: flex-start; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .card { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .card .label { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .card .value { font-size: 26px; font-weight: 500; letter-spacing: -0.03em; }
+  .card .note { font-size: 13.5px; color: var(--kiln-muted); }
+  .panel { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .callout { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 14px 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--kiln-line); vertical-align: middle; }
+  th { position: sticky; top: 0; background: var(--kiln-surface-2); font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-family: var(--kiln-font-mono); white-space: nowrap; }
+  .scroll { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; }
+  .cell-ok { color: var(--kiln-ok); }
+  .cell-bad { color: var(--kiln-bad); }
+  code { font-family: var(--kiln-font-mono); font-size: 13px; background: var(--kiln-surface-2); padding: 1px 5px; border-radius: 5px; }
+  ol, ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; max-width: 68ch; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  figure img { width: 100%; border-radius: 12px; border: 1px solid var(--kiln-line); background: var(--kiln-surface-2); }
+  figcaption { font-size: 13px; color: var(--kiln-muted); }
+  footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; color: var(--kiln-muted); font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<div class='wrap'>
+  <header>
+    <div class='chips'>
+      <span class='pill'>12 Nov 2026</span>
+      <span class='pill'>model comparison</span>
+      <span class='pill' id='sample'>—</span>
+    </div>
+    <h1>Which ModelArk model builds the better site</h1>
+    <p class='muted'>Seven models, five real site briefs, the production plan-and-write pipeline, each build rendered and checked the way a first build is. Every model got the same six photographs to place.</p>
+  </header>
+
+  <section>
+    <h2>Standings <span class='mono muted' id='standings-note'>—</span></h2>
+    <div class='cards' id='winners'></div>
+  </section>
+
+  <section>
+    <h2>Every model <span class='mono muted'>a build passes when no check fails</span></h2>
+    <div class='scroll'>
+      <table>
+        <thead><tr><th>Model</th><th class='num'>Built</th><th class='num'>Validation pass</th><th class='num'>First pass</th><th class='num'>Repairs</th><th class='num'>Tool errors</th><th class='num'>Cost</th><th class='num'>Build time</th></tr></thead>
+        <tbody id='totals'></tbody>
+      </table>
+    </div>
+    <p class='muted'>First pass counts builds that needed no repair round. Build time is the mean per build, render included. Cost uses BytePlus's Standard-tier list price, because LiteLLM reports none for these ids.</p>
+  </section>
+
+  <section>
+    <h2>Site by site <span class='mono muted' id='matrix-note'>—</span></h2>
+    <div class='scroll'>
+      <table>
+        <thead id='matrix-head'></thead>
+        <tbody id='matrix'></tbody>
+      </table>
+    </div>
+    <p class='muted'>Each cell is one build: pass, or what failed.</p>
+  </section>
+
+  <section>
+    <h2>What failed <span class='mono muted' id='failure-note'>—</span></h2>
+    <div class='panel' id='failures'></div>
+  </section>
+
+  <section>
+    <h2>Blind scoring <span class='mono muted' id='review-note'>—</span></h2>
+    <div class='scroll'>
+      <table>
+        <thead><tr><th>Build</th><th class='num'>Fidelity</th><th class='num'>Persistence honesty</th><th class='num'>Structure</th><th class='num'>Design</th><th class='num'>Copy</th><th class='num'>Total</th></tr></thead>
+        <tbody id='review'></tbody>
+      </table>
+    </div>
+    <p class='muted'>Five independent reviewers, one per site, each scoring the three builds that produced a site without knowing which model made them. Each criterion is out of 5 per site, so a total is out of 25 per site and 125 across the five sites.</p>
+  </section>
+
+  <section>
+    <h2>Blind look <span class='mono muted'>letters, not names</span></h2>
+    <div id='sheets' style='display:flex;flex-direction:column;gap:20px'></div>
+    <p class='muted'>Each sheet shows the same route from every model in the same order, captured after scrolling the page so on-view sections are revealed and images have finished loading. The key sits under the recommendation.</p>
+  </section>
+
+  <section>
+    <h2>Recommendation</h2>
+    <div class='callout' id='recommendation'></div>
+    <div class='panel' id='key'></div>
+  </section>
+
+  <section>
+    <h2>The four models that never built a site</h2>
+    <div class='panel'>
+      <p>Neither GLM nor Seed could drive our tools, and both failures are argument-shape mismatches rather than bad code:</p>
+      <ul>
+        <li><strong>GLM 5.2 and GLM 5.3 Flash</strong> called <code>create_plan</code> every time, but sent the nested <code>plan</code> value as a JSON <em>string</em>. Our schema expects an object, so every plan was rejected three times and the turn ended. The string parses as JSON in the log, so the content was there.</li>
+        <li><strong>Seed 2.0 Pro and Dola Seed 2.1 Turbo</strong> got past the plan and then sent <code>write_files</code> with empty arguments (<code>{}</code>), and their write was cut off at the model's output limit. Retrying produced the same empty call.</li>
+      </ul>
+      <p class='muted'>A tolerant parser that json-loads a string where an object is expected, and a smaller write payload, would likely rescue both families. That change is untested here and was not made mid-benchmark, because it would have given those models a pipeline the other three never got.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What this does not test</h2>
+    <div class='panel'>
+      <ul>
+        <li><strong>Behaviour after the build.</strong> Does a checkout really save an order? The harness checks structure, not journeys. The reviewers read the code for faked writes and leftover template scaffolding.</li>
+        <li><strong>Long conversations.</strong> Every build is a first build. Edit turns and follow-ups are not measured.</li>
+        <li><strong>Admin screens.</strong> The admin captures show only the login page (the harness does not sign in), so admin CRUD was judged from source.</li>
+        <li><strong>Images.</strong> Every build starts from the same six pre-generated photographs, so this measures image placement, not the plan's picture choices.</li>
+        <li><strong>Provider throughput.</strong> Two to four builds ran at once on one account; that is not a rate-limit test.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Method</h2>
+    <div class='panel'>
+      <p>Each build ran the production pipeline through the eval harness: the plan step and the write step used the model under test, while the safety classifier, the module picker, the design lookup and the image model stayed as production keeps them. Fallbacks were switched off, so a model that failed could not finish on another model's work. Repair rounds stayed on, as in production.</p>
+      <p>Every build ran in Docker from its template's app-base image with PocketBase live; Playwright then loaded each route, scrolled it, waited for images, and screenshotted it. The briefs are the harness's canonical fixtures with one change: each lists the six shared image URLs, so every model had the same pictures.</p>
+      <p class='muted'>Reproduce: <code>uv run python scripts/benchmark/02_run.py</code>, then <code>03_score.py</code> and <code>04_review.py</code>.</p>
+    </div>
+  </section>
+
+  <footer>Raw rows: <code>scripts/benchmark/results/results.csv</code>. Each run's generated source, checks and screenshots live under <code>/tmp/dewabuilder-benchmark/&lt;model&gt;/</code> and are linked from its eval-artifacts URL. Updated 12 Nov 2026.</footer>
+</div>
+<script>
+const RAW_RUNS = [
+['baseline-gemini','batik-store',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.2912,333],
+['baseline-gemini','coffee-shop',1,1,0,0,'','',0.1232,166],
+['baseline-gemini','event-feedback',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.296,304],
+['baseline-gemini','salon-booking',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.2887,365],
+['baseline-gemini','tech-blog',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.2404,273],
+['deepseek-v4-1-flash','batik-store',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.0813,302],
+['deepseek-v4-1-flash','coffee-shop',1,0,1,0,'','WRITE_EDIT:PROVIDER_ERROR;VALIDATION_PASS:VALIDATION_FAILED',0.0698,385],
+['deepseek-v4-1-flash','event-feedback',0,0,1,0,'no_console_errors_on_routes','VALIDATION_PASS:VALIDATION_FAILED;VALIDATION_PASS:VALIDATION_FAILED',0.098,249],
+['deepseek-v4-1-flash','salon-booking',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.0871,383],
+['deepseek-v4-1-flash','tech-blog',1,0,1,0,'','PLAN:MISSING_TOOL_CALL;VALIDATION_PASS:VALIDATION_FAILED',0.0841,318],
+['deepseek-v4-pro','batik-store',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.4194,621],
+['deepseek-v4-pro','coffee-shop',1,1,0,0,'','',0.1791,340],
+['deepseek-v4-pro','event-feedback',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.3685,485],
+['deepseek-v4-pro','salon-booking',1,0,1,0,'','VALIDATION_PASS:VALIDATION_FAILED',0.3309,483],
+['deepseek-v4-pro','tech-blog',0,0,1,0,'no_console_errors_on_routes','WRITE_EDIT:PROVIDER_ERROR;VALIDATION_PASS:VALIDATION_FAILED;REPAIR:UNEXPECTED_INTERNAL_ERROR;WRITE_EDIT:PROVIDER_ERROR',0.3196,910]
+];
+const BLOCKED = [
+['glm-5-2',5,'Generation failed to produce a plan: the plan arrived as a JSON string, which our plan schema rejects.'],
+['glm-5-3-flash',5,'Same plan-schema rejection on every site.'],
+['seed-2-0-pro',5,'Generation failed to write the change: write_files arrived with empty arguments, then cut off.'],
+['dola-seed-2-1-turbo',5,'Same write failure on every site.']
+];
+const SHEETS = [
+['coffee-shop','https://s3.jkt.dewavps.com/arcane/benchmark/review-sheets/coffee-shop.png'],
+['batik-store','https://s3.jkt.dewavps.com/arcane/benchmark/review-sheets/batik-store.png'],
+['salon-booking','https://s3.jkt.dewavps.com/arcane/benchmark/review-sheets/salon-booking.png'],
+['tech-blog','https://s3.jkt.dewavps.com/arcane/benchmark/review-sheets/tech-blog.png'],
+['event-feedback','https://s3.jkt.dewavps.com/arcane/benchmark/review-sheets/event-feedback.png']
+];
+const KEY = { A: 'deepseek-v4-pro', B: 'baseline-gemini', C: 'deepseek-v4-1-flash' };
+const REVIEW = [
+['A','deepseek-v4-pro',19,14,15,18,19,85],
+['B','baseline-gemini',21,12,15,21,21,90],
+['C','deepseek-v4-1-flash',23,18,17,23,24,105]
+];
+const RECOMMENDATION = 'DeepSeek V4.1 Flash is the model to adopt for plan and write. It won the blind comparison on all five sites (105 of 125; Gemini 90, V4 Pro 85), made honest PocketBase writes where the reviewer could verify them (coffee-shop and salon), and cost $0.084 a build, a third of Gemini\u2019s $0.248. Its cost is reliability: no build passed on the first try, every one needed a repair round, and one of five still ended with a console error. Keep Gemini 3.8 Flash as the fallback, since it was the only model to pass all five, and leave GLM and Seed out until the tool-argument parser accepts their shapes. DeepSeek V4 Pro is not worth its price here: slowest at 568 s a build, dearest at $1.62 for five, and last on the blind scores.';
+
+const RUNS = RAW_RUNS.map(([model, site, pass, first, repairs, toolErrors, failures, stages, cost, seconds]) => ({ model, site, pass: pass === 1, first: first === 1, repairs, tool_errors: toolErrors, failures, stages, cost, seconds }));
+const IMAGE_MODEL = 'Seedream 5.0 Flash';
+
+const make = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+
+const sites = [...new Set(RUNS.map((r) => r.site))];
+const models = [...new Set(RUNS.map((r) => r.model))];
+const byModel = new Map(models.map((m) => [m, RUNS.filter((r) => r.model === m)]));
+const pct = (n, d) => (d ? n + '/' + d : '\u2014');
+
+document.getElementById('sample').textContent =
+  (models.length + BLOCKED.length) + ' models, ' + sites.length + ' sites, '
+  + (RUNS.length + BLOCKED.reduce((a, b) => a + b[1], 0)) + ' builds, '
+  + RUNS.length + ' produced a site';
+
+function totals(model) {
+  const rows = byModel.get(model);
+  const costs = rows.map((r) => r.cost).filter((c) => c !== null);
+  return {
+    model,
+    built: rows.length,
+    pass: rows.filter((r) => r.pass).length,
+    first: rows.filter((r) => r.first).length,
+    repairs: rows.reduce((a, r) => a + r.repairs, 0),
+    toolErrors: rows.reduce((a, r) => a + r.tool_errors, 0),
+    cost: costs.length ? costs.reduce((a, b) => a + b, 0) : null,
+    duration: rows.reduce((a, r) => a + r.seconds, 0) / rows.length,
+  };
+}
+
+const table = models.map(totals)
+  .concat(BLOCKED.map(([model, count, reason]) => ({
+    model, built: count, pass: 0, first: 0, repairs: 0, toolErrors: 0,
+    cost: null, duration: null, blocked: reason,
+  })))
+  .sort((a, b) => b.pass - a.pass || b.first - a.first || a.model.localeCompare(b.model));
+
+const totalsBody = document.getElementById('totals');
+table.forEach((t) => {
+  const tr = make('tr');
+  const cells = [
+    t.model, String(t.built), pct(t.pass, t.built), pct(t.first, t.built),
+    String(t.repairs), String(t.toolErrors),
+    t.cost === null ? '\u2014' : '$' + t.cost.toFixed(2),
+    t.duration === null ? '\u2014' : Math.round(t.duration) + ' s',
+  ];
+  cells.forEach((text, index) => {
+    const td = make('td', index > 0 ? 'num' : '', text);
+    if (index === 2) td.classList.add(t.pass === t.built ? 'cell-ok' : 'cell-bad');
+    tr.append(td);
+  });
+  totalsBody.append(tr);
+});
+
+const best = table[0];
+const built = table.filter((t) => !t.blocked);
+const cheapest = built.filter((t) => t.cost !== null).sort((a, b) => a.cost / a.built - b.cost / b.built)[0];
+const fastest = built.slice().sort((a, b) => a.duration - b.duration)[0];
+const firstest = built.slice().sort((a, b) => b.first - a.first)[0];
+[
+  ['Most builds passing', best ? pct(best.pass, best.built) : '\u2014', best ? best.model : ''],
+  ['First-time passes', firstest ? pct(firstest.first, firstest.built) : '\u2014', firstest ? firstest.model : ''],
+  ['Cheapest per build', cheapest ? '$' + (cheapest.cost / cheapest.built).toFixed(3) : '\u2014', cheapest ? cheapest.model : ''],
+  ['Fastest build', fastest ? Math.round(fastest.duration) + ' s' : '\u2014', fastest ? fastest.model : ''],
+].forEach(([label, value, note]) => {
+  const card = make('div', 'card');
+  card.append(make('span', 'label', label), make('span', 'value', value), make('span', 'note', note));
+  document.getElementById('winners').append(card);
+});
+document.getElementById('standings-note').textContent =
+  'ranked by validation passes, then first-time passes; images on ' + IMAGE_MODEL;
+
+const headRow = make('tr');
+['Model', ...sites].forEach((name) => headRow.append(make('th', '', name)));
+document.getElementById('matrix-head').append(headRow);
+
+const matrix = document.getElementById('matrix');
+table.forEach((t) => {
+  const tr = make('tr');
+  tr.append(make('td', '', t.model));
+  if (t.blocked) {
+    const td = make('td', 'cell-bad', t.blocked);
+    td.colSpan = sites.length;
+    tr.append(td);
+    matrix.append(tr);
+    return;
+  }
+  sites.forEach((site) => {
+    const row = byModel.get(t.model).find((r) => r.site === site);
+    let td;
+    if (!row) td = make('td', 'muted', 'no run');
+    else if (row.pass) td = make('td', 'cell-ok', 'pass');
+    else td = make('td', 'cell-bad', (row.failures || row.stages || 'failed').slice(0, 90));
+    tr.append(td);
+  });
+  matrix.append(tr);
+});
+document.getElementById('matrix-note').textContent = sites.length + ' sites';
+
+const counts = new Map();
+const bump = (key) => counts.set(key, (counts.get(key) || 0) + 1);
+RUNS.forEach((r) => {
+  (r.failures || '').split(';').filter(Boolean).forEach(bump);
+  (r.stages || '').split(';').filter(Boolean).forEach((p) => bump(
+    p === 'VALIDATION_PASS:VALIDATION_FAILED'
+      ? 'needed a repair round (the first validation pass failed)'
+      : 'stage ' + p
+  ));
+  if (!r.pass) bump(r.model + ': build failed');
+});
+BLOCKED.forEach(([model, count, reason]) => counts.set(model + ': ' + reason.slice(0, 70), count));
+const failureTotal = [...counts.values()].reduce((a, b) => a + b, 0);
+document.getElementById('failure-note').textContent = failureTotal + ' failures';
+const failuresBox = document.getElementById('failures');
+if (!failureTotal) failuresBox.append(make('p', '', 'Every build passed every check.'));
+else {
+  const list = make('ul');
+  [...counts.entries()].sort((a, b) => b[1] - a[1]).forEach(([kind, count]) => {
+    list.append(make('li', '', kind + ' \u2014 ' + count + (count === 1 ? ' build' : ' builds')));
+  });
+  failuresBox.append(list);
+}
+
+const reviewBody = document.getElementById('review');
+REVIEW.forEach(([letter, label, fidelity, persistence, structure, design, copy, total]) => {
+  const tr = make('tr');
+  [letter + ' \u2014 ' + label, fidelity, persistence, structure, design, copy, total]
+    .forEach((text, index) => tr.append(make('td', index === 0 ? '' : 'num', String(text))));
+  tr.lastChild.classList.add('cell-ok');
+  reviewBody.append(tr);
+});
+document.getElementById('review-note').textContent = '3 models, 5 sites, 5 criteria';
+
+SHEETS.forEach(([site, url]) => {
+  const figure = make('figure');
+  const image = make('img');
+  image.src = url;
+  image.alt = 'Blind comparison sheet for ' + site;
+  image.loading = 'lazy';
+  figure.append(image, make('figcaption', '', site + ' \u2014 every model home page, labelled ' + Object.keys(KEY).join(', ')));
+  document.getElementById('sheets').append(figure);
+});
+
+const keyList = make('ul');
+Object.entries(KEY).forEach(([letter, model]) => keyList.append(make('li', '', letter + ' \u2014 ' + model)));
+document.getElementById('key').append(keyList);
+document.getElementById('recommendation').append(make('p', '', RECOMMENDATION));
+document.title = 'ModelArk build comparison';
+</script>
