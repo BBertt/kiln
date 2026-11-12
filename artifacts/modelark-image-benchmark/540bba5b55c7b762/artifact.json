@@ -1,0 +1,20 @@
+{
+  "slug": "modelark-image-benchmark",
+  "title": "BytePlus ModelArk image models, measured (#639)",
+  "framework": "html",
+  "metadata": {
+    "description": "Quality-first comparison of five accessible BytePlus ModelArk text-to-image models through Arcane's new image adapter: 70 matched 2K images, 24 ratio checks, independent blind scores, per-prompt breakdown, cost, latency, gallery, exact-ratio and isolated worker proofs. No deployment or default switch.",
+    "tags": [
+      "benchmark",
+      "byteplus",
+      "modelark",
+      "seedream",
+      "image-generation",
+      "639",
+      "blind-review",
+      "litellm"
+    ]
+  },
+  "revision": "540bba5b55c7b762",
+  "updated_at": "2026-11-12T11:48:25.900Z"
+}
