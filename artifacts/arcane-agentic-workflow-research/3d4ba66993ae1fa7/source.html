@@ -1,0 +1,301 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15px/1.55 var(--kiln-font-sans); }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-block: 40px 72px; display: flex; flex-direction: column; gap: 48px; }
+  .meta { margin: 0; font-family: var(--kiln-font-mono); font-size: 12.5px; color: var(--kiln-muted); }
+  h1 { margin: 8px 0 0; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  .lead { margin: 12px 0 0; max-width: 66ch; color: var(--kiln-muted); }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  h2 .count { margin-left: 10px; font-family: var(--kiln-font-mono); font-size: 12.5px; font-weight: 400; color: var(--kiln-muted); }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  p { margin: 0; max-width: 68ch; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); white-space: nowrap; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .stat { padding: 14px 16px; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface); }
+  .stat .value { font-family: var(--kiln-font-mono); font-size: 20px; letter-spacing: -0.02em; }
+  .stat .note { margin-top: 4px; font-size: 13px; color: var(--kiln-muted); }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .option { padding: 18px; border: 1px solid var(--kiln-line); border-radius: 16px; background: var(--kiln-surface); display: flex; flex-direction: column; gap: 8px; }
+  .option .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .option .why { font-size: 14px; }
+  .option .detail { font-size: 13px; color: var(--kiln-muted); }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filter { padding: 6px 12px; border: 1px solid var(--kiln-line-strong); border-radius: 999px; background: var(--kiln-surface); color: var(--kiln-text); font: 12.5px var(--kiln-font-mono); cursor: pointer; }
+  .filter[aria-pressed="true"] { border-color: var(--kiln-accent-strong); background: var(--kiln-accent-wash); color: var(--kiln-accent-text); }
+  :focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+  th { position: sticky; top: 0; padding: 10px 14px; background: var(--kiln-surface-2); text-align: left; font-family: var(--kiln-font-mono); font-size: 12px; font-weight: 400; color: var(--kiln-muted); white-space: nowrap; }
+  td { padding: 12px 14px; border-top: 1px solid var(--kiln-line); vertical-align: top; }
+  td.name { font-weight: 600; min-width: 180px; }
+  .callout { padding: 16px 18px; border: 1px solid var(--kiln-line); border-left: 3px solid var(--kiln-accent); border-radius: 12px; background: var(--kiln-surface-2); }
+  .callout p { margin: 0; }
+  ul.plain, ol.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+  li { max-width: 68ch; }
+  .muted { color: var(--kiln-muted); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .small { font-size: 13px; }
+  ol.sources { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="meta">Arcane · 12 Nov 2026 · research memo</p>
+    <h1>Agent harness or gated workflow for Arcane generation?</h1>
+    <p class="lead">A full agent harness is not worth building. A bounded write loop with real feedback is. Token spend pays best on verification, not on free tool choice.</p>
+    <div class="chips">
+      <span class="pill ok">Verdict: selective</span>
+      <span class="pill">13-build baseline</span>
+      <span class="pill">2 loop spikes</span>
+      <span class="pill warn">Not yet run on BytePlus</span>
+    </div>
+  </header>
+
+  <section aria-labelledby="numbers-heading">
+    <h2 id="numbers-heading">The numbers that decide it <span class="count">4</span></h2>
+    <div class="stats">
+      <div class="stat"><div class="value">8x</div><div class="note">write-loop cost per turn: $1.36 against $0.16 to $0.20 batched</div></div>
+      <div class="stat"><div class="value">57 to 86%</div><div class="note">plan-file recall with a read loop; no finished-app gain measured</div></div>
+      <div class="stat"><div class="value">306s</div><div class="note">median first build; p90 512s</div></div>
+      <div class="stat"><div class="value">1.96x</div><div class="note">edit_files output amplification when the model quotes whole files</div></div>
+    </div>
+    <p class="small muted">The baseline is 13 first builds: 4 passed first try, 8 passed after a fix, 1 failed. The loop figures come from Gemini-era spikes. No BytePlus call was made for this page.</p>
+  </section>
+
+  <section aria-labelledby="options-heading">
+    <h2 id="options-heading">Options <span class="count">4</span></h2>
+    <div class="options">
+      <div class="option">
+        <div class="top"><h3>Full agent harness</h3><span class="pill bad">Rejected</span></div>
+        <p class="why">The model chooses among read, search, edit and run tools, and decides when it is done.</p>
+        <p class="detail">Breaks the plan-card UX and the plan-as-permission boundary. Every surveyed harness leans on a human approver or a sandbox. Arcane has neither.</p>
+      </div>
+      <div class="option">
+        <div class="top"><h3>Bounded write loop</h3><span class="pill ok">Recommended</span></div>
+        <p class="why">One write event at the end, plan immutable, feedback from the write gate, static analysis and planned-file coverage.</p>
+        <p class="detail">Measured wins: first edit in 8 to 12 seconds instead of a 3m14s frozen card, and a bad anchor costs one iteration. Cheap tokens remove the 8x objection; a cap stays.</p>
+      </div>
+      <div class="option">
+        <div class="top"><h3>Read loop before plan</h3><span class="pill info">Deferred</span></div>
+        <p class="why">Paths-only, complete file index, hard cap. The model asks for the files it needs.</p>
+        <p class="detail">Recall rose from 4/7 to 6/7 at about double the input tokens. The remaining miss was judgement, not capability, so it did not fix the visible bug.</p>
+      </div>
+      <div class="option">
+        <div class="top"><h3>Plan-completeness check</h3><span class="pill ok">Recommended first</span></div>
+        <p class="why">Grep the app for the old value and require the plan to cover every file that still contains it.</p>
+        <p class="detail">The two-tone app survived every loop. Code notices the files the model did not. This is a plan-gate rule, not an agent.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="techniques-heading">
+    <h2 id="techniques-heading">Technique by technique <span class="count">10 rows</span></h2>
+    <div class="filters" role="group" aria-label="Filter techniques by verdict">
+      <button class="filter" type="button" data-verdict="all" aria-pressed="true">All 10</button>
+      <button class="filter" type="button" data-verdict="Recommended" aria-pressed="false">Recommended</button>
+      <button class="filter" type="button" data-verdict="Deferred" aria-pressed="false">Deferred</button>
+      <button class="filter" type="button" data-verdict="Rejected" aria-pressed="false">Rejected</button>
+      <button class="filter" type="button" data-verdict="Keep" aria-pressed="false">Keep</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Technique</th><th scope="col">Arcane today</th><th scope="col">Verdict</th><th scope="col">Why</th></tr>
+        </thead>
+        <tbody id="techniques"></tbody>
+      </table>
+    </div>
+    <p id="empty" class="muted" hidden>No technique in this group.</p>
+    <noscript><p class="muted">This table is drawn by a script. Turn on JavaScript to see it.</p></noscript>
+  </section>
+
+  <section aria-labelledby="recommendation-heading">
+    <h2 id="recommendation-heading">Recommendation <span class="count">5 steps</span></h2>
+    <ol class="plain">
+      <li>Check BytePlus's context window and cache behavior first. If the app fits, raise the file-dump budget and skip the read loop. One config change beats a new phase.</li>
+      <li>Re-run the loop PoC on BytePlus: does it iterate and terminate, reproduce anchors, honor forced tool choice, stream arguments, and cache the prefix?</li>
+      <li>Build one bounded loop in the write step. Pass the tools in, keep the plan immutable, end with one write event, and cap iterations at roughly 3 per planned file.</li>
+      <li>Add the deterministic plan-completeness check. It is cheaper than the loop and addresses the user-visible bug the loop did not fix.</li>
+      <li>Spend the rest of the quota offline: a wider eval corpus, more rounds, and multi-candidate builds judged offline. No user waits for those tokens.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="tokens-heading">
+    <h2 id="tokens-heading">Token spend <span class="count">2 meters</span></h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Spend</th><th scope="col">Meter</th><th scope="col">Measured shape</th><th scope="col">When it pays</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Write loop</td><td>Input</td><td>528k input, 6.6k output in one turn</td><td>Input-token commitments; UX and recovery</td></tr>
+          <tr><td class="name">Read loop</td><td>Input</td><td>65k against 36k on a 37-file app</td><td>Large apps; plan quality</td></tr>
+          <tr><td class="name">Multi-candidate writes</td><td>Output</td><td>2 to 3 times the output</td><td>Output-token commitments; first-build quality</td></tr>
+          <tr><td class="name">Offline eval rounds</td><td>Either</td><td>The whole suite, repeated</td><td>No user latency; measurement you keep</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <p>Credits are one per turn either way. Provider spend is a margin question, not a user-billing one. Know which meter the commitment uses before choosing the spend: the loop consumes input, multi-candidate consumes output.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="gaps-heading">
+    <h2 id="gaps-heading">What could not be tested <span class="count">3</span></h2>
+    <ul class="plain">
+      <li>BytePlus behavior. Every loop number here is a Gemini measurement. A different model can iterate better or worse, cache differently, or fail anchors more often.</li>
+      <li>Finished-app quality from the read loop. Recall of ground-truth files was measured, not whether the site was better after the turn.</li>
+      <li>In-loop static analysis. It is not built, so there is no measurement of fewer fix rounds or fewer broken builds.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="method-heading">
+    <h2 id="method-heading">Method and limits</h2>
+    <ul class="plain">
+      <li>Baseline: 13 first builds on the production model chain, one provider, Docker render on. Loop figures come from one 6-file write-loop turn and a three-variant read-loop PoC, with n of 2 or less in places.</li>
+      <li>Cost comes from the token ledger. Cached tokens are priced at the cache-read rate. The 8x is one turn, not a distribution.</li>
+      <li>The write loop was measured before the gated-turn rewrite. The current pipeline already sends a failed write back through its gate, so the loop's marginal value is lower on edits and higher on first builds.</li>
+      <li>Several Gemini workarounds may not apply to BytePlus: one tool per phase, argument bursts, thought signatures, and an uncacheable conversation tail.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="sources-heading">
+    <h2 id="sources-heading">Sources</h2>
+    <ol class="sources">
+      <li><a href="https://code.claude.com/docs/en/agent-sdk/agent-loop">Claude Code: How the agent loop works</a></li>
+      <li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic: Building effective agents</a></li>
+      <li>Arcane spike #362: Workflow vs agentic-loop, harness technique survey.</li>
+      <li>Arcane RFC-014: Agentic write-loop for generation.</li>
+      <li>Arcane spike: edit_file write loop, implementation and implications.</li>
+      <li><span class="mono">scripts/spikes/chat-generation-evaluation/evidence</span>: the 13-build baseline.</li>
+      <li><span class="mono">docs/domains/app-generation.md</span>: the gated turn, gates and fix rounds.</li>
+      <li><span class="mono">packages/runtime-settings/arcane_runtime_settings/models.py</span>: model roles.</li>
+    </ol>
+    <footer>Updated 12 November 2026. Written from repo evidence and internal spikes. No BytePlus call was made for this page.</footer>
+  </section>
+</div>
+
+<script>
+  document.documentElement.lang = "en";
+
+  const techniques = [
+    {
+      name: "Model-driven tool loop (full)",
+      today: "Fixed plan, write, test and fix phases",
+      verdict: "Rejected",
+      why: "Tool choice is not the win. The plan card, streaming UX and lifecycle invariants assume fixed phases."
+    },
+    {
+      name: "Write loop with in-loop checks",
+      today: "Write gate resends failures; checks run after staging",
+      verdict: "Recommended",
+      why: "Feedback, not freedom. 10s first edit, recoverable anchors, one write event at the end."
+    },
+    {
+      name: "Read loop (paths only)",
+      today: "Capped dump plus pinned plan files",
+      verdict: "Deferred",
+      why: "57 to 86% recall for about 2x input. No finished-app gain measured yet."
+    },
+    {
+      name: "Search tool for context",
+      today: "None",
+      verdict: "Deferred",
+      why: "Added no recall over paths-only in the PoC and spent 4 to 6 iterations."
+    },
+    {
+      name: "Mutable plan or todo",
+      today: "Committed plan is the permission set",
+      verdict: "Rejected",
+      why: "Free revision widens write scope mid-turn. Containment must stay deterministic."
+    },
+    {
+      name: "Subagents",
+      today: "None",
+      verdict: "Rejected",
+      why: "Per-turn output is a handful of files. One reviewer call is enough."
+    },
+    {
+      name: "Compaction",
+      today: "Derived AppManifest",
+      verdict: "Rejected",
+      why: "Turns are bounded; the manifest already carries the history that matters."
+    },
+    {
+      name: "Plan-completeness check",
+      today: "Plan gate checks rules, not coverage",
+      verdict: "Recommended",
+      why: "Catches the cross-cutting miss no loop caught, for the cost of a grep."
+    },
+    {
+      name: "Caps and budget",
+      today: "Time allowance and fix-round cap",
+      verdict: "Keep",
+      why: "Add a per-iteration cap to the write loop on day one."
+    },
+    {
+      name: "Deterministic gates",
+      today: "Plan gate and write gate",
+      verdict: "Keep",
+      why: "The whole unattended containment story. Do not weaken them for a loop."
+    }
+  ];
+
+  const body = document.getElementById("techniques");
+  const empty = document.getElementById("empty");
+  const buttons = Array.from(document.querySelectorAll(".filter"));
+  const levelFor = { Recommended: "ok", Deferred: "info", Rejected: "bad", Keep: "warn" };
+
+  function row(item) {
+    const tr = document.createElement("tr");
+
+    const name = document.createElement("td");
+    name.className = "name";
+    name.textContent = item.name;
+
+    const today = document.createElement("td");
+    today.textContent = item.today;
+
+    const verdict = document.createElement("td");
+    const pill = document.createElement("span");
+    pill.className = "pill " + (levelFor[item.verdict] || "");
+    pill.textContent = item.verdict;
+    verdict.append(pill);
+
+    const why = document.createElement("td");
+    why.textContent = item.why;
+
+    tr.append(name, today, verdict, why);
+    return tr;
+  }
+
+  function show(verdict) {
+    const visible = techniques.filter(function (item) {
+      return verdict === "all" || item.verdict === verdict;
+    });
+    body.replaceChildren.apply(body, visible.map(row));
+    empty.hidden = visible.length > 0;
+
+    buttons.forEach(function (button) {
+      button.setAttribute("aria-pressed", String(button.dataset.verdict === verdict));
+    });
+  }
+
+  buttons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      show(button.dataset.verdict);
+    });
+  });
+
+  show("all");
+</script>
