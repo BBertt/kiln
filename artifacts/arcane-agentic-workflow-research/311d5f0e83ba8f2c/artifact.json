@@ -1,0 +1,18 @@
+{
+  "slug": "arcane-agentic-workflow-research",
+  "title": "Agent harness or gated workflow for Arcane generation?",
+  "framework": "html",
+  "metadata": {
+    "description": "Research memo on whether Arcane's chat generation should adopt an agent harness: measured loop costs and wins, a technique-by-technique verdict, and a token-spend plan for the BytePlus quota.",
+    "tags": [
+      "arcane",
+      "agentic",
+      "harness",
+      "generation",
+      "byteplus",
+      "research"
+    ]
+  },
+  "revision": "311d5f0e83ba8f2c",
+  "updated_at": "2026-11-12T06:31:25.387Z"
+}
