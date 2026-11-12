@@ -1,0 +1,20 @@
+{
+  "slug": "modelark-build-benchmark",
+  "title": "ModelArk build benchmark",
+  "framework": "html",
+  "metadata": {
+    "description": "Seven BytePlus ModelArk models, five real site briefs, the production plan-and-write pipeline: 35 builds, validation results, cost, speed, and a blind 5-criteria review with side-by-side screenshots. Corrected: most validation failures came from a harness bug, not the models.",
+    "tags": [
+      "benchmark",
+      "byteplus",
+      "modelark",
+      "llm",
+      "code-generation",
+      "deepseek",
+      "glm",
+      "seed"
+    ]
+  },
+  "revision": "24c7afefe147e0ac",
+  "updated_at": "2026-11-12T10:25:30.942Z"
+}
