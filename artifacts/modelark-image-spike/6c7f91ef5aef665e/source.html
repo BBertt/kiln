@@ -1,0 +1,167 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  body { margin:0; padding:0 16px; background:var(--kiln-bg); color:var(--kiln-text); font:15px/1.55 var(--kiln-font-sans); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font:12px var(--kiln-font-mono); background:var(--kiln-surface-2); color:var(--kiln-muted); white-space:nowrap; }
+  .pill::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill.ok { background:var(--kiln-ok-wash); color:var(--kiln-ok); }
+  .pill.bad { background:var(--kiln-bad-wash); color:var(--kiln-bad); }
+  code { font-family:var(--kiln-font-mono); font-size:13px; background:var(--kiln-surface-2); padding:1px 5px; border-radius:5px; }
+  th { position:sticky; top:0; background:var(--kiln-surface-2); }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+<div class='mx-auto max-w-5xl py-10 flex flex-col gap-12'>
+  <header class='flex flex-col gap-3'>
+    <div class='flex gap-2 flex-wrap'>
+      <span class='pill'>12 Nov 2026</span>
+      <span class='pill'>spike</span>
+      <span class='pill' id='sample'></span>
+    </div>
+    <h1 class='text-[clamp(30px,5vw,42px)] font-medium leading-[1.08] tracking-[-0.035em] m-0'>ModelArk image generation through LiteLLM's OpenAI route</h1>
+    <p class='text-kiln-muted max-w-[68ch] m-0'>Can BytePlus ModelArk serve our image worker through the generic OpenAI-compatible client, so a model swap needs no new SDK and no new dependency?</p>
+  </header>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0 flex gap-3 items-baseline flex-wrap'>Verdict <span class='mono text-kiln-muted'>1 of 3 routes works</span></h2>
+    <div class='grid gap-3 sm:grid-cols-2 lg:grid-cols-3' id='routes'></div>
+  </section>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0 flex gap-3 items-baseline flex-wrap'>Numbers <span class='mono text-kiln-muted'>Seedream 5.0 Flash unless noted</span></h2>
+    <div class='grid gap-3 sm:grid-cols-2 lg:grid-cols-4' id='stats'></div>
+  </section>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0 flex gap-3 items-baseline flex-wrap'>Every call <span class='mono text-kiln-muted' id='rows-note'></span></h2>
+    <div class='flex gap-2 flex-wrap' id='filters' role='group' aria-label='Filter calls'></div>
+    <div class='overflow-x-auto rounded-xl border border-kiln-line'>
+      <table class='w-full text-sm border-collapse text-left'>
+        <thead><tr class='mono text-kiln-muted uppercase tracking-[0.04em]'><th class='p-2'>Case</th><th class='p-2'>Outcome</th><th class='p-2 text-right'>Latency</th><th class='p-2'>Detail</th></tr></thead>
+        <tbody id='rows'></tbody>
+      </table>
+    </div>
+    <p class='text-kiln-muted m-0'>Measured 12 Nov 2026 against <code>ark.ap-southeast.bytepluses.com</code> on the platform account. One row is one call; a refusal is a result too.</p>
+  </section>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0'>What the adapter has to do</h2>
+    <div class='bg-kiln-surface border border-kiln-line rounded-2xl p-5'>
+      <ol class='m-0 pl-5 flex flex-col gap-2 max-w-[68ch]'>
+        <li><strong>Call the image endpoint.</strong> <code>litellm.aimage_generation(model='openai/dola-seedream-5-0-flash-260915', api_base=…, api_key=…)</code>. The chat call shape cannot reach ModelArk.</li>
+        <li><strong>Turn the aspect ratio into pixels.</strong> Seedream takes <code>size='WxH'</code>; every ratio the plan step offers maps to a size between 921,600 and 4,624,220 total pixels. All seven came back exactly as asked.</li>
+        <li><strong>Send Seedream's options in <code>extra_body</code>.</strong> <code>watermark</code> and <code>response_format</code> are rejected as plain arguments, so they go in <code>extra_body</code>.</li>
+        <li><strong>Never send the ratio as <code>image_config</code>.</strong> The call succeeds but the ratio is not honoured: a 4:5 request returned 1664×2496 (2:3). Only <code>size</code> is honoured.</li>
+        <li><strong>Ask for base64.</strong> The default is a 24-hour signed URL; <code>response_format='b64_json'</code> returns the JPEG inline, 396 to 600 kB.</li>
+        <li><strong>Widen the refusal test.</strong> Production recognises <code>SensitiveContentDetected</code>. ModelArk says <em>may be related to copyright restrictions</em> for a real person and <em>may contain sensitive information</em> for violence, both as a 400.</li>
+        <li><strong>Price each image from a local table.</strong> LiteLLM reports no cost for these ids, even after the model is registered in its price table.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0'>What this does not answer</h2>
+    <div class='bg-kiln-surface border border-kiln-line rounded-2xl p-5'>
+      <ul class='m-0 pl-5 flex flex-col gap-2 max-w-[68ch]'>
+        <li><strong>Seedream 5.0 Pro is slower than production's timeout.</strong> It answered in 39 and 45 seconds; the worker gives a provider 30. On the previous account key it hung twice past 90 s, so its availability is account-dependent.</li>
+        <li><strong>Image-to-image, layer decomposition, sequential batches.</strong> Our worker generates one text-to-image per slot; the rest is out of scope.</li>
+        <li><strong>Quality.</strong> This spike measures plumbing, latency and cost. Which image model looks better is a separate comparison.</li>
+        <li><strong>Throughput.</strong> Seventeen sequential images prove the route; they do not set a rate limit or a concurrency budget.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0'>Recommendation</h2>
+    <div class='bg-kiln-surface-2 border-l-[3px] border-kiln-accent rounded-[10px] px-4 py-3'>
+      <p class='m-0 max-w-[68ch]'><strong>Switch the image worker to <code>aimage_generation</code> on <code>openai/…</code> with ModelArk's base URL.</strong> It needs no new dependency, the price matches today's OpenRouter route ($0.018 an image), and one image takes 14 to 21 seconds, inside the 30-second provider timeout. Keep OpenRouter configured as the fallback until a production canary has run. Seedream 5.0 Pro is reachable but takes 39 to 45 seconds and costs $0.045 to $0.09 an image, so choosing it means raising that timeout.</p>
+    </div>
+  </section>
+
+  <section class='flex flex-col gap-4'>
+    <h2 class='text-[23px] font-semibold tracking-[-0.02em] m-0'>Method</h2>
+    <div class='bg-kiln-surface border border-kiln-line rounded-2xl p-5 flex flex-col gap-3'>
+      <p class='m-0 max-w-[68ch]'>The spike script calls ModelArk once per case with the pinned LiteLLM version the API ships, the repo-root provider key and no retries. It records the exception class and HTTP status for every failure, the response carrier and byte size for every image, and LiteLLM's reported cost. Image dimensions are read back from the returned bytes.</p>
+      <p class='m-0 text-kiln-muted'>Reproduce: <code>uv run --project apps/api python scripts/spikes/modelark-image-generation/01_litellm_openai_route.py</code></p>
+    </div>
+  </section>
+
+  <footer class='border-t border-kiln-line pt-4 text-kiln-muted text-[13px]'>Spike evidence for the image-generation worker (RFC-025). Raw rows: <code>scripts/spikes/modelark-image-generation/evidence/results.jsonl</code>. Updated 12 Nov 2026.</footer>
+</div>
+<script>
+const ROUTES = [
+  ['Production shape today', 'Fails', 'bad', 'bad', 'volcengine/… plus modalities=["image"]. LiteLLM\u2019s ModelArk provider accepts text only, so the call is rejected before any request.'],
+  ['Chat transport, openai/…', 'Fails', 'bad', 'bad', 'acompletion with image modalities. ModelArk lists only images/generations for Seedream, so the chat endpoint answers with an RPM error.'],
+  ['Image transport, openai/…', 'Works', 'ok', 'ok', 'litellm.aimage_generation with api_base pointed at ModelArk. All seven aspect ratios returned exactly as asked.']
+];
+const STATS = [
+  ['Latency, flash', '14\u201321 s', 'One image, wall clock, 1K to 2K. Production\u2019s provider timeout is 30 s.'],
+  ['Price', '$0.018', 'Per image on Seedream 5.0 Flash, flat across resolutions. Same as the OpenRouter route used today.'],
+  ['Cost LiteLLM reports', 'None', 'Registering the model in its price table does not change it: the adapter must price each image itself.'],
+  ['Payload', '396\u2013600 kB', 'Inline base64 JPEG per image, so no download step and no 24-hour URL to outlive.']
+];
+const OK_ROWS = [["aimage_generation + size",19.2,"url"],["image_config 16:9 only",19.5,"url"],["image_config 4:5 only",17.7,"url"],["extra_body watermark=false",14.2,"url"],["extra_body b64_json",17.5,"b64 431 kB"],["aspect 16:9",17.6,"b64 432 kB"],["aspect 4:3",15.6,"b64 441 kB"],["aspect 3:2",14.3,"b64 422 kB"],["aspect 1:1",14.2,"b64 446 kB"],["aspect 4:5",14.7,"b64 437 kB"],["aspect 3:4",14.8,"b64 421 kB"],["aspect 2:3",15.7,"b64 396 kB"],["flash 1K",13.9,"b64 325 kB"],["flash 1.5K",16.1,"b64 394 kB"],["flash 2K",21.0,"b64 600 kB"],["pro 1.5K",39.4,"b64 366 kB"],["pro 2K",44.8,"b64 495 kB"]];
+const BAD_ROWS = [["prod shape: volcengine/ + chat","UnsupportedParamsError",400,"volcengine does not support parameters: ['modalities']"],["chat shape: openai/ + modalities","RateLimitError",429,"RPM limit of the model is exceeded"],["response_format kwarg","UnsupportedParamsError",400,"Setting response_format is not supported by openai/dola-seedream-5-0-flash"],["refusal: real person","BadRequestError",400,"input text may be related to copyright restrictions"],["refusal: graphic violence","BadRequestError",400,"input text may contain sensitive information"],["bad size (too small)","BadRequestError",400,"image area must be at least 921600 pixels"],["bad API key","AuthenticationError",401,"The API key format is incorrect"],["unknown model id","NotFoundError",404,"The model or endpoint does not exist"],["timeout 1s","Timeout",408,"Request timed out"]];
+const CASES = OK_ROWS.map(([name, seconds, detail]) => ({ name, ok: true, seconds, detail }))
+  .concat(BAD_ROWS.map(([name, cls, status, detail]) => ({ name, ok: false, seconds: null, detail: cls + ' ' + status + ' \u00b7 ' + detail })));
+
+const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; };
+
+const routes = document.getElementById('routes');
+ROUTES.forEach(([label, value, pillCls, , note]) => {
+  const card = el('div', 'bg-kiln-surface border border-kiln-line rounded-xl p-4 flex flex-col gap-2');
+  card.append(el('span', 'mono text-kiln-muted uppercase tracking-[0.04em]', label));
+  card.append(el('span', 'text-[26px] font-medium tracking-[-0.03em]', value));
+  card.append(el('span', 'pill ' + pillCls, pillCls === 'ok' ? 'works' : 'does not work'));
+  card.append(el('span', 'text-[13.5px] text-kiln-muted', note));
+  routes.append(card);
+});
+
+const stats = document.getElementById('stats');
+STATS.forEach(([label, value, note]) => {
+  const card = el('div', 'bg-kiln-surface border border-kiln-line rounded-xl p-4 flex flex-col gap-2');
+  card.append(el('span', 'mono text-kiln-muted uppercase tracking-[0.04em]', label));
+  card.append(el('span', 'text-[26px] font-medium tracking-[-0.03em]', value));
+  card.append(el('span', 'text-[13.5px] text-kiln-muted', note));
+  stats.append(card);
+});
+
+const body = document.getElementById('rows');
+const filters = document.getElementById('filters');
+let active = 'all';
+function draw() {
+  body.replaceChildren();
+  CASES.filter((c) => active === 'all' || (active === 'ok') === c.ok).forEach((c) => {
+    const tr = el('tr', 'border-t border-kiln-line align-top');
+    tr.append(el('td', 'p-2', c.name));
+    const outcome = el('td', 'p-2');
+    outcome.append(el('span', 'pill ' + (c.ok ? 'ok' : 'bad'), c.ok ? 'image returned' : 'failed'));
+    tr.append(outcome);
+    tr.append(el('td', 'p-2 text-right mono whitespace-nowrap', c.seconds === null ? '\u2014' : c.seconds.toFixed(1) + ' s'));
+    tr.append(el('td', 'p-2 text-kiln-muted', c.detail));
+    body.append(tr);
+  });
+}
+[['all', 'All'], ['ok', 'Image returned'], ['bad', 'Failed']].forEach(([key, label]) => {
+  const count = key === 'all' ? CASES.length : CASES.filter((c) => (key === 'ok') === c.ok).length;
+  const button = el('button', 'mono px-3 py-[5px] rounded-full border border-kiln-line-strong bg-transparent text-kiln-text cursor-pointer', label + ' (' + count + ')');
+  button.type = 'button';
+  button.setAttribute('aria-pressed', String(key === active));
+  button.style.background = key === active ? 'var(--kiln-accent-wash)' : 'transparent';
+  button.addEventListener('click', () => {
+    active = key;
+    filters.querySelectorAll('button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b === button));
+      b.style.background = b === button ? 'var(--kiln-accent-wash)' : 'transparent';
+    });
+    draw();
+  });
+  filters.append(button);
+});
+
+document.getElementById('sample').textContent = CASES.length + ' calls, ' + OK_ROWS.length + ' images';
+document.getElementById('rows-note').textContent = CASES.length + ' rows';
+document.title = 'ModelArk image spike';
+draw();
+</script>
