@@ -1,0 +1,19 @@
+{
+  "slug": "639-image-generation-progress",
+  "title": "Image generation: one adapter, two transports (#639)",
+  "framework": "html",
+  "metadata": {
+    "description": "Public progress tracker for issue #639: model-agnostic image generation, two transports, active concerns, decisions for later review, and the honest evidence stage. No measured benchmark results published yet.",
+    "tags": [
+      "639",
+      "image-generation",
+      "progress",
+      "litellm",
+      "modelark",
+      "byteplus",
+      "adapter"
+    ]
+  },
+  "revision": "47f67da56089fc71",
+  "updated_at": "2026-11-12T11:01:56.256Z"
+}

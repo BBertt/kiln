@@ -1,0 +1,502 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { color-scheme: dark; } }
+  :root[data-theme='dark'] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15px/1.55 var(--kiln-font-sans); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 72px; display: flex; flex-direction: column; gap: 44px; }
+  header { display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 8px 0 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  h2 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -0.02em; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; }
+  p { margin: 0; max-width: 68ch; }
+  .muted { color: var(--kiln-muted); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  a { color: var(--kiln-accent-text); text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); white-space: nowrap; align-self: flex-start; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .notice { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .notice strong { font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .card { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .card .label { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .card .value { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+  .card .note { font-size: 13.5px; color: var(--kiln-muted); }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .panel { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .panel h3 { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
+  .item { display: flex; flex-direction: column; gap: 3px; padding-top: 10px; border-top: 1px solid var(--kiln-line); }
+  .item:first-of-type { padding-top: 0; border-top: 0; }
+  .item .code { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+  .item strong { font-weight: 600; font-size: 14px; }
+  .item p { font-size: 13.5px; color: var(--kiln-muted); max-width: none; }
+  .concerns { display: grid; gap: 12px; }
+  .concern { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .concern .top { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  .concern .top .pill { margin-left: auto; }
+  .concern p { font-size: 14px; color: var(--kiln-muted); }
+  .decisions { display: grid; gap: 12px; }
+  .decision { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .decision .question { font-size: 15.5px; font-weight: 600; }
+  .decision .context { font-size: 14px; color: var(--kiln-muted); }
+  .decision ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--kiln-muted); }
+  .recommended { background: var(--kiln-surface-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; max-width: none; }
+  .recommended strong { font-weight: 600; }
+  .decided { font-size: 13px; color: var(--kiln-muted); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters button { font: 12px var(--kiln-font-mono); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--kiln-line-strong); background: transparent; color: var(--kiln-text); cursor: pointer; }
+  .filters button[aria-pressed='true'] { background: var(--kiln-accent-wash); border-color: var(--kiln-accent-strong); color: var(--kiln-accent-text); }
+  .phases { display: flex; flex-direction: column; gap: 10px; }
+  details.phase { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 0 16px; }
+  details.phase summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 13px 0; }
+  details.phase summary::-webkit-details-marker { display: none; }
+  details.phase summary .caret { font-family: var(--kiln-font-mono); font-size: 11px; color: var(--kiln-muted); width: 10px; }
+  details.phase[open] summary .caret { transform: rotate(90deg); }
+  details.phase summary .code { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+  details.phase summary .title { font-weight: 600; font-size: 14.5px; }
+  details.phase summary .pill { margin-left: auto; }
+  details.phase.done summary .title { text-decoration: line-through; color: var(--kiln-muted); }
+  .phase-body { padding: 0 0 14px 20px; display: flex; flex-direction: column; gap: 6px; }
+  .phase-body p { font-size: 14px; color: var(--kiln-muted); }
+  .phase-body .dep { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); }
+  .scroll { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--kiln-line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { position: sticky; top: 0; background: var(--kiln-surface-2); font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  td.state { white-space: nowrap; font-family: var(--kiln-font-mono); font-size: 12px; }
+  td.detail { color: var(--kiln-muted); }
+  .ratios { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ratio { font: 12.5px var(--kiln-font-mono); padding: 5px 10px; border-radius: 8px; background: var(--kiln-surface-2); border: 1px solid var(--kiln-line); }
+  .ratio.missing { border-color: var(--kiln-warn); color: var(--kiln-warn); }
+  .log { display: flex; flex-direction: column; }
+  .log-row { display: grid; grid-template-columns: 120px 40px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--kiln-line); font-size: 14px; }
+  .log-row:last-child { border-bottom: 0; }
+  .log-row .date { font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+  .log-row .code { font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+  .log-row p { color: var(--kiln-muted); }
+  code { font-family: var(--kiln-font-mono); font-size: 12.5px; background: var(--kiln-surface-2); padding: 1px 5px; border-radius: 5px; }
+  footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; color: var(--kiln-muted); font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  .empty { border: 1px dashed var(--kiln-line-strong); border-radius: 12px; padding: 18px; color: var(--kiln-muted); font-size: 14px; }
+  @media (max-width: 560px) { .log-row { grid-template-columns: 96px 30px 1fr; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } details.phase summary .caret { transform: none !important; } }
+</style>
+<div class="wrap">
+  <header>
+    <div class="chips">
+      <span class="pill info">Public artifact</span>
+      <span class="pill">Updated 12 Nov 2026</span>
+      <span class="pill warn" id="stage-pill">Implementation and benchmark in progress</span>
+    </div>
+    <h1>Image generation: one adapter, two transports (#639)</h1>
+    <p class="muted">Progress tracker for making the image call model-agnostic while the chat call stays the default. This snapshot records delegated work in progress; it publishes no result that has not been observed.</p>
+    <p class="mono muted"><a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/work_items/639" rel="noreferrer">Issue #639</a> · <a href="https://bbertt.github.io/kiln/artifacts/modelark-image-spike/" rel="noreferrer">Prior ModelArk image spike</a> · <a href="https://bbertt.github.io/kiln/artifacts/639-image-generation-progress/" rel="noreferrer">This page</a></p>
+  </header>
+
+  <section aria-labelledby="stage-heading">
+    <div class="notice">
+      <strong id="stage-heading">Public, and early: implementation and live benchmark are in progress.</strong>
+      <p>This page is public. It carries no credentials, account identifiers, signed URLs, response headers or customer data. It reports only observed, sanitized evidence; where evidence does not exist yet, it says so. No measured image, latency, price or quality score is published here yet.</p>
+    </div>
+    <div class="cards" id="stage-cards"></div>
+  </section>
+
+  <section aria-labelledby="concerns-heading">
+    <h2 id="concerns-heading">Concerns <span class="mono muted" id="concerns-count">—</span></h2>
+    <p class="muted">The risks worth knowing before the benchmark results arrive. Open items are decisions for later review, not prompts to act now.</p>
+    <div class="concerns" id="concerns"></div>
+  </section>
+
+  <section aria-labelledby="now-heading">
+    <h2 id="now-heading">Now</h2>
+    <div class="cols" id="now"></div>
+  </section>
+
+  <section aria-labelledby="decisions-heading">
+    <h2 id="decisions-heading">Decisions <span class="mono muted" id="decisions-count">—</span></h2>
+    <div class="filters" id="decision-filters" role="group" aria-label="Filter decisions"></div>
+    <div class="decisions" id="decisions"></div>
+  </section>
+
+  <section aria-labelledby="phases-heading">
+    <h2 id="phases-heading">Work sequence <span class="mono muted" id="phases-count">—</span></h2>
+    <div class="phases" id="phases"></div>
+  </section>
+
+  <section aria-labelledby="evidence-heading">
+    <h2 id="evidence-heading">Evidence ledger <span class="mono muted">observed vs pending</span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Evidence</th><th>State</th><th>Detail</th></tr></thead>
+        <tbody id="evidence"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h3>Eight aspect ratios required</h3>
+      <div class="ratios" id="ratios"></div>
+      <p class="muted">Every <code>ImageAspectRatio</code> value must be honoured through the new transport. The earlier spike covered seven; <strong>9:16</strong> was absent. Each image profile declares its own size map and pixel bounds as data. Live verification is pending.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="gallery-heading">
+    <h2 id="gallery-heading">Gallery <span class="mono muted">not published yet</span></h2>
+    <div class="empty" id="gallery-empty">No sample images are published yet. When real benchmark outputs exist, this section will show sanitized thumbnails with prompts and sample IDs only, plus an honest note on how they were reviewed. Full-size outputs stay local; model names stay out of the public manifest.</div>
+  </section>
+
+  <section aria-labelledby="log-heading">
+    <h2 id="log-heading">Log <span class="mono muted" id="log-count">—</span></h2>
+    <div class="log" id="log"></div>
+  </section>
+
+  <footer>
+    <p>Maintained by the delivery coordinator from evidence reported by the implementation and benchmark agents. Updated only when a phase or evidence state changes; each update is a new Kiln revision.</p>
+    <p class="mono">Last update 12 Nov 2026 · Issue #639 · No deployment, no merge, defaults unchanged.</p>
+  </footer>
+</div>
+<script>
+  document.documentElement.lang = 'en';
+
+  const stageCards = [
+    { label: 'Adapter', value: 'In progress', note: 'Chat path frozen; images transport delegated.' },
+    { label: 'Live benchmark', value: 'In progress', note: 'No measured call published yet.' },
+    { label: 'Blind review', value: 'Waiting', note: 'Blocked on sanitized image evidence, not on you.' },
+    { label: 'Defaults and deploy', value: 'Unchanged', note: 'Staging and production untouched; no deployment.' },
+    { label: 'MR to staging', value: 'Not opened', note: 'After evidence and review; no merge.' }
+  ];
+
+  const concerns = [
+    {
+      title: '60-second first build vs slow image models',
+      tone: 'warn',
+      label: 'At risk, documented',
+      body: 'The provider timeout may be configured above 30 seconds, while a first build waits for the image. The implementation keeps the bootstrap deadline at 60 seconds after scheduling and uses a fixed worker ceiling near 90 seconds for calls up to 60 seconds. That is a conservative, documented risk, not a solved guarantee. Observed timings decide whether it changes.'
+    },
+    {
+      title: 'Native prefix is not live-verified',
+      tone: 'warn',
+      label: 'Open',
+      body: 'The prior spike proved the generic openai/ images route only. A real call on the existing volcengine credential and base is being tried first. If it fails, the report will name the exact reason and the smallest explicit connection configuration for the proven route: no provider branches, no invented credential resolver.'
+    },
+    {
+      title: 'Cost field was wrong in the first spike',
+      tone: 'ok',
+      label: 'Corrected in design',
+      body: 'The images endpoint may not populate LiteLLM response_cost. The plan registers input_cost_per_image and computes images cost with litellm.completion_cost. The spike first used output_cost_per_image, which the image calculator ignores. A live non-zero cost still has to be observed; an unknown cost stays unknown with a warning.'
+    },
+    {
+      title: 'AI quality evaluation has limits',
+      tone: 'info',
+      label: 'Bounded',
+      body: 'The blind review is AI-assisted on a small sample with a fixed rubric: visual craft, prompt adherence, artifacts and anatomy, text rendering, and website usability. It can rank visible differences; it cannot guarantee production quality. The method, sample size and uncertainty will be published with the scores.'
+    },
+    {
+      title: 'Public evidence must stay public-safe',
+      tone: 'info',
+      label: 'Guardrail',
+      body: 'No secrets, account identifiers, signed URLs, response headers or customer data. Only sanitized thumbnails, prompts and sample IDs reach this page. Full-size outputs stay local, and model names stay out of the blind manifest shown to the reviewer.'
+    },
+    {
+      title: 'Eight ratios, not the spike’s seven',
+      tone: 'warn',
+      label: 'Open',
+      body: 'The earlier spike covered seven aspect ratios and missed 9:16. The adapter must honour all eight ImageAspectRatio values, and every profile keeps its own size map and pixel bounds as data. Live eight-ratio coverage is not verified yet.'
+    }
+  ];
+
+  const now = {
+    working: [
+      { code: 'P1', title: 'Adapter implementation', body: 'Explicit chat/images setting, images transport behind the existing interface, typed deploy profiles, unchanged chat path.' },
+      { code: 'P3', title: 'Native route live check', body: 'One real images call on the existing volcengine credential and base before any fallback design.' },
+      { code: 'P4', title: 'Live benchmark', body: 'Real adapter, shared prompts, two repetitions, eight ratios, latency, bytes and cost basis.' }
+    ],
+    next: [
+      { code: 'P5', title: 'Sanitized evidence and blind manifest', body: 'Sample IDs only; model mapping stays local; thumbnails arrive before the public gallery is built.' },
+      { code: 'P5', title: 'Independent quality review', body: 'Fixed rubric; all reviewed images actually shown; small-sample uncertainty disclosed.' },
+      { code: 'P6', title: 'MR and scoped verification', body: 'Targets staging; make test, make lint and make verify once. No deploy and no merge.' }
+    ],
+    waiting: [
+      { code: 'You', title: 'Nothing today', body: 'No approval is required now. Open decisions are listed for later review, once evidence exists.' },
+      { code: 'P5', title: 'Independent reviewer', body: 'Waits for sanitized thumbnails and the blind manifest. No review can start before images exist.' }
+    ]
+  };
+
+  const decisions = [
+    {
+      status: 'open',
+      question: 'Which ModelArk prefix reaches the images endpoint?',
+      context: 'The spike proved openai/ with an explicit base and key. volcengine/ reading the existing credential and base is shown offline only.',
+      options: ['volcengine/ with the existing credential and base', 'openai/ with explicit connection configuration', 'A capability lookup instead of an explicit setting'],
+      recommended: 'Prove volcengine/ live first. Only if it fails, add the smallest generic explicit connection configuration for the proven route. No provider branch in the adapter.',
+      meta: 'Review after the live check; no approval needed today.'
+    },
+    {
+      status: 'open',
+      question: 'Does image generation keep a fallback, and may it cross transports?',
+      context: 'Image generation has no fallback today. The prior spike recommends keeping OpenRouter as a fallback until a production canary runs.',
+      options: ['Single route for now', 'Keep OpenRouter as a fallback', 'Allow automatic cross-transport fallback'],
+      recommended: 'Keep the current single route for this slice. Decide after benchmark evidence. No automatic cross-transport fallback without a recorded decision.',
+      meta: 'Review with the benchmark results.'
+    },
+    {
+      status: 'open',
+      question: 'Accept a ~90-second worker ceiling while the first-build deadline stays at 60 seconds?',
+      context: 'A provider timeout up to 60 seconds can exceed the worker’s old 55-second attempt ceiling. Raising the bootstrap deadline silently would hide the cost from first builds.',
+      options: ['Raise the bootstrap deadline', 'Fixed ~90-second worker ceiling, 60-second bootstrap unchanged', 'Cap the provider timeout below 60 seconds'],
+      recommended: 'Accept the fixed ~90-second ceiling for this slice; document the risk. Revisit only if observed timings demand it. Never silently raise the bootstrap deadline.',
+      meta: 'Review with observed timings.'
+    },
+    {
+      status: 'open',
+      question: 'Which image model, if any, becomes the deployed default?',
+      context: 'Quality outranks price. The benchmark has not run and no model has been selected. Changing a default is a deploy decision, not part of this issue.',
+      options: ['No default change now', 'Switch after blind review', 'Switch after a staging canary'],
+      recommended: 'No default change in this issue. Decide after blind review and MR discussion; selection is not deployment.',
+      meta: 'Review after independent quality review.'
+    },
+    {
+      status: 'settled',
+      question: 'How is the transport chosen?',
+      context: 'The choice had to keep the chat call as the default without naming a model or provider in code.',
+      recommended: 'An explicit chat/images setting beside models.image_generation. The deploy keeps chat as default; no adapter branch names a model or provider.',
+      meta: 'Decided 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'Where do per-model values live?',
+      context: 'Timeouts, ratio-to-size maps, pixel bounds, provider options, refusal markers and price differ per model and must not become code branches.',
+      recommended: 'Typed, deploy-owned image profiles keyed by the full LiteLLM model string, resolved after the runtime-selected model. Values are data, not adapter logic.',
+      meta: 'Decided 12 Nov 2026.'
+    },
+    {
+      status: 'settled',
+      question: 'What stays unchanged?',
+      context: 'Existing callers and the chat transport are the safety boundary for this change.',
+      recommended: 'ImageGenerator.generate(prompt, aspect_ratio), ImageGenerationOutcome, all callers and the current chat behaviour stay unchanged. Existing adapter tests stay unedited.',
+      meta: 'Decided 12 Nov 2026.'
+    }
+  ];
+
+  const phases = [
+    {
+      code: 'P0', title: 'Scope, contract and public-safety rules', status: 'done', label: 'Done',
+      body: 'Delivery contract, ownership, evidence rules and issue read are set. No code or benchmark result is claimed.',
+      dep: 'No dependency.'
+    },
+    {
+      code: 'P1', title: 'Model-agnostic adapter', status: 'active', label: 'In progress',
+      body: 'Explicit chat/images setting, images transport behind the existing interface, typed deploy profiles, unchanged chat path, focused regressions added separately.',
+      dep: 'Depends on P0.'
+    },
+    {
+      code: 'P2', title: 'Deploy profiles and docs', status: 'active', label: 'In progress',
+      body: 'Compact single-line JSON reaching both API and worker templates; domain brief and ADR-068 amendment. Deployed defaults stay untouched.',
+      dep: 'Depends on P1.'
+    },
+    {
+      code: 'P3', title: 'Native route live check', status: 'active', label: 'In progress',
+      body: 'One real images call with the existing volcengine credential and base. If it does not work, report the exact reason before designing the fallback.',
+      dep: 'Runs early; independent of P1.'
+    },
+    {
+      code: 'P4', title: 'Live benchmark', status: 'active', label: 'In progress',
+      body: 'Real adapter; at least six shared prompts and two repetitions per accessible candidate; eight ratios on representative profiles; latency, resolution, bytes and cost basis. Refusals and timeouts are recorded, not retried away.',
+      dep: 'Depends on P1 and the route check.'
+    },
+    {
+      code: 'P5', title: 'Independent blind quality review', status: 'waiting', label: 'Waiting',
+      body: 'Sanitized thumbnails and a blind manifest; AI-assisted review with a fixed rubric; all reviewed images actually shown; small-sample uncertainty stated.',
+      dep: 'Depends on P4.'
+    },
+    {
+      code: 'P6', title: 'MR and scoped verification', status: 'pending', label: 'Pending',
+      body: 'MR to staging after evidence and review. make test, make lint and make verify run once; no deploy, no merge, no default change.',
+      dep: 'Depends on P1, P2 and P5.'
+    }
+  ];
+
+  const evidence = [
+    { name: 'Prior spike: openai/ images route', state: 'Observed', detail: 'The generic images route worked in the earlier spike; it is prior evidence, not a result of this issue.' },
+    { name: 'Native volcengine/ route', state: 'Not observed', detail: 'Live check running. The offline spike did not make a real request on this prefix.' },
+    { name: 'Real adapter calls', state: 'Not observed', detail: 'Benchmark runs through the new adapter are in progress; no measured call is published yet.' },
+    { name: 'Eight-ratio coverage', state: 'Not observed', detail: 'All eight ImageAspectRatio values are required. 9:16 is the addition missing from the prior spike.' },
+    { name: 'Cost and price basis', state: 'Not observed', detail: 'The field correction is designed; a live non-zero or clearly unknown cost still has to be recorded.' },
+    { name: 'Blind quality review', state: 'Not started', detail: 'Waits for sanitized image evidence and the blind manifest.' },
+    { name: 'MR and scoped verification', state: 'Not opened', detail: 'Runs after the implementation and review settle; no staging or production change.' }
+  ];
+
+  const ratios = ['16:9', '4:3', '3:2', '1:1', '4:5', '3:4', '2:3', '9:16'];
+
+  const log = [
+    { date: '12 Nov 2026', code: 'P0', text: 'Delivery contract fixed: two transports, chat default, typed deploy profiles, eight ratios, no deploy.' },
+    { date: '12 Nov 2026', code: 'P1', text: 'Adapter implementation delegated; public interface and chat behaviour frozen.' },
+    { date: '12 Nov 2026', code: 'P3', text: 'Native prefix live check runs before any fallback design.' },
+    { date: '12 Nov 2026', code: 'P4', text: 'Benchmark delegated: shared prompts, two repetitions, eight ratios, real adapter, refusals recorded.' },
+    { date: '12 Nov 2026', code: 'P5', text: 'Blind review rubric fixed; public gallery will use sanitized inline thumbnails and sample IDs.' },
+    { date: '12 Nov 2026', code: 'P0', text: 'This progress page created. No measured result is claimed.' }
+  ];
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function pill(tone, label) {
+    return el('span', 'pill ' + tone, label);
+  }
+
+  function renderStage() {
+    const root = document.getElementById('stage-cards');
+    for (const card of stageCards) {
+      const node = el('div', 'card');
+      node.append(el('span', 'label', card.label), el('span', 'value', card.value), el('span', 'note', card.note));
+      root.append(node);
+    }
+  }
+
+  function renderConcerns() {
+    const root = document.getElementById('concerns');
+    const attention = concerns.filter((item) => item.tone === 'warn' || item.tone === 'bad').length;
+    document.getElementById('concerns-count').textContent = concerns.length + ' tracked · ' + attention + ' need attention';
+    for (const item of concerns) {
+      const node = el('article', 'concern');
+      const top = el('div', 'top');
+      top.append(el('h3', '', item.title), pill(item.tone, item.label));
+      node.append(top, el('p', '', item.body));
+      root.append(node);
+    }
+  }
+
+  function renderNow() {
+    const root = document.getElementById('now');
+    const columns = [
+      { key: 'working', title: 'Working on', tone: '' },
+      { key: 'next', title: 'Next', tone: '' },
+      { key: 'waiting', title: 'Waiting on', tone: '' }
+    ];
+    for (const column of columns) {
+      const panel = el('div', 'panel');
+      panel.append(el('h3', '', column.title));
+      for (const item of now[column.key]) {
+        const row = el('div', 'item');
+        row.append(el('span', 'code', item.code), el('strong', '', item.title), el('p', '', item.body));
+        panel.append(row);
+      }
+      root.append(panel);
+    }
+  }
+
+  let decisionFilter = 'all';
+  const filterButtons = [
+    { key: 'all', label: 'All' },
+    { key: 'open', label: 'Open' },
+    { key: 'settled', label: 'Settled' }
+  ];
+
+  function renderDecisionFilters() {
+    const root = document.getElementById('decision-filters');
+    root.replaceChildren();
+    for (const filter of filterButtons) {
+      const button = el('button', '', filter.label);
+      button.type = 'button';
+      button.dataset.decisionFilter = filter.key;
+      button.setAttribute('aria-pressed', String(decisionFilter === filter.key));
+      button.addEventListener('click', () => {
+        decisionFilter = filter.key;
+        renderDecisionFilters();
+        renderDecisions();
+      });
+      root.append(button);
+    }
+  }
+
+  function renderDecisions() {
+    const root = document.getElementById('decisions');
+    root.replaceChildren();
+    const open = decisions.filter((item) => item.status === 'open').length;
+    document.getElementById('decisions-count').textContent = open + ' open · ' + (decisions.length - open) + ' settled';
+    const visible = decisions.filter((item) => decisionFilter === 'all' || item.status === decisionFilter);
+    for (const item of visible) {
+      const node = el('article', 'decision');
+      const top = el('div', 'chips');
+      top.append(pill(item.status === 'open' ? 'warn' : 'ok', item.status === 'open' ? 'Open for later review' : 'Settled'));
+      node.append(top, el('p', 'question', item.question), el('p', 'context', item.context));
+      if (item.options && item.options.length) {
+        const list = el('ul');
+        for (const option of item.options) list.append(el('li', '', option));
+        node.append(list);
+      }
+      const recommended = el('p', 'recommended');
+      recommended.append(el('strong', '', item.status === 'open' ? 'Recommended: ' : 'Decided: '), document.createTextNode(item.recommended));
+      node.append(recommended, el('p', 'decided', item.meta));
+      root.append(node);
+    }
+    if (!visible.length) root.append(el('div', 'empty', 'No decisions in this filter.'));
+  }
+
+  function renderPhases() {
+    const root = document.getElementById('phases');
+    const done = phases.filter((item) => item.status === 'done').length;
+    const active = phases.filter((item) => item.status === 'active').length;
+    const waiting = phases.length - done - active;
+    document.getElementById('phases-count').textContent = phases.length + ' phases · ' + done + ' done, ' + active + ' active, ' + waiting + ' waiting or pending';
+    for (const phase of phases) {
+      const details = el('details', 'phase ' + phase.status);
+      if (phase.status === 'active') details.open = true;
+      const summary = el('summary');
+      const tone = phase.status === 'done' ? 'ok' : phase.status === 'active' ? 'warn' : phase.status === 'waiting' ? 'info' : '';
+      summary.append(el('span', 'caret', '▸'), el('span', 'code', phase.code), el('span', 'title', phase.title), pill(tone, phase.label));
+      const body = el('div', 'phase-body');
+      body.append(el('p', '', phase.body), el('span', 'dep', phase.dep));
+      details.append(summary, body);
+      root.append(details);
+    }
+  }
+
+  function renderEvidence() {
+    const root = document.getElementById('evidence');
+    for (const row of evidence) {
+      const tr = el('tr');
+      const stateTone = row.state === 'Observed' ? 'ok' : row.state === 'Not observed' ? 'warn' : '';
+      const state = el('td', 'state');
+      if (stateTone) state.append(pill(stateTone, row.state));
+      else state.textContent = row.state;
+      tr.append(el('td', '', row.name), state, el('td', 'detail', row.detail));
+      root.append(tr);
+    }
+  }
+
+  function renderRatios() {
+    const root = document.getElementById('ratios');
+    for (const ratio of ratios) {
+      root.append(el('span', 'ratio' + (ratio === '9:16' ? ' missing' : ''), ratio));
+    }
+  }
+
+  function renderLog() {
+    const root = document.getElementById('log');
+    document.getElementById('log-count').textContent = log.length + ' entries, newest first';
+    for (const row of log) {
+      const node = el('div', 'log-row');
+      node.append(el('span', 'date', row.date), el('span', 'code', row.code), el('p', '', row.text));
+      root.append(node);
+    }
+  }
+
+  renderStage();
+  renderConcerns();
+  renderNow();
+  renderDecisionFilters();
+  renderDecisions();
+  renderPhases();
+  renderEvidence();
+  renderRatios();
+  renderLog();
+</script>
