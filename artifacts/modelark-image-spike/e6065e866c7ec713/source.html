@@ -33,6 +33,8 @@
   .filters button { font: 12px var(--kiln-font-mono); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--kiln-line-strong); background: transparent; color: var(--kiln-text); cursor: pointer; }
   .filters button[aria-pressed='true'] { background: var(--kiln-accent-wash); border-color: var(--kiln-accent-strong); color: var(--kiln-accent-text); }
   code { font-family: var(--kiln-font-mono); font-size: 13px; background: var(--kiln-surface-2); padding: 1px 5px; border-radius: 5px; }
+  pre { margin: 0; overflow-x: auto; background: var(--kiln-surface-2); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 14px 16px; font: 12.5px/1.55 var(--kiln-font-mono); }
+  pre code { background: none; padding: 0; font-size: inherit; }
   ol, ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; max-width: 68ch; }
   footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; color: var(--kiln-muted); font-size: 13px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -80,8 +82,60 @@
         <li><strong>Never send the ratio as <code>image_config</code>.</strong> The call succeeds but the ratio is not honoured: a 4:5 request returned 1664×2496 (2:3). Only <code>size</code> is honoured.</li>
         <li><strong>Ask for base64.</strong> The default is a 24-hour signed URL; <code>response_format='b64_json'</code> returns the JPEG inline, 396 to 600 kB.</li>
         <li><strong>Widen the refusal test.</strong> Production recognises <code>SensitiveContentDetected</code>. ModelArk says <em>may be related to copyright restrictions</em> for a real person and <em>may contain sensitive information</em> for violence, both as a 400.</li>
-        <li><strong>Price each image from a local table.</strong> LiteLLM reports no cost for these ids, even after the model is registered in its price table.</li>
+        <li><strong>Register the per-image price.</strong> Register <code>input_cost_per_image</code> under the model id and LiteLLM returns it as <code>response_cost</code>. The spike's first pass used <code>output_cost_per_image</code>, which the image calculator ignores; a local test with the correct field reports $0.018.</li>
       </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>The call, today and later <span class='mono muted'>one adapter, two transports</span></h2>
+    <div class='cards'>
+      <div class='card'>
+        <span class='label'>Today: OpenRouter chat</span>
+        <pre><code>response = await litellm.acompletion(
+    model="openrouter/bytedance-seed/seedream-5-0-flash",
+    messages=[{"role": "user", "content": prompt}],
+    modalities=["image"],
+    image_config={"aspect_ratio": aspect_ratio},
+    timeout=30,
+    num_retries=0,
+)</code></pre>
+      </div>
+      <div class='card'>
+        <span class='label'>Later: ModelArk images</span>
+        <pre><code>response = await litellm.aimage_generation(
+    model="openai/dola-seedream-5-0-flash-260915",
+    prompt=prompt,
+    api_base="https://ark.ap-southeast.bytepluses.com/api/v3",
+    api_key=settings.volcengine_api_key,
+    size=size_for(aspect_ratio),
+    timeout=30,
+    num_retries=0,
+    extra_body={"watermark": False, "response_format": "b64_json"},
+)</code></pre>
+      </div>
+    </div>
+    <div class='scroll'>
+      <table>
+        <thead><tr><th>Dimension</th><th>Today: OpenRouter chat</th><th>Later: ModelArk images</th></tr></thead>
+        <tbody>
+          <tr><td>Entry point</td><td><code>litellm.acompletion</code></td><td><code>litellm.aimage_generation</code></td></tr>
+          <tr><td>Endpoint</td><td><code>/chat/completions</code> with <code>modalities=["image"]</code></td><td><code>/images/generations</code></td></tr>
+          <tr><td>Model string</td><td><code>openrouter/bytedance-seed/seedream-5-0-flash</code></td><td><code>openai/dola-seedream-5-0-flash-260915</code></td></tr>
+          <tr><td>Key and base</td><td>LiteLLM reads the OpenRouter env</td><td>Passed explicitly for <code>openai/…</code>, or read from <code>VOLCENGINE_API_*</code> for <code>volcengine/…</code></td></tr>
+          <tr><td>Aspect ratio</td><td><code>image_config={"aspect_ratio": "16:9"}</code></td><td><code>size="2048x1152"</code>; <code>image_config</code> is accepted but ignored</td></tr>
+          <tr><td>Options</td><td>None used</td><td><code>extra_body</code> carries <code>watermark</code> and <code>response_format</code></td></tr>
+          <tr><td>Response type</td><td><code>ModelResponse</code></td><td><code>ImageResponse</code></td></tr>
+          <tr><td>Image carrier</td><td>Data URL at <code>choices[0].message.images[0]["image_url"]["url"]</code></td><td><code>data[0].b64_json</code> when requested; otherwise a 24-hour URL</td></tr>
+          <tr><td>Usage fields</td><td><code>prompt_tokens</code> / <code>completion_tokens</code></td><td><code>output_tokens</code>, <code>generated_images</code>; needs its own extractor</td></tr>
+          <tr><td>Cost</td><td>Provider reports it; Gemini has a fallback price</td><td>Register <code>input_cost_per_image</code></td></tr>
+          <tr><td>Refusal</td><td><code>SensitiveContentDetected</code></td><td>"copyright restrictions" or "sensitive information"</td></tr>
+          <tr><td>Latency</td><td>Not measured here</td><td>Flash 14–21 s; Pro 39–45 s, over the 30 s timeout</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='callout'>
+      <p><strong>Cost correction.</strong> The spike's first pass registered <code>output_cost_per_image</code>, so <code>response_cost</code> stayed None. LiteLLM's OpenAI-style image calculator reads <code>input_cost_per_image</code>; registered that way, the same call reports $0.018. Verified locally against a synthetic image response, not re-run against ModelArk.</p>
     </div>
   </section>
 
@@ -123,7 +177,7 @@ const ROUTES = [
 const STATS = [
   ['Latency, flash', '14\u201321 s', 'One image, wall clock, 1K to 2K. Production\u2019s provider timeout is 30 s.'],
   ['Price', '$0.018', 'Per image on Seedream 5.0 Flash, flat across resolutions. Same as the OpenRouter route used today.'],
-  ['Cost LiteLLM reports', 'None', 'Registering the model in its price table does not change it: the adapter must price each image itself.'],
+  ['Cost LiteLLM reports', '$0.018', 'Once input_cost_per_image is registered. The spike used output_cost_per_image, which the image calculator ignores, so its calls reported None.'],
   ['Payload', '396\u2013600 kB', 'Inline base64 JPEG per image, so no download step and no 24-hour URL to outlive.']
 ];
 const OK_ROWS = [['aimage_generation + size', 19.2, 'url'], ['image_config 16:9 only', 19.5, 'url'], ['image_config 4:5 only', 17.7, 'url'], ['extra_body watermark=false', 14.2, 'url'], ['extra_body b64_json', 17.5, 'b64 431 kB'], ['aspect 16:9', 17.6, 'b64 432 kB'], ['aspect 4:3', 15.6, 'b64 441 kB'], ['aspect 3:2', 14.3, 'b64 422 kB'], ['aspect 1:1', 14.2, 'b64 446 kB'], ['aspect 4:5', 14.7, 'b64 437 kB'], ['aspect 3:4', 14.8, 'b64 421 kB'], ['aspect 2:3', 15.7, 'b64 396 kB'], ['flash 1K', 13.9, 'b64 325 kB'], ['flash 1.5K', 16.1, 'b64 394 kB'], ['flash 2K', 21.0, 'b64 600 kB'], ['pro 1.5K', 39.4, 'b64 366 kB'], ['pro 2K', 44.8, 'b64 495 kB']];

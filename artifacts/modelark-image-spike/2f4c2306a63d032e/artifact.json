@@ -1,0 +1,19 @@
+{
+  "slug": "modelark-image-spike",
+  "title": "ModelArk image spike",
+  "framework": "html",
+  "metadata": {
+    "description": "Can BytePlus ModelArk serve our image worker through LiteLLM's generic OpenAI route? 26 measured calls, plus today's and the future call side by side.",
+    "tags": [
+      "spike",
+      "byteplus",
+      "modelark",
+      "seedream",
+      "litellm",
+      "image-generation",
+      "comparison"
+    ]
+  },
+  "revision": "2f4c2306a63d032e",
+  "updated_at": "2026-11-12T09:18:15.297Z"
+}
