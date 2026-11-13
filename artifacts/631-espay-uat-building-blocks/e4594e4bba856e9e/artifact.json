@@ -1,0 +1,18 @@
+{
+  "slug": "631-espay-uat-building-blocks",
+  "title": "Espay first card payment: UAT building blocks (#631)",
+  "framework": "html",
+  "metadata": {
+    "description": "Endpoints of the first Espay card payment in Arcane and the endpoint that each row of the Espay UAT script tests, with applicability for 14 rows. Draft v1, user flow screenshots pending.",
+    "tags": [
+      "631",
+      "espay",
+      "uat",
+      "payments",
+      "card",
+      "snap"
+    ]
+  },
+  "revision": "e4594e4bba856e9e",
+  "updated_at": "2026-11-13T10:22:29.151Z"
+}
