@@ -1,0 +1,1869 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Implementation plan: the browser runner</title>
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15px/1.58 var(--kiln-font-sans); }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 0 72px; display: flex; flex-direction: column; gap: 48px; }
+
+  h1 { margin: 0; font-size: clamp(30px, 5vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  h2 { margin: 0; font-size: clamp(22px, 3vw, 24px); font-weight: 600; letter-spacing: -0.012em; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35; }
+  p { margin: 0; }
+  a { color: var(--kiln-accent-text); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  a:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; border-radius: 6px; }
+  ul, ol { margin: 0; padding-left: 20px; }
+  code { font-family: var(--kiln-font-mono); font-size: 0.92em; background: var(--kiln-surface-2); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+  pre { margin: 0; padding: 12px 14px; background: var(--kiln-surface-2); border: 1px solid var(--kiln-line); border-radius: 10px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .muted { color: var(--kiln-muted); }
+
+  .section { display: flex; flex-direction: column; gap: 18px; }
+  .section-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .count { font-family: var(--kiln-font-mono); font-size: 12.5px; color: var(--kiln-muted); }
+  .lede { max-width: 68ch; font-size: 15.5px; color: var(--kiln-text); }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .card { min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; }
+
+  .callout { max-width: 78ch; padding: 12px 16px; background: var(--kiln-accent-wash); border: 1px solid var(--kiln-line); border-left: 3px solid var(--kiln-accent); border-radius: 12px; font-size: 14.5px; }
+
+  .table-wrap { overflow-x: auto; background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; }
+  .table-wrap table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .table-wrap th, .table-wrap td { padding: 9px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--kiln-line); }
+  .table-wrap thead th { position: sticky; top: 0; z-index: 1; background: var(--kiln-surface-2); font-family: var(--kiln-font-mono); font-size: 12px; font-weight: 500; color: var(--kiln-muted); }
+  .table-wrap tbody tr:last-child td { border-bottom: 0; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); white-space: nowrap; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+
+  .diagram { margin: 0; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram figcaption { max-width: 68ch; font-size: 13.5px; color: var(--kiln-muted); }
+
+  .d-box, .d-box-quiet, .d-box-accent, .d-box-ok, .d-box-warn, .d-box-bad, .d-box-info { stroke-width: 1.5; }
+  .d-box { fill: var(--kiln-surface); stroke: var(--kiln-line-strong); }
+  .d-box-quiet { fill: var(--kiln-surface-2); stroke: var(--kiln-line); }
+  .d-box-accent { fill: var(--kiln-accent-wash); stroke: var(--kiln-accent); }
+  .d-box-ok { fill: var(--kiln-ok-wash); stroke: var(--kiln-ok); }
+  .d-box-warn { fill: var(--kiln-warn-wash); stroke: var(--kiln-warn); }
+  .d-box-bad { fill: var(--kiln-bad-wash); stroke: var(--kiln-bad); }
+  .d-box-info { fill: var(--kiln-info-wash); stroke: var(--kiln-info); }
+  .d-text { fill: var(--kiln-text); font: 14px var(--kiln-font-sans); }
+  .d-label { fill: var(--kiln-muted); font: 12px var(--kiln-font-mono); }
+  .d-title { fill: var(--kiln-text); font: 600 15px var(--kiln-font-sans); }
+  .d-line { fill: none; stroke: var(--kiln-text); stroke-width: 1.5; }
+  .d-line-muted { fill: none; stroke: var(--kiln-muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .d-line-ok { fill: none; stroke: var(--kiln-ok); stroke-width: 1.5; }
+  .d-line-bad { fill: none; stroke: var(--kiln-bad); stroke-width: 1.5; }
+  .d-line-accent { fill: none; stroke: var(--kiln-accent); stroke-width: 1.5; }
+
+  .fold { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; }
+  .fold > summary { display: flex; align-items: center; gap: 10px; padding: 11px 14px; cursor: pointer; list-style: none; font-weight: 500; border-radius: 12px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::before { content: ""; flex: none; width: 7px; height: 7px; margin-right: 2px; border-right: 1.5px solid var(--kiln-muted); border-bottom: 1.5px solid var(--kiln-muted); transform: rotate(-45deg); transition: transform 0.15s ease; }
+  .fold[open] > summary::before { transform: rotate(45deg); }
+  .fold > :not(summary) { padding-inline: 14px; font-size: 14px; color: var(--kiln-muted); }
+  .fold > :last-child:not(summary) { padding-bottom: 14px; }
+
+  #top { display: flex; flex-direction: column; gap: 14px; padding-bottom: 26px; border-bottom: 1px solid var(--kiln-line); }
+  #top .top-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  #top .top-meta .sep { color: var(--kiln-line-strong); }
+  #top .top-lede { max-width: 62ch; font-size: 16px; color: var(--kiln-muted); }
+  #top .top-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  #top .top-stats { margin-top: 6px; }
+  #top .stat { gap: 4px; }
+  #top .stat-label { font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+  #top .stat-value { font-size: 30px; font-weight: 500; line-height: 1.1; letter-spacing: -0.03em; }
+  #top .stat-note { font-size: 13.5px; color: var(--kiln-muted); }
+
+  #now .now-col h3 { font-size: 15px; }
+  #now .now-col ul { display: flex; flex-direction: column; gap: 6px; padding-left: 18px; font-size: 14px; }
+  #now .now-col li::marker { color: var(--kiln-muted); }
+  #now .now-work { border-left: 3px solid var(--kiln-accent); }
+  #now .now-wait { border-left: 3px solid var(--kiln-bad); background: var(--kiln-bad-wash); }
+  #now .now-wait h3 { color: var(--kiln-bad); }
+
+  #decisions .dec { gap: 9px; }
+  #decisions .dec-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #decisions .dec h3 { font-size: 15.5px; }
+  #decisions .dec-meta { font-family: var(--kiln-font-mono); font-size: 12px; color: var(--kiln-muted); }
+  #decisions .dec p { max-width: 62ch; font-size: 14px; color: var(--kiln-muted); }
+  #decisions .dec-options { display: flex; flex-direction: column; gap: 3px; padding-left: 18px; font-size: 13.5px; color: var(--kiln-muted); }
+  #decisions .dec-rec { padding: 8px 10px; background: var(--kiln-surface-2); border: 1px solid var(--kiln-line); border-radius: 8px; color: var(--kiln-text); font-size: 13.5px; }
+  #decisions .dec-done { color: var(--kiln-ok); }
+  #decisions .dec[data-settled="false"] { border-left: 3px solid var(--kiln-warn); }
+  #decisions .dec[data-settled="true"] { border-left: 3px solid var(--kiln-ok); }
+
+  footer { display: flex; flex-direction: column; gap: 6px; padding-top: 22px; border-top: 1px solid var(--kiln-line); }
+  footer p { max-width: 78ch; }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 24px 0 56px; gap: 40px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    #top .stat-value { font-size: 26px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <header id="top">
+    <div class="top-meta mono muted">
+      <a href="https://docs.internal.jmn.my.id/doc/rfc-032-browser-validation-in-a-separate-runner-TDxGnhGxYp">RFC-032</a>
+      <span class="sep" aria-hidden="true">·</span>
+      <a href="https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/issues/610">tracker #610</a>
+      <span class="sep" aria-hidden="true">·</span>
+      <a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike</a>
+      <span class="sep" aria-hidden="true">·</span>
+      <span>Updated 13 Nov 2026</span>
+    </div>
+    <h1>Implementation plan: the browser runner</h1>
+    <p class="top-lede">This page shows how the browser runner gets built and shipped, in the order that the work ships, and RFC-032 gives the reasons for the design.</p>
+    <div class="top-pills">
+      <span class="pill warn">draft plan</span>
+      <span class="pill info">RFC-032 under review</span>
+      <span class="pill ok">spike done</span>
+    </div>
+    <div class="grid-3 top-stats">
+      <div class="card stat">
+        <span class="stat-label">Phases</span>
+        <span class="stat-value">8</span>
+        <span class="stat-note">Phase 1 ships first and needs no new infrastructure.</span>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Working days</span>
+        <span class="stat-value">~18</span>
+        <span class="stat-note">Against the five days that #610 allows for delivery.</span>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Freeze</span>
+        <span class="stat-value">25 Nov</span>
+        <span class="stat-note">Phase 1 ships before it. The forecast puts phases 2 to 6 on staging before it too.</span>
+      </div>
+    </div>
+    <p class="callout">This is a proposal, not an approved schedule. The plan stays as an artifact while the design is under review.</p>
+  </header>
+
+  <section id="now" class="section">
+    <div class="section-head">
+      <h2>Now</h2>
+      <span class="count">phase 1 of 8</span>
+    </div>
+    <p class="lede">Phase 1 fixes today's code, and no gate blocks it. Two review gates open the phases after it.</p>
+    <div class="grid-3">
+      <div class="card now-col now-work">
+        <h3>Working on</h3>
+        <ul>
+          <li>The outcome enum and the capture models in <code>browser_capture.py</code>.</li>
+          <li>A page the browser never saw gives <code>COULD_NOT_RUN</code>, never a pass.</li>
+          <li>One browser capture at a time in the API process.</li>
+          <li>No gate blocks phase 1, and it is useful with or without the runner.</li>
+        </ul>
+      </div>
+      <div class="card now-col">
+        <h3>Next</h3>
+        <ul>
+          <li>Phase 2: the capture function takes a deadline and a page count, default one.</li>
+          <li>Phase 3: the runner service, its image and its build targets.</li>
+          <li>Phase 4: cluster objects, access and the token, after the infrastructure review.</li>
+          <li>Phases 5 and 6: staging on the runner, one page at a time and then two.</li>
+        </ul>
+      </div>
+      <div class="card now-col now-wait">
+        <h3>Waiting on you</h3>
+        <ul>
+          <li>Jonathan and Bertrand: accept RFC-032, or accept it with changes.</li>
+          <li>Jonathan and Bertrand: accept the RFC-029 mapping, or record exceptions.</li>
+          <li>Jonathan: revise the #610 allowance, before phase 2 starts.</li>
+          <li>Infrastructure review: close the spike findings and the inbound rule's address, before phase 4.</li>
+          <li>Delivery: settle whether production comes before or after the launch.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+<section class="section" id="bp-change">
+  <style>
+    #bp-change .bp-scroll { overflow-x: auto; }
+    #bp-change .bp-scroll svg { min-width: 880px; width: 100%; height: auto; }
+    #bp-change .bp-card h3 { margin: 0 0 8px; font-size: 16px; }
+    #bp-change .bp-card p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+    #bp-change .bp-cost { max-width: 68ch; }
+  </style>
+  <div class="section-head"><h2>What changes</h2></div>
+  <p class="lede">The browser leaves the API process. The API keeps the turn runner and calls a runner Deployment in the preview cluster.</p>
+
+  <figure class="diagram">
+    <div class="bp-scroll">
+    <svg viewBox="0 0 960 580" role="img" aria-labelledby="bp-change-title">
+      <title id="bp-change-title">Today the API process runs Chromium. With the runner, the API process holds a client that reaches a runner replica through the Kubernetes API service proxy.</title>
+      <defs>
+        <marker id="bp-change-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" style="fill: var(--kiln-muted)"/>
+        </marker>
+      </defs>
+
+      <text class="d-title" x="12" y="26">Today</text>
+      <rect class="d-box-quiet" x="8" y="40" width="424" height="320" rx="12"/>
+      <text class="d-label" x="24" y="64">API process</text>
+
+      <rect class="d-box" x="24" y="76" width="392" height="48" rx="8"/>
+      <text class="d-text" x="220" y="105" text-anchor="middle">turn runner</text>
+
+      <rect class="d-box" x="24" y="136" width="392" height="48" rx="8"/>
+      <text class="d-text" x="220" y="157" text-anchor="middle">capture function</text>
+      <text class="d-label" x="220" y="173" text-anchor="middle">browser_capture.py</text>
+
+      <rect class="d-box-warn" x="24" y="196" width="392" height="68" rx="8" stroke-dasharray="5 4"/>
+      <text class="d-text" x="220" y="216" text-anchor="middle">Chromium</text>
+      <text class="d-label" x="220" y="232" text-anchor="middle">removed in phase 8</text>
+      <text class="d-label" x="220" y="248" text-anchor="middle">saves about 400 MB</text>
+
+      <text class="d-label" x="24" y="322">one capture at a time</text>
+      <text class="d-label" x="24" y="340">browser_capture_lock.py</text>
+
+      <line class="d-line" x1="220" y1="360" x2="220" y2="512" marker-end="url(#bp-change-arrow)"/>
+      <text class="d-label" x="232" y="444">preview_url</text>
+      <rect class="d-box" x="120" y="512" width="200" height="44" rx="8"/>
+      <text class="d-text" x="220" y="539" text-anchor="middle">preview pod</text>
+
+      <text class="d-title" x="500" y="26">With the runner</text>
+      <rect class="d-box-quiet" x="496" y="40" width="424" height="132" rx="12"/>
+      <text class="d-label" x="512" y="64">API process</text>
+      <rect class="d-box" x="512" y="76" width="190" height="48" rx="8"/>
+      <text class="d-text" x="607" y="105" text-anchor="middle">turn runner</text>
+      <rect class="d-box" x="714" y="76" width="190" height="48" rx="8"/>
+      <text class="d-text" x="809" y="99" text-anchor="middle">runner client</text>
+      <text class="d-label" x="809" y="115" text-anchor="middle">browser_runner.py</text>
+      <text class="d-label" x="512" y="150">kept connections · 3 tries in 5 s after BUSY</text>
+
+      <line class="d-line" x1="708" y1="172" x2="708" y2="196" marker-end="url(#bp-change-arrow)"/>
+      <rect class="d-box-quiet" x="560" y="196" width="296" height="52" rx="8"/>
+      <text class="d-text" x="708" y="217" text-anchor="middle">Kubernetes API service proxy</text>
+      <text class="d-label" x="708" y="235" text-anchor="middle">services/browser-runner:http/proxy</text>
+
+      <line class="d-line" x1="708" y1="248" x2="708" y2="268" marker-end="url(#bp-change-arrow)"/>
+      <rect class="d-box-quiet" x="560" y="268" width="296" height="46" rx="8"/>
+      <text class="d-text" x="708" y="289" text-anchor="middle">Service browser-runner</text>
+      <text class="d-label" x="708" y="306" text-anchor="middle">ready replicas only</text>
+
+      <line class="d-line" x1="708" y1="314" x2="708" y2="334" marker-end="url(#bp-change-arrow)"/>
+      <rect class="d-box-accent" x="560" y="334" width="296" height="76" rx="8"/>
+      <text class="d-title" x="708" y="356" text-anchor="middle">runner replica</text>
+      <text class="d-label" x="708" y="374" text-anchor="middle">same capture function</text>
+      <text class="d-label" x="708" y="392" text-anchor="middle">one slot · two pages at once</text>
+
+      <line class="d-line" x1="708" y1="410" x2="708" y2="430" marker-end="url(#bp-change-arrow)"/>
+      <rect class="d-box-quiet" x="560" y="430" width="296" height="46" rx="8"/>
+      <text class="d-text" x="708" y="458" text-anchor="middle">Traefik and KEDA</text>
+
+      <line class="d-line" x1="708" y1="476" x2="708" y2="512" marker-end="url(#bp-change-arrow)"/>
+      <text class="d-label" x="720" y="500">public preview address</text>
+      <rect class="d-box" x="608" y="512" width="200" height="44" rx="8"/>
+      <text class="d-text" x="708" y="539" text-anchor="middle">preview pod</text>
+    </svg>
+    </div>
+    <figcaption>Today the API process runs Chromium. From phase 5 the API process holds a client, and a runner replica runs the browser. Phase 8 removes Chromium from the API image.</figcaption>
+  </figure>
+  <p class="mono muted bp-cost">In production a check takes about 0.7 s plus 4.7 s per route. The median check is 57 s, and the maximum is 118 s. The 4 s wait is 92% of the time.</p>
+
+  <div class="grid-3">
+    <div class="card bp-card">
+      <h3>The API keeps</h3>
+      <p>The turn runner and the check code. A small client in <span class="mono">browser_runner.py</span> calls the runner with kept connections and makes three tries within 5 s after <span class="mono">BUSY</span>.</p>
+    </div>
+    <div class="card bp-card">
+      <h3>The runner owns</h3>
+      <p>The browser process, one request slot, readiness and clean-up. Its image installs the API package with the <span class="mono">validation</span> extra, so it runs the same capture function.</p>
+    </div>
+    <div class="card bp-card">
+      <h3>Stays the same</h3>
+      <p>The capture function and its models in <span class="mono">browser_capture.py</span>. The test step still turns <span class="mono">COULD_NOT_RUN</span> into <span class="mono">KeptWarningReason.NOT_CHECKED</span>, so neither the test step nor the turn runner changes.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="bp-one-check">
+  <style>
+    #bp-one-check .bp-scroll { overflow-x: auto; }
+    #bp-one-check .bp-scroll svg { min-width: 880px; width: 100%; height: auto; }
+    #bp-one-check .bp-halo { fill: var(--kiln-surface); }
+    #bp-one-check .bp-legend { margin: 14px 0 0; padding-left: 22px; font-size: 14.5px; line-height: 1.55; }
+    #bp-one-check .bp-legend li { margin: 4px 0; }
+  </style>
+  <div class="section-head"><h2>One check, step by step</h2></div>
+  <p class="lede">The API client sends one request. The runner takes it, loads two pages at once, returns the result and cleans up.</p>
+
+  <figure class="diagram">
+    <div class="bp-scroll">
+    <svg viewBox="0 0 960 700" role="img" aria-labelledby="bp-check-title">
+      <title id="bp-check-title">Sequence of one check: the API client uses the Kubernetes API service proxy, the runner replica takes its slot, loads two pages through Traefik and KEDA, returns the result and cleans up.</title>
+      <defs>
+        <marker id="bp-check-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" style="fill: var(--kiln-muted)"/>
+        </marker>
+      </defs>
+
+      <rect class="d-box" x="16" y="16" width="120" height="56" rx="8"/>
+      <text class="d-title" x="76" y="40" text-anchor="middle">API</text>
+      <text class="d-label" x="76" y="58" text-anchor="middle">turn runner</text>
+
+      <rect class="d-box-quiet" x="200" y="16" width="132" height="56" rx="8"/>
+      <text class="d-title" x="266" y="40" text-anchor="middle">Kubernetes API</text>
+      <text class="d-label" x="266" y="58" text-anchor="middle">service proxy</text>
+
+      <rect class="d-box-accent" x="394" y="16" width="132" height="56" rx="8"/>
+      <text class="d-title" x="460" y="40" text-anchor="middle">runner replica</text>
+      <text class="d-label" x="460" y="58" text-anchor="middle">one slot</text>
+
+      <rect class="d-box-quiet" x="634" y="16" width="132" height="56" rx="8"/>
+      <text class="d-title" x="700" y="40" text-anchor="middle">Traefik</text>
+      <text class="d-label" x="700" y="58" text-anchor="middle">and KEDA</text>
+
+      <rect class="d-box" x="814" y="16" width="132" height="56" rx="8"/>
+      <text class="d-title" x="880" y="47" text-anchor="middle">preview pod</text>
+
+      <line class="d-line-muted" x1="76" y1="72" x2="76" y2="520"/>
+      <line class="d-line-muted" x1="266" y1="72" x2="266" y2="520"/>
+      <line class="d-line-muted" x1="460" y1="72" x2="460" y2="520"/>
+      <line class="d-line-muted" x1="700" y1="72" x2="700" y2="520"/>
+      <line class="d-line-muted" x1="880" y1="72" x2="880" y2="520"/>
+
+
+      <text class="d-label" x="171" y="88" text-anchor="middle">1 · kept connection</text>
+      <line class="d-line" x1="76" y1="96" x2="266" y2="96" marker-end="url(#bp-check-arrow)"/>
+
+      <rect class="bp-halo" x="50" y="105" width="242" height="15"/>
+      <text class="d-label" x="171" y="116" text-anchor="middle">2 · request · preview_url, routes</text>
+      <line class="d-line" x1="76" y1="124" x2="266" y2="124" marker-end="url(#bp-check-arrow)"/>
+
+      <rect class="bp-halo" x="238" y="129" width="250" height="15"/>
+      <text class="d-label" x="363" y="140" text-anchor="middle">services/browser-runner:http/proxy</text>
+      <line class="d-line" x1="266" y1="148" x2="460" y2="148" marker-end="url(#bp-check-arrow)"/>
+
+      <rect class="d-box-warn" x="476" y="164" width="180" height="42" rx="8"/>
+      <text class="d-text" x="486" y="184">3 · slot taken</text>
+      <text class="d-label" x="486" y="199">readiness false</text>
+
+      <text class="d-label" x="580" y="224" text-anchor="middle">4 · two pages at once</text>
+      <line class="d-line" x1="460" y1="232" x2="700" y2="232" marker-end="url(#bp-check-arrow)"/>
+      <text class="d-label" x="790" y="224" text-anchor="middle">public preview address</text>
+      <line class="d-line" x1="700" y1="232" x2="880" y2="232" marker-end="url(#bp-check-arrow)"/>
+
+      <rect class="d-box-quiet" x="708" y="244" width="164" height="66" rx="8"/>
+      <text class="d-label" x="718" y="262">KEDA wakes a</text>
+      <text class="d-label" x="718" y="276">sleeping preview in</text>
+      <text class="d-label" x="718" y="290">about 21 s, before</text>
+      <text class="d-label" x="718" y="304">the check starts</text>
+      <line class="d-line-muted" x1="700" y1="277" x2="708" y2="277"/>
+
+      <rect class="d-box-quiet" x="476" y="248" width="180" height="44" rx="8"/>
+      <text class="d-text" x="486" y="268">5 · 4 s wait, page 1</text>
+      <text class="d-label" x="486" y="284">4 s wait, page 2</text>
+
+      <rect class="d-box-quiet" x="476" y="304" width="180" height="44" rx="8"/>
+      <text class="d-text" x="486" y="324">6 · routes captured</text>
+      <text class="d-label" x="486" y="340">ok per route</text>
+
+      <rect class="bp-halo" x="111" y="353" width="314" height="15"/>
+      <text class="d-label" x="268" y="364" text-anchor="middle">7 · CaptureResult · outcome, unseen_routes</text>
+      <line class="d-line" x1="460" y1="372" x2="76" y2="372" stroke-dasharray="5 4" marker-end="url(#bp-check-arrow)"/>
+
+      <rect class="d-box-quiet" x="476" y="388" width="196" height="60" rx="8"/>
+      <text class="d-text" x="486" y="408">8 · cleanup</text>
+      <text class="d-label" x="486" y="424">kills other processes</text>
+      <text class="d-label" x="486" y="440">empties /tmp and /dev/shm</text>
+
+      <rect class="d-box-ok" x="476" y="460" width="196" height="42" rx="8"/>
+      <text class="d-text" x="486" y="480">9 · ready again</text>
+      <text class="d-label" x="486" y="495">readiness true</text>
+
+      <text class="d-label" x="16" y="542">BUSY branch</text>
+      <rect class="d-box-warn" x="16" y="552" width="230" height="46" rx="8"/>
+      <text class="d-text" x="131" y="580" text-anchor="middle">proxy: no endpoints</text>
+      <text class="d-label" x="268" y="580" text-anchor="middle">or</text>
+      <rect class="d-box-warn" x="290" y="552" width="206" height="46" rx="8"/>
+      <text class="d-text" x="393" y="580" text-anchor="middle">runner: BUSY</text>
+      <line class="d-line" x1="496" y1="575" x2="532" y2="575" marker-end="url(#bp-check-arrow)"/>
+      <rect class="d-box" x="536" y="552" width="300" height="46" rx="8"/>
+      <text class="d-text" x="686" y="580" text-anchor="middle">client: 3 tries in 5 s, then BUSY</text>
+
+      <text class="d-label" x="16" y="640">Time from the request</text>
+      <rect class="d-box-quiet" x="60" y="652" width="840" height="12" rx="3"/>
+      <rect class="d-box-accent" x="60" y="652" width="504" height="12" rx="3"/>
+      <line class="d-line" x1="564" y1="648" x2="564" y2="670"/>
+      <line class="d-line-muted" x1="620" y1="650" x2="620" y2="668"/>
+      <text class="d-label" x="564" y="640" text-anchor="middle">180 s deadline</text>
+      <text class="d-label" x="60" y="686">0 s</text>
+      <text class="d-label" x="620" y="686" text-anchor="middle">200 s service proxy</text>
+      <text class="d-label" x="900" y="686" text-anchor="end">300 s front proxy</text>
+    </svg>
+    </div>
+    <figcaption>Nine steps from the kept connection to the ready replica. The dashed return carries the result.</figcaption>
+  </figure>
+
+  <ol class="bp-legend">
+    <li>The client keeps a connection to the Kubernetes API service proxy.</li>
+    <li>The client sends the request with the attempt id, the preview URL, the routes and the deadline. The request travels on <span class="mono">services/browser-runner:http/proxy</span>.</li>
+    <li>The replica takes its one slot and turns readiness false.</li>
+    <li>The replica opens two pages at once through Traefik and KEDA. KEDA wakes a sleeping preview in about 21 s, before the check starts.</li>
+    <li>Each page loads through the public preview address. After load, page 1 waits 4 s and page 2 waits 4 s.</li>
+    <li>The check reads the console of each route and marks each route ok or not ok.</li>
+    <li>The replica returns the result with the outcome and the unseen routes.</li>
+    <li>The replica kills every other process and empties <span class="mono">/tmp</span> and <span class="mono">/dev/shm</span>.</li>
+    <li>The replica turns ready again, and the Service can send the next request.</li>
+  </ol>
+  <p>The BUSY branch: the proxy answers with no endpoints, or the replica answers <span class="mono">BUSY</span>. The client makes three tries within 5 s, then reports <span class="mono">BUSY</span>.</p>
+  <p>The check has a 180 s deadline. The service proxy carries a request for 200 s. The front proxy ends requests at 300 s.</p>
+</section>
+
+<section class="section" id="bp-outcomes">
+  <style>
+    #bp-outcomes .bp-name { margin: 0; font-family: var(--kiln-font-mono); font-size: 13px; font-weight: 600; color: var(--kiln-text); }
+    #bp-outcomes .bp-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    #bp-outcomes .bp-facts { display: grid; grid-template-columns: 78px 1fr; gap: 6px 10px; margin: 0; font-size: 14px; line-height: 1.45; }
+    #bp-outcomes .bp-facts dt { font-family: var(--kiln-font-mono); font-size: 11.5px; color: var(--kiln-muted); padding-top: 1px; }
+    #bp-outcomes .bp-facts dd { margin: 0; }
+  </style>
+  <div class="section-head"><h2>What each answer means</h2><span class="count">6 outcomes</span></div>
+  <p class="lede">The runner answers with one outcome, and the API client sets some outcomes too. The check maps each outcome to a result.</p>
+
+  <div class="grid-3" id="bp-outcome-grid"></div>
+
+  <div class="callout">
+    <p>The core rule: a route the browser did not see never passes. A seen page with an error still fails the check. Without a seen error, <span class="mono">NoConsoleErrorsCheck</span> gives <span class="mono">COULD_NOT_RUN</span>, and the change is kept with a warning.</p>
+    <p>A page that hung on its <span class="mono">load</span> event but reported a real error before that still fails the check, as today. A page that hung with no error is unseen, so the change is kept with a warning and does not go to a fix round.</p>
+  </div>
+
+  <script>
+    (() => {
+      const outcomes = [
+        {
+          name: 'COMPLETED',
+          setBy: 'The runner, or the API in phase 1',
+          statuses: [
+            { label: 'PASSED', tone: 'ok' },
+            { label: 'FAILED', tone: 'bad' }
+          ],
+          user: 'As today'
+        },
+        {
+          name: 'INCOMPLETE',
+          setBy: 'The runner, or the API in phase 1',
+          statuses: [
+            { label: 'FAILED', tone: 'bad' },
+            { label: 'COULD_NOT_RUN', tone: 'warn' }
+          ],
+          user: 'A fix round, or the change kept with the "not checked" warning'
+        },
+        {
+          name: 'TIMED_OUT',
+          setBy: 'The runner, or the API in phase 1',
+          statuses: [
+            { label: 'FAILED', tone: 'bad' },
+            { label: 'COULD_NOT_RUN', tone: 'warn' }
+          ],
+          user: 'As INCOMPLETE'
+        },
+        {
+          name: 'BUSY',
+          setBy: 'The runner, or the API client after three tries',
+          statuses: [
+            { label: 'COULD_NOT_RUN', tone: 'warn' },
+            { label: 'RUNNER_BUSY', tone: '' }
+          ],
+          user: 'The change kept with the "not checked" warning'
+        },
+        {
+          name: 'UNAVAILABLE',
+          setBy: 'The API client, when the connection breaks or fails',
+          statuses: [
+            { label: 'COULD_NOT_RUN', tone: 'warn' },
+            { label: 'RUNNER_UNAVAILABLE', tone: '' }
+          ],
+          user: 'The change kept with the "not checked" warning'
+        },
+        {
+          name: 'CANCELLED',
+          setBy: 'The API client, when the turn ends',
+          statuses: [
+            { label: 'Not recorded', tone: '' }
+          ],
+          user: 'Nothing. The turn already ended'
+        }
+      ];
+
+      const grid = document.getElementById('bp-outcome-grid');
+      const fragment = document.createDocumentFragment();
+
+      outcomes.forEach((outcome) => {
+        const card = document.createElement('article');
+        card.className = 'card bp-card';
+
+        const name = document.createElement('h3');
+        name.className = 'bp-name';
+        name.textContent = outcome.name;
+
+        const pills = document.createElement('div');
+        pills.className = 'bp-pills';
+        outcome.statuses.forEach((status) => {
+          const pill = document.createElement('span');
+          pill.className = status.tone ? 'pill ' + status.tone : 'pill';
+          pill.textContent = status.label;
+          pills.appendChild(pill);
+        });
+
+        const facts = document.createElement('dl');
+        facts.className = 'bp-facts';
+        const rows = [
+          ['Set by', outcome.setBy],
+          ['Check', null],
+          ['User sees', outcome.user]
+        ];
+        rows.forEach(([term, value]) => {
+          const dt = document.createElement('dt');
+          dt.textContent = term;
+          const dd = document.createElement('dd');
+          if (value === null) {
+            dd.appendChild(pills);
+          } else {
+            dd.textContent = value;
+          }
+          facts.append(dt, dd);
+        });
+
+        card.append(name, facts);
+        fragment.appendChild(card);
+      });
+
+      grid.replaceChildren(fragment);
+    })();
+  </script>
+</section>
+
+<style>
+#rc-replica .rc-scroll, #rc-cluster .rc-scroll { overflow-x: auto; }
+#rc-replica .rc-scroll svg, #rc-cluster .rc-scroll svg { display: block; width: 100%; height: auto; min-width: 720px; }
+#rc-cluster .rc-scroll svg { min-width: 900px; }
+#rc-cluster svg .d-label { font-size: 13px; }
+#rc-cluster svg .d-title { font-size: 16px; }
+#rc-cluster svg .rc-ns-name { font-size: 14px; }
+#rc-replica .card h3, #rc-cluster .card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+#rc-replica .card p, #rc-cluster .card p { margin: 0 0 8px; font-size: 14px; line-height: 1.5; color: var(--kiln-muted); }
+#rc-replica .card p:last-child, #rc-cluster .card p:last-child { margin-bottom: 0; }
+#rc-replica .card ul, #rc-cluster .card ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--kiln-muted); }
+#rc-replica .rc-arrow { fill: var(--kiln-muted); }
+#rc-replica .rc-dot { fill: var(--kiln-muted); }
+#rc-replica .rc-end { fill: var(--kiln-surface); stroke: var(--kiln-muted); stroke-width: 1.5; }
+#rc-cluster .rc-frame { fill: none; stroke: var(--kiln-line-strong); stroke-width: 1.5; stroke-dasharray: 7 5; }
+#rc-cluster .rc-policy { fill: none; stroke: var(--kiln-warn); stroke-width: 1.5; stroke-dasharray: 5 4; }
+#rc-cluster .rc-arrow { fill: var(--kiln-muted); }
+#rc-cluster .rc-arrow-bad { fill: var(--kiln-bad); }
+#rc-cluster .rc-bad-text { fill: var(--kiln-bad); }
+#rc-cluster .rc-cross { stroke: var(--kiln-bad); stroke-width: 2.5; }
+#rc-cluster .rc-ns-name { fill: var(--kiln-text); font: 600 13px var(--kiln-font-mono); }
+#rc-cluster .rc-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 4px; }
+#rc-cluster .rc-filter { display: inline-flex; align-items: center; gap: 7px; font: 12px var(--kiln-font-mono); color: var(--kiln-muted); background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+#rc-cluster .rc-filter:hover { border-color: var(--kiln-line-strong); }
+#rc-cluster .rc-filter[aria-pressed="true"] { color: var(--kiln-text); background: var(--kiln-accent-wash); border-color: var(--kiln-accent); }
+#rc-cluster .rc-filter:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+#rc-cluster .rc-filter-count { color: var(--kiln-muted); }
+#rc-cluster .rc-filter[aria-pressed="true"] .rc-filter-count { color: var(--kiln-text); }
+#rc-cluster .grid-2 .callout { align-self: start; }
+</style>
+
+<section class="section" id="rc-replica">
+  <div class="section-head">
+    <h2>Inside one runner replica</h2>
+    <span class="count">7 rules</span>
+  </div>
+  <p class="lede">A replica is one runner pod in the cluster. It takes one request at a time and answers ready only while it can take work.</p>
+
+  <figure class="diagram">
+    <div class="rc-scroll">
+    <svg viewBox="0 0 1010 800" role="img" aria-labelledby="rc-replica-svg-title rc-replica-svg-desc">
+      <title id="rc-replica-svg-title">States of one runner replica</title>
+      <desc id="rc-replica-svg-desc">A replica starts, turns ready, takes one request, closes and cleans the browser, and drains on a stop signal. Readiness is true only in Ready, so the Service sends new requests only to a replica in that state.</desc>
+      <defs>
+        <marker id="rc-replica-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" class="rc-arrow"></path>
+        </marker>
+      </defs>
+
+      <circle cx="160" cy="30" r="6" class="rc-dot"></circle>
+      <line x1="160" y1="36" x2="160" y2="60" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+
+      <rect x="60" y="60" width="200" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="160" y="88" text-anchor="middle" class="d-title">Starting</text>
+      <text x="160" y="108" text-anchor="middle" class="d-label">ready: false</text>
+
+      <rect x="60" y="200" width="200" height="64" rx="10" class="d-box-ok"></rect>
+      <text x="160" y="228" text-anchor="middle" class="d-title">Ready</text>
+      <text x="160" y="248" text-anchor="middle" class="d-label">ready: true</text>
+
+      <rect x="60" y="340" width="200" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="160" y="368" text-anchor="middle" class="d-title">Busy</text>
+      <text x="160" y="388" text-anchor="middle" class="d-label">ready: false</text>
+
+      <rect x="60" y="480" width="200" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="160" y="508" text-anchor="middle" class="d-title">Closing</text>
+      <text x="160" y="528" text-anchor="middle" class="d-label">ready: false</text>
+
+      <rect x="560" y="340" width="200" height="64" rx="10" class="d-box-warn"></rect>
+      <text x="660" y="368" text-anchor="middle" class="d-title">Killing</text>
+      <text x="660" y="388" text-anchor="middle" class="d-label">ready: false</text>
+
+      <rect x="560" y="480" width="200" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="660" y="508" text-anchor="middle" class="d-title">Cleaning</text>
+      <text x="660" y="528" text-anchor="middle" class="d-label">ready: false</text>
+
+      <rect x="560" y="660" width="200" height="64" rx="10" class="d-box-warn"></rect>
+      <text x="660" y="688" text-anchor="middle" class="d-title">Draining</text>
+      <text x="660" y="708" text-anchor="middle" class="d-label">ready: false</text>
+
+      <line x1="160" y1="124" x2="160" y2="200" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+      <text x="145" y="140" text-anchor="end" class="d-label">process up,</text>
+      <text x="145" y="154" text-anchor="end" class="d-label">liveness and</text>
+      <text x="145" y="168" text-anchor="end" class="d-label">readiness pass</text>
+
+      <line x1="160" y1="264" x2="160" y2="340" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+      <text x="145" y="284" text-anchor="end" class="d-label">takes a request,</text>
+      <text x="145" y="298" text-anchor="end" class="d-label">readiness</text>
+      <text x="145" y="312" text-anchor="end" class="d-label">turns false</text>
+
+      <path d="M260,352 C315,342 315,398 260,388" class="d-line" marker-end="url(#rc-replica-arrow)"></path>
+      <text x="325" y="362" class="d-label">another request</text>
+      <text x="325" y="376" class="d-label">gets BUSY at once</text>
+
+      <line x1="160" y1="404" x2="160" y2="480" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+      <text x="175" y="420" class="d-label">all routes done,</text>
+      <text x="175" y="434" class="d-label">deadline passed, or</text>
+      <text x="175" y="448" class="d-label">connection closed</text>
+
+      <path d="M260,492 C360,492 470,440 560,408" class="d-line" marker-end="url(#rc-replica-arrow)"></path>
+      <text x="330" y="430" class="d-label">browser still open</text>
+      <text x="330" y="444" class="d-label">after 5 s</text>
+
+      <line x1="260" y1="512" x2="560" y2="512" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+      <text x="430" y="500" text-anchor="middle" class="d-label">browser closed within 5 s</text>
+
+      <line x1="660" y1="404" x2="660" y2="480" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+      <text x="672" y="446" class="d-label">process group killed</text>
+
+      <path d="M760,490 C830,490 900,470 900,400 L900,250 L260,250" class="d-line" marker-end="url(#rc-replica-arrow)"></path>
+      <text x="560" y="274" text-anchor="middle" class="d-label">other processes killed, folders emptied, readiness true</text>
+
+      <path d="M260,220 L940,220 L940,660 L760,660" class="d-line" marker-end="url(#rc-replica-arrow)"></path>
+      <text x="560" y="204" text-anchor="middle" class="d-label">deploy sends a stop signal</text>
+
+      <path d="M60,360 L30,360 L30,700 L560,700" class="d-line" marker-end="url(#rc-replica-arrow)"></path>
+      <text x="45" y="590" class="d-label">deploy sends a stop signal</text>
+
+      <line x1="660" y1="724" x2="660" y2="756" class="d-line" marker-end="url(#rc-replica-arrow)"></line>
+      <circle cx="660" cy="768" r="7" class="rc-end"></circle>
+      <text x="675" y="772" class="d-label">no request left, or the grace time ends</text>
+
+      <rect x="620" y="30" width="360" height="86" rx="12" class="d-box-info"></rect>
+      <text x="640" y="58" class="d-title">Service browser-runner</text>
+      <text x="640" y="78" class="d-label">sends new requests only to a</text>
+      <text x="640" y="94" class="d-label">replica that reports ready</text>
+      <path d="M700,116 C600,150 400,170 200,200" class="d-line-muted" marker-end="url(#rc-replica-arrow)"></path>
+    </svg>
+    </div>
+    <figcaption>Readiness is true only in Ready, so the Service sends new requests only to a replica in that state. The readiness answer reads the slot and answers 503 while the slot is taken or the replica drains. The liveness answer only says that the process answers, so a busy replica stays alive.</figcaption>
+  </figure>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>One request at a time</h3>
+      <p>The slot is one <code>asyncio.Lock</code> that is never waited on. A request that finds it taken gets <code>BUSY</code> at once.</p>
+    </div>
+    <div class="card">
+      <h3>Two pages at once</h3>
+      <p>The capture function takes a number of pages at once. Staging runs one page at a time in phase 5, then two pages at once in phase 6. Each page keeps its 4 s wait after load.</p>
+    </div>
+    <div class="card">
+      <h3>2 CPU and 2 GiB</h3>
+      <p>The Deployment asks for 2 CPU and 2 GiB as both request and limit.</p>
+    </div>
+    <div class="card">
+      <h3>180 s deadline</h3>
+      <p>A stop signal gets a grace time of 190 s. That is the 180 s deadline, 5 s of clean-up and a margin.</p>
+    </div>
+    <div class="card">
+      <h3>No sandbox, clean-up after each check</h3>
+      <p>Chromium runs without its sandbox. The pod's limits stand in for it. The root file system is read-only. After each check, the runner kills every process in its container except itself, empties <code>/tmp</code> and <code>/dev/shm</code>, then turns ready.</p>
+    </div>
+    <div class="card">
+      <h3>No restart after a count of checks</h3>
+      <p>A replica does not restart after a count of checks, because Kubernetes delays a container that exits often.</p>
+    </div>
+    <div class="card">
+      <h3>Repeated requests get BUSY</h3>
+      <p>The replica keeps the attempt ids of its current and recent requests until their deadline and clean-up time pass. A repeated id gets <code>BUSY</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="rc-cluster">
+  <div class="section-head">
+    <h2>What goes into the cluster</h2>
+    <span class="count">3 namespaces</span>
+  </div>
+  <p class="lede">A namespace is a Kubernetes grouping for one environment. The preview cluster holds one runner namespace per environment, and each namespace holds the same objects.</p>
+
+  <figure class="diagram">
+    <div class="rc-scroll">
+    <svg viewBox="0 0 1240 820" role="img" aria-labelledby="rc-cluster-svg-title rc-cluster-svg-desc">
+      <title id="rc-cluster-svg-title">The three browser runner namespaces and their network rules</title>
+      <desc id="rc-cluster-svg-desc">The staging API, the local dev stack and the production API call their own runner namespace through the Kubernetes API service proxy. Each namespace holds a Deployment, a Service, a Secret and a Role. Inbound traffic comes only from the control-plane Weave address. Outbound traffic reaches DNS, public addresses and Traefik and KEDA on ports 80 and 443, and private addresses are blocked.</desc>
+      <defs>
+        <marker id="rc-cluster-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" class="rc-arrow"></path>
+        </marker>
+        <marker id="rc-cluster-arrow-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" class="rc-arrow-bad"></path>
+        </marker>
+      </defs>
+
+      <rect x="210" y="40" width="1000" height="740" rx="18" class="rc-frame"></rect>
+      <text x="230" y="70" class="d-title">Preview cluster</text>
+      <text x="230" y="90" class="d-label">shared nodes and network capacity</text>
+
+      <rect x="20" y="165" width="170" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="105" y="193" text-anchor="middle" class="d-title">Staging API</text>
+      <text x="105" y="211" text-anchor="middle" class="d-label">platform host</text>
+
+      <rect x="20" y="590" width="170" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="105" y="618" text-anchor="middle" class="d-title">Local dev stack</text>
+      <text x="105" y="636" text-anchor="middle" class="d-label">developer API containers</text>
+
+      <rect x="20" y="680" width="170" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="105" y="708" text-anchor="middle" class="d-title">Production API</text>
+      <text x="105" y="726" text-anchor="middle" class="d-label">platform host</text>
+
+      <line x1="270" y1="180" x2="270" y2="712" class="d-line"></line>
+      <text x="250" y="120" class="d-title">Kubernetes API</text>
+      <text x="250" y="138" class="d-label">service proxy</text>
+
+      <line x1="190" y1="187" x2="400" y2="187" class="d-line" marker-end="url(#rc-cluster-arrow)"></line>
+      <line x1="190" y1="622" x2="380" y2="622" class="d-line" marker-end="url(#rc-cluster-arrow)"></line>
+      <line x1="190" y1="712" x2="380" y2="712" class="d-line" marker-end="url(#rc-cluster-arrow)"></line>
+
+      <line x1="350" y1="160" x2="350" y2="215" class="rc-policy"></line>
+
+      <rect x="380" y="110" width="580" height="450" rx="12" class="d-box"></rect>
+      <text x="395" y="138" class="rc-ns-name">dewabuilder-browser-runner-stg</text>
+      <text x="280" y="250" class="d-label">ingress: from the control-plane</text>
+      <text x="280" y="266" class="d-label">Weave 10.239.192.2 only</text>
+
+      <rect x="400" y="155" width="200" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="500" y="174" text-anchor="middle" class="d-title">Service</text>
+      <text x="500" y="192" text-anchor="middle" class="d-label">browser-runner</text>
+      <text x="500" y="210" text-anchor="middle" class="d-label">ready replicas only</text>
+
+      <line x1="500" y1="219" x2="500" y2="310" class="d-line" marker-end="url(#rc-cluster-arrow)"></line>
+      <text x="512" y="284" class="d-label">one port</text>
+
+      <rect x="400" y="310" width="200" height="112" rx="10" class="d-box-quiet"></rect>
+      <text x="500" y="335" text-anchor="middle" class="d-title">Deployment</text>
+      <text x="500" y="356" text-anchor="middle" class="d-label">1 replica to start</text>
+      <text x="500" y="374" text-anchor="middle" class="d-label">2 CPU and 2 GiB</text>
+      <text x="500" y="392" text-anchor="middle" class="d-label">spread over nodes</text>
+      <text x="500" y="410" text-anchor="middle" class="d-label">not root, read-only fs</text>
+
+      <rect x="650" y="155" width="180" height="64" rx="10" class="d-box-quiet"></rect>
+      <text x="740" y="174" text-anchor="middle" class="d-title">Secret</text>
+      <text x="740" y="192" text-anchor="middle" class="d-label">runner token</text>
+      <text x="740" y="210" text-anchor="middle" class="d-label">also in the API vault</text>
+
+      <rect x="650" y="240" width="230" height="96" rx="10" class="d-box-quiet"></rect>
+      <text x="765" y="262" text-anchor="middle" class="d-title">Role and RoleBinding</text>
+      <text x="765" y="284" text-anchor="middle" class="d-label">get and create on</text>
+      <text x="765" y="302" text-anchor="middle" class="d-label">services/proxy</text>
+      <text x="765" y="320" text-anchor="middle" class="d-label">browser-runner:http by name</text>
+
+      <rect x="650" y="55" width="230" height="48" rx="10" class="d-box-quiet"></rect>
+      <text x="765" y="74" text-anchor="middle" class="d-title">platform-sa-env</text>
+      <text x="765" y="92" text-anchor="middle" class="d-label">dewabuilder-apps-env</text>
+      <line x1="850" y1="103" x2="850" y2="240" class="d-line-muted" marker-end="url(#rc-cluster-arrow)"></line>
+      <text x="862" y="170" class="d-label">binds</text>
+
+      <line x1="500" y1="422" x2="500" y2="472" class="d-line-bad" marker-end="url(#rc-cluster-arrow-bad)"></line>
+      <line x1="492" y1="464" x2="508" y2="480" class="rc-cross"></line>
+      <line x1="508" y1="464" x2="492" y2="480" class="rc-cross"></line>
+      <text x="516" y="470" class="d-label rc-bad-text">blocked</text>
+
+      <rect x="400" y="490" width="300" height="55" rx="10" class="d-box-bad"></rect>
+      <text x="550" y="512" text-anchor="middle" class="d-label">private ranges, metadata address</text>
+      <text x="550" y="530" text-anchor="middle" class="d-label">and the Kubernetes API</text>
+
+      <line x1="930" y1="320" x2="930" y2="520" class="rc-policy"></line>
+      <text x="930" y="310" text-anchor="middle" class="d-label">egress</text>
+
+      <line x1="600" y1="350" x2="1210" y2="350" class="d-line" marker-end="url(#rc-cluster-arrow)"></line>
+      <line x1="600" y1="390" x2="1210" y2="390" class="d-line" marker-end="url(#rc-cluster-arrow)"></line>
+      <text x="1120" y="338" text-anchor="end" class="d-title">DNS</text>
+      <text x="1120" y="378" text-anchor="end" class="d-title">Public addresses</text>
+      <path d="M600,410 C800,436 900,470 1010,495" class="d-line" marker-end="url(#rc-cluster-arrow)"></path>
+      <text x="700" y="470" class="d-label">public preview address</text>
+
+      <rect x="1010" y="460" width="190" height="74" rx="10" class="d-box-quiet"></rect>
+      <text x="1105" y="484" text-anchor="middle" class="d-title">Traefik and KEDA</text>
+      <text x="1105" y="504" text-anchor="middle" class="d-label">ports 80 and 443</text>
+      <text x="1105" y="522" text-anchor="middle" class="d-label">spike F7</text>
+
+      <rect x="380" y="590" width="580" height="65" rx="12" class="d-box"></rect>
+      <text x="395" y="612" class="rc-ns-name">dewabuilder-browser-runner-dev</text>
+      <text x="395" y="634" class="d-label">Deployment 1 replica · Service · Secret · Role · 2 network policies</text>
+
+      <rect x="380" y="680" width="580" height="65" rx="12" class="d-box"></rect>
+      <text x="395" y="702" class="rc-ns-name">dewabuilder-browser-runner-prod</text>
+      <text x="395" y="724" class="d-label">Deployment 1 replica · Service · Secret · Role · 2 network policies</text>
+    </svg>
+    </div>
+    <figcaption>The three environments share cluster nodes and network capacity. Separate runners and limits reduce interference, but they do not guarantee that dev or staging load cannot slow production.</figcaption>
+  </figure>
+
+  <p>Service proxy traffic comes in from the control-plane node's Weave address, <span class="mono">10.239.192.2</span> (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F8</a>). Outbound traffic reaches DNS, public addresses and the Traefik namespace on ports 80 and 443 (<a href="https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N">spike F7</a>). Private ranges, the metadata address and the Kubernetes API are blocked.</p>
+  <p>The local API calls the dev runner through the same service proxy. It uses the dev cluster credentials and the dev runner token. The dev stack does not need a local runner container. Developers share the dev Deployment, not the staging or production Deployment.</p>
+  <p>The role follows the pattern that the builds namespace uses today. Each runner namespace binds its role to the platform service account of the same environment. Dev credentials must not grant access to staging or production runners.</p>
+
+  <h3>Objects to write</h3>
+  <div class="rc-filters" role="group" aria-label="Filter objects by kind">
+    <button type="button" class="rc-filter" data-rc-filter="all" aria-pressed="true" aria-controls="rc-object-table">All <span class="rc-filter-count"></span></button>
+    <button type="button" class="rc-filter" data-rc-filter="namespace" aria-pressed="false" aria-controls="rc-object-table">Namespace <span class="rc-filter-count"></span></button>
+    <button type="button" class="rc-filter" data-rc-filter="workload" aria-pressed="false" aria-controls="rc-object-table">Workload <span class="rc-filter-count"></span></button>
+    <button type="button" class="rc-filter" data-rc-filter="network" aria-pressed="false" aria-controls="rc-object-table">Network <span class="rc-filter-count"></span></button>
+    <button type="button" class="rc-filter" data-rc-filter="access" aria-pressed="false" aria-controls="rc-object-table">Access <span class="rc-filter-count"></span></button>
+    <button type="button" class="rc-filter" data-rc-filter="ops" aria-pressed="false" aria-controls="rc-object-table">Ops <span class="rc-filter-count"></span></button>
+  </div>
+  <p class="mono muted" id="rc-object-count" role="status" aria-live="polite">Showing 9 of 9 objects</p>
+
+  <div class="table-wrap">
+    <table id="rc-object-table">
+      <thead>
+        <tr>
+          <th scope="col">Object</th>
+          <th scope="col">Settings that matter</th>
+        </tr>
+      </thead>
+      <tbody id="rc-object-rows">
+        <tr><td colspan="2">The table needs JavaScript.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-2">
+    <div class="callout">
+      <p>Phase 4 is an infrastructure change. It goes through the escalation rule in <code>AGENTS.md</code> and gets its own human review.</p>
+    </div>
+    <div class="card">
+      <h3>Runbook for <code>deploy/k8s/README.md</code></h3>
+      <p>The runner section covers four tasks:</p>
+      <ul>
+        <li>See the runner's state.</li>
+        <li>Add a replica.</li>
+        <li>Roll it back.</li>
+        <li>Rotate its token.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  "use strict";
+  const spike = "https://docs.internal.jmn.my.id/doc/spike-the-browser-runner-on-the-real-cluster-zUInbH8t1N";
+  const objects = [
+    {
+      group: "namespace",
+      object: "Namespace",
+      settings: "`dewabuilder-browser-runner-dev`, `dewabuilder-browser-runner-stg` and `dewabuilder-browser-runner-prod`"
+    },
+    {
+      group: "workload",
+      object: "Deployment",
+      settings: "1 replica to start. 2 CPU and 2 GiB as both request and limit. Rolling update with one extra pod and no pod down. Spread over nodes. No service account token. Not root. Read-only root file system with a temporary folder. Grace time 190 s"
+    },
+    {
+      group: "workload",
+      object: "Service",
+      settings: "One port. It sends only to ready replicas"
+    },
+    {
+      group: "workload",
+      object: "Readiness probe",
+      settings: "Every 1 s, one failure turns the replica not ready"
+    },
+    {
+      group: "workload",
+      object: "Liveness probe",
+      settings: "Every 10 s, three failures restart the replica"
+    },
+    {
+      group: "network",
+      object: "Network policy",
+      settings: "Out to DNS, to public addresses and to Traefik's namespace on ports 80 and 443. Blocks private ranges, the metadata address and the Kubernetes API. In only from the control-plane node's Weave address, where service proxy traffic comes from.",
+      links: [{ label: "spike F7", href: spike }, { label: "spike F8", href: spike }]
+    },
+    {
+      group: "access",
+      object: "Role and binding",
+      settings: "`get` and `create` on `services/proxy`, for `browser-runner:http` by name only, port included.",
+      links: [{ label: "spike F5", href: spike }]
+    },
+    {
+      group: "access",
+      object: "Secret",
+      settings: "The runner token. The same value goes into the API's vault"
+    },
+    {
+      group: "ops",
+      object: "Monitoring",
+      settings: "Scrape the runner's metrics. Alert when the Deployment has no available pods, and when busy answers pass a share agreed in RFC-032"
+    }
+  ];
+
+  const body = document.getElementById("rc-object-rows");
+  const count = document.getElementById("rc-object-count");
+  const buttons = Array.from(document.querySelectorAll("#rc-cluster .rc-filter"));
+  if (!body || !count || buttons.length === 0) return;
+
+  const fillCell = (cell, text) => {
+    const parts = text.split("`");
+    parts.forEach((part, index) => {
+      if (part === "") return;
+      if (index % 2 === 1) {
+        const code = document.createElement("code");
+        code.textContent = part;
+        cell.appendChild(code);
+      } else {
+        cell.appendChild(document.createTextNode(part));
+      }
+    });
+  };
+
+  const counts = (filter) => filter === "all" ? objects.length : objects.filter((item) => item.group === filter).length;
+  buttons.forEach((button) => {
+    const badge = button.querySelector(".rc-filter-count");
+    if (badge) badge.textContent = String(counts(button.dataset.rcFilter));
+  });
+
+  const render = (filter) => {
+    const shown = objects.filter((item) => filter === "all" || item.group === filter);
+    body.replaceChildren();
+    shown.forEach((item) => {
+      const row = document.createElement("tr");
+      const name = document.createElement("th");
+      name.scope = "row";
+      name.textContent = item.object;
+      row.appendChild(name);
+      const cell = document.createElement("td");
+      fillCell(cell, item.settings);
+      (item.links || []).forEach((link) => {
+        cell.appendChild(document.createTextNode(" ("));
+        const anchor = document.createElement("a");
+        anchor.href = link.href;
+        anchor.textContent = link.label;
+        anchor.target = "_blank";
+        anchor.rel = "noreferrer";
+        cell.appendChild(anchor);
+        cell.appendChild(document.createTextNode(")"));
+      });
+      row.appendChild(cell);
+      body.appendChild(row);
+    });
+    count.textContent = "Showing " + shown.length + " of " + objects.length + " objects";
+    buttons.forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.rcFilter === filter));
+    });
+  };
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => render(button.dataset.rcFilter));
+  });
+  render("all");
+})();
+</script>
+
+<style>
+#dl-timeline .dl-svg, #dl-rollout .dl-svg { display: block; width: 100%; height: auto; }
+#dl-timeline .dl-scroll, #dl-rollout .dl-scroll { overflow-x: auto; }
+#dl-timeline .dl-hint, #dl-rollout .dl-hint { display: none; font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); }
+@media (max-width: 900px) { #dl-timeline .dl-scroll .dl-svg { min-width: 880px; } #dl-rollout .dl-scroll .dl-svg { min-width: 860px; } #dl-timeline .dl-hint, #dl-rollout .dl-hint { display: block; } }
+#dl-timeline .dl-axis { font: 11px var(--kiln-font-mono); fill: var(--kiln-muted); }
+#dl-timeline .dl-rowlab { font: 13px var(--kiln-font-sans); fill: var(--kiln-text); }
+#dl-timeline .dl-rowsub { font: 11px var(--kiln-font-mono); fill: var(--kiln-muted); }
+#dl-timeline .dl-weekend { fill: var(--kiln-surface-2); }
+#dl-timeline .dl-grid { stroke: var(--kiln-line); stroke-width: 1; }
+#dl-timeline .dl-bar { fill: var(--kiln-accent-wash); stroke: var(--kiln-accent); stroke-width: 1.6; }
+#dl-timeline .dl-gatebar { fill: var(--kiln-warn-wash); stroke: var(--kiln-warn); stroke-width: 1.6; }
+#dl-timeline .dl-diamond { fill: var(--kiln-warn); }
+#dl-timeline .dl-milestone { stroke: var(--kiln-muted); stroke-width: 1.2; stroke-dasharray: 4 4; }
+#dl-timeline .dl-mlabel { font: 11px var(--kiln-font-mono); fill: var(--kiln-muted); }
+#dl-timeline .dl-dep { stroke: var(--kiln-muted); stroke-width: 1.2; fill: none; }
+#dl-timeline .dl-tip { fill: var(--kiln-muted); }
+#dl-timeline .dl-milestones { margin: 0; }
+
+#dl-phases .dl-counts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
+#dl-phases .dl-countnote { margin: 0; font-size: 12.5px; }
+#dl-phases .dl-sub { margin: 6px 0 0; font-size: 15px; }
+#dl-phases .dl-gatenote { margin: 0; font-size: 13px; max-width: 68ch; }
+#dl-phases .dl-rail { list-style: none; margin: 6px 0 0; padding: 0; position: relative; }
+#dl-phases .dl-rail::before { content: ""; position: absolute; left: 19px; top: 12px; bottom: 12px; width: 1px; background: var(--kiln-line-strong); }
+#dl-phases .dl-phase { position: relative; padding: 0 0 30px 56px; }
+#dl-phases .dl-node { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 50%; background: var(--kiln-surface); border: 1px solid var(--kiln-line-strong); display: flex; align-items: center; justify-content: center; font: 600 12px var(--kiln-font-mono); color: var(--kiln-accent-text); }
+#dl-phases .dl-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+#dl-phases .dl-title { margin: 0; font-size: 17px; line-height: 1.3; }
+#dl-phases .dl-head .pill { margin-left: auto; }
+#dl-phases .dl-dates { margin: 3px 0 8px; }
+#dl-phases .dl-sum { margin: 0 0 10px; max-width: 68ch; }
+#dl-phases .dl-meta { display: grid; gap: 4px; margin: 0 0 12px; }
+#dl-phases .dl-meta > div { display: grid; grid-template-columns: 112px 1fr; gap: 10px; }
+#dl-phases .dl-meta dt { font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); padding-top: 2px; }
+#dl-phases .dl-meta dd { margin: 0; font-size: 13.5px; }
+#dl-phases .fold { margin-top: 2px; }
+#dl-phases .fold summary { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; cursor: pointer; }
+#dl-phases .fold summary:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 3px; border-radius: 6px; }
+#dl-phases .dl-sumcount { margin-left: auto; }
+#dl-phases .dl-fold-inner { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding-top: 14px; }
+#dl-phases .dl-filesblock { grid-column: 1 / -1; }
+@media (max-width: 720px) { #dl-phases .dl-fold-inner { grid-template-columns: 1fr; } #dl-phases .dl-filesblock { grid-column: auto; } }
+#dl-phases .dl-fold-inner h4 { margin: 0 0 7px; font: 600 11.5px var(--kiln-font-mono); color: var(--kiln-muted); letter-spacing: 0.02em; }
+#dl-phases .dl-files, #dl-phases .dl-tests, #dl-phases .dl-docs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+#dl-phases .dl-path { display: block; padding: 0; background: none; border-radius: 0; font: 11.5px/1.45 var(--kiln-font-mono); color: var(--kiln-text); overflow-wrap: normal; }
+#dl-phases .dl-gone { color: var(--kiln-muted); text-decoration: line-through; }
+#dl-phases .dl-fmeta { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; margin-top: 3px; }
+#dl-phases .dl-fnote { font-size: 12.5px; color: var(--kiln-muted); }
+#dl-phases .dl-tname { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--kiln-text); }
+#dl-phases .dl-tproof { margin: 2px 0 0; font-size: 12px; }
+#dl-phases .dl-dname { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--kiln-text); }
+#dl-phases .dl-empty { margin: 0; font-size: 12.5px; }
+#dl-phases .dl-facts { display: grid; gap: 6px; margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--kiln-line); }
+#dl-phases .dl-facts > div { display: grid; grid-template-columns: 112px 1fr; gap: 10px; }
+#dl-phases .dl-facts dt { font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); padding-top: 2px; }
+#dl-phases .dl-facts dd { margin: 0; font-size: 13px; color: var(--kiln-text); }
+#dl-phases .dl-callout { margin-top: 0; }
+
+#dl-rollout .dl-fwd { stroke: var(--kiln-muted); stroke-width: 1.5; fill: none; }
+#dl-rollout .dl-back { stroke: var(--kiln-muted); stroke-width: 1.3; fill: none; stroke-dasharray: 5 4; }
+#dl-rollout .dl-tip { fill: var(--kiln-muted); }
+#dl-rollout .dl-tl { font: 11px var(--kiln-font-mono); fill: var(--kiln-muted); }
+#dl-rollout .dl-flagband { fill: var(--kiln-surface-2); stroke: var(--kiln-line-strong); stroke-width: 1; }
+#dl-rollout .dl-track { fill: var(--kiln-accent-wash); stroke: var(--kiln-accent); stroke-width: 1.4; }
+#dl-rollout .dl-knob { fill: var(--kiln-accent); }
+#dl-rollout .dl-boxtitle { fill: var(--kiln-text); font: 600 14px var(--kiln-font-sans); }
+#dl-rollout .dl-flagtitle { font: 600 12.5px var(--kiln-font-sans); fill: var(--kiln-text); }
+#dl-rollout .dl-flagsub { font: 11.5px var(--kiln-font-sans); fill: var(--kiln-muted); }
+#dl-rollout .dl-after { font: 11px var(--kiln-font-mono); fill: var(--kiln-muted); }
+#dl-rollout .dl-moves { list-style: none; margin: 4px 0 0; padding: 0; }
+#dl-rollout .dl-move h3 { margin: 0 0 6px; font-size: 15px; line-height: 1.35; }
+#dl-rollout .dl-move p { margin: 0; font-size: 13.5px; }
+
+#dl-issues .dl-issues { list-style: none; margin: 0; padding: 0; }
+#dl-issues .dl-issue { display: flex; flex-direction: column; gap: 10px; }
+#dl-issues .dl-issue h3 { margin: 0; font-size: 15px; line-height: 1.35; }
+#dl-issues .dl-issue p { margin: 0; font-size: 13.5px; }
+#dl-issues .dl-phasechips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+#dl-issues .dl-phasechips .dl-k { font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); }
+#dl-issues .dl-phasechips a.pill { text-decoration: none; }
+#dl-issues .dl-phasechips a.pill:hover { color: var(--kiln-accent-text); }
+#dl-issues .dl-phasechips a.pill:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+</style>
+
+<section class="section" id="dl-timeline" aria-labelledby="dl-timeline-h">
+  <div class="section-head">
+    <h2 id="dl-timeline-h">Eight phases on one line</h2>
+    <span class="count">11 Nov to 8 Dec 2026</span>
+  </div>
+  <p class="lede">Two reviews run beside phase 1. The eight phases run from 11 November to 8 December, with weekends shaded. Durations count working days.</p>
+  <figure class="diagram">
+    <div class="dl-scroll">
+    <svg class="dl-svg" viewBox="0 0 940 412" role="img" aria-labelledby="dl-tl-title dl-tl-desc">
+      <title id="dl-tl-title">Forecast timeline of the eight phases, two reviews, a freeze and a launch</title>
+      <desc id="dl-tl-desc">Two review windows start on 11 November. The RFC-032 review and allowance runs to 13 November and the infrastructure review runs to 16 November. Phase 1 runs 11 to 13 November, phase 2 runs 16 November, phase 3 runs 17 to 19 November, phase 4 runs 17 to 18 November, phase 5 runs 20 and 23 November, and phase 6 runs 24 November. A freeze falls on 25 November and a launch on 30 November. Phase 7 runs 1 to 4 December and phase 8 runs 7 to 8 December. Arrows show the dependencies between phases. A diamond at the end of each review bar marks the gate for phases 2 and 4.</desc>
+      <defs>
+        <marker id="dl-tl-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path class="dl-tip" d="M0,0 L8,4 L0,8 z"/>
+        </marker>
+      </defs>
+
+      <rect class="dl-weekend" x="328.5" y="36" width="47" height="346"/>
+      <rect class="dl-weekend" x="493" y="36" width="47" height="346"/>
+      <rect class="dl-weekend" x="657.5" y="36" width="47" height="346"/>
+      <rect class="dl-weekend" x="822" y="36" width="47" height="346"/>
+
+      <line class="dl-grid" x1="258" y1="36" x2="258" y2="382"/>
+      <line class="dl-grid" x1="422.5" y1="36" x2="422.5" y2="382"/>
+      <line class="dl-grid" x1="587" y1="36" x2="587" y2="382"/>
+      <line class="dl-grid" x1="751.5" y1="36" x2="751.5" y2="382"/>
+      <line class="dl-grid" x1="916" y1="36" x2="916" y2="382"/>
+      <line class="dl-grid" x1="258" y1="382" x2="916" y2="382"/>
+
+      <line class="dl-milestone" x1="587" y1="34" x2="587" y2="382"/>
+      <line class="dl-milestone" x1="704.5" y1="34" x2="704.5" y2="382"/>
+      <text class="dl-mlabel" x="587" y="20" text-anchor="middle">Freeze 25 Nov</text>
+      <text class="dl-mlabel" x="587" y="31" text-anchor="middle">staging done</text>
+      <text class="dl-mlabel" x="704.5" y="20" text-anchor="middle">Launch 30 Nov</text>
+      <text class="dl-mlabel" x="704.5" y="31" text-anchor="middle">production next</text>
+
+      <text class="dl-rowlab" x="4" y="59">RFC-032 review and allowance</text>
+      <text class="dl-rowsub" x="4" y="71">G1, G5 · 11 to 13 Nov · for phase 2</text>
+      <rect class="dl-gatebar" x="258" y="51" width="70.5" height="18" rx="4"/>
+      <path class="dl-diamond" d="M328.5,52 l8,8 -8,8 -8,-8 z"/>
+
+      <text class="dl-rowlab" x="4" y="93">Infrastructure review</text>
+      <text class="dl-rowsub" x="4" y="105">G3, G4 · 11 to 16 Nov · for phase 4</text>
+      <rect class="dl-gatebar" x="258" y="85" width="70.5" height="18" rx="4"/>
+      <rect class="dl-gatebar" x="375.5" y="85" width="23.5" height="18" rx="4"/>
+      <path class="dl-diamond" d="M399,86 l8,8 -8,8 -8,-8 z"/>
+
+      <text class="dl-rowlab" x="4" y="127">Unseen pages never pass</text>
+      <text class="dl-rowsub" x="4" y="139">P1 · 11 to 13 Nov, 3 days</text>
+      <rect class="dl-bar" x="258" y="119" width="70.5" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="161">Capture function</text>
+      <text class="dl-rowsub" x="4" y="173">P2 · 16 Nov, 1 day</text>
+      <rect class="dl-bar" x="375.5" y="153" width="23.5" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="195">Runner service and image</text>
+      <text class="dl-rowsub" x="4" y="207">P3 · 17 to 19 Nov, 3 days</text>
+      <rect class="dl-bar" x="399" y="187" width="70.5" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="229">Cluster objects and access</text>
+      <text class="dl-rowsub" x="4" y="241">P4 · 17 to 18 Nov, 2 days</text>
+      <rect class="dl-bar" x="399" y="221" width="47" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="263">Staging, one page at a time</text>
+      <text class="dl-rowsub" x="4" y="275">P5 · 20 to 23 Nov, 2 days</text>
+      <rect class="dl-bar" x="469.5" y="255" width="23.5" height="18" rx="4"/>
+      <rect class="dl-bar" x="540" y="255" width="23.5" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="297">Staging, two pages at once</text>
+      <text class="dl-rowsub" x="4" y="309">P6 · 24 Nov, 1 day</text>
+      <rect class="dl-bar" x="563.5" y="289" width="23.5" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="331">Production and BV-4</text>
+      <text class="dl-rowsub" x="4" y="343">P7 · 1 to 4 Dec, 4 days</text>
+      <rect class="dl-bar" x="728" y="323" width="94" height="18" rx="4"/>
+
+      <text class="dl-rowlab" x="4" y="365">Remove Chromium from the API</text>
+      <text class="dl-rowsub" x="4" y="377">P8 · 7 to 8 Dec, 2 days</text>
+      <rect class="dl-bar" x="869" y="357" width="47" height="18" rx="4"/>
+
+      <path class="dl-dep" d="M328.5,137 L328.5,145 L375.5,145 L375.5,153" marker-end="url(#dl-tl-arrow)"/>
+      <path class="dl-dep" d="M399,171 L399,187" marker-end="url(#dl-tl-arrow)"/>
+      <path class="dl-dep" d="M469.5,205 L469.5,255" marker-end="url(#dl-tl-arrow)"/>
+      <path class="dl-dep" d="M446,239 L446,247 L469.5,247 L469.5,255" marker-end="url(#dl-tl-arrow)"/>
+      <path class="dl-dep" d="M563.5,273 L563.5,289" marker-end="url(#dl-tl-arrow)"/>
+      <path class="dl-dep" d="M587,307 L587,313 L728,313 L728,323" marker-end="url(#dl-tl-arrow)"/>
+      <path class="dl-dep" d="M822,341 L822,349 L869,349 L869,357" marker-end="url(#dl-tl-arrow)"/>
+
+      <text class="dl-axis" x="258" y="398">11 Nov</text>
+      <text class="dl-axis" x="422.5" y="398" text-anchor="middle">18 Nov</text>
+      <text class="dl-axis" x="587" y="398" text-anchor="middle">25 Nov</text>
+      <text class="dl-axis" x="751.5" y="398" text-anchor="middle">2 Dec</text>
+      <text class="dl-axis" x="916" y="398" text-anchor="end">8 Dec</text>
+    </svg>
+    </div>
+    <p class="dl-hint">Scroll sideways to see the whole chart.</p>
+    <figcaption>The dates are a forecast with one developer and gates that open on time. The forecast has the runner on staging before the freeze. If the infrastructure review takes longer, phases 4 to 6 move after the launch. Phase 1 still ships before the freeze, and production timing remains a delivery decision.</figcaption>
+  </figure>
+  <p class="dl-milestones mono muted" id="dl-milestones"></p>
+  <p class="muted">The RFC-029 mapping gate also blocks phases 2 to 8, and it has no date in the forecast.</p>
+</section>
+
+<section class="section" id="dl-phases" aria-labelledby="dl-phases-h">
+  <div class="section-head">
+    <h2 id="dl-phases-h">What each phase does</h2>
+    <span class="count">8 phases, none started</span>
+  </div>
+  <p class="lede">Each phase ships as one merge request, one flag change or one small code change. Dates count working days. Open a phase to see its files, tests and docs.</p>
+
+  <div class="dl-counts" id="dl-file-counts"><span class="dl-countnote mono muted">Files in the plan tree</span></div>
+
+  <h3 class="dl-sub">Gates before the work</h3>
+  <p class="dl-gatenote">These gates block the phases after phase 1.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Gate</th><th>Name</th><th>Who</th><th>Window</th><th>Needed by</th><th>Blocks</th></tr>
+      </thead>
+      <tbody id="dl-gates-body"></tbody>
+    </table>
+  </div>
+  <p class="muted">The 10 Nov 2026 spike found three facts. A request through the service proxy stays open for 200 s. Network policies are enforced. The nodes have room. The infrastructure review checks those findings and the inbound rule's node address.</p>
+
+  <div class="callout dl-callout">The eight phases add up to about 18 working days. #610 allows five days for delivery, so the allowance needs a revision with Jonathan before phase 2 starts.</div>
+
+  <ol class="dl-rail" id="dl-rail"></ol>
+  <p class="muted">The tests follow apps/api/AGENTS.md. Each test fails if the behavior it names breaks.</p>
+</section>
+
+<section class="section" id="dl-rollout" aria-labelledby="dl-rollout-h">
+  <div class="section-head">
+    <h2 id="dl-rollout-h">Rollout and rollback</h2>
+    <span class="count">4 moves, 3 with a way back</span>
+  </div>
+  <p class="lede">Each move happens only after its comparison holds. Until phase 8, the flag is the rollback.</p>
+
+  <figure class="diagram">
+    <div class="dl-scroll">
+    <svg class="dl-svg" viewBox="0 0 940 380" role="img" aria-labelledby="dl-ro-title dl-ro-desc">
+      <title id="dl-ro-title">Rollout path from the browser in the API to the runner, with the flag as the rollback</title>
+      <desc id="dl-ro-desc">Five states in a row: the browser in the API with the flag off, the runner on staging with one page at a time, the runner on staging with two pages at once, production on the runner, and Chromium removed in phase 8. Three return arrows go back to an earlier state. Two of them turn the flag off with no deploy, and one sets staging back to one page at a time. A flag band under the first four states marks the feature flag, which runs from phase 5 to phase 8. After phase 8, the rollback is a release revert of the API and the runner together.</desc>
+      <defs>
+        <marker id="dl-ro-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path class="dl-tip" d="M0,0 L8,4 L0,8 z"/>
+        </marker>
+      </defs>
+
+      <rect class="d-box-quiet" x="12" y="58" width="156" height="74" rx="10"/>
+      <text class="dl-boxtitle" x="90" y="90" text-anchor="middle">Browser in the API</text>
+      <text class="d-label" x="90" y="110" text-anchor="middle">flag off</text>
+
+      <rect class="d-box-info" x="204" y="58" width="156" height="74" rx="10"/>
+      <text class="dl-boxtitle" x="282" y="90" text-anchor="middle">Runner on staging</text>
+      <text class="d-label" x="282" y="110" text-anchor="middle">one page at a time</text>
+
+      <rect class="d-box-info" x="396" y="58" width="156" height="74" rx="10"/>
+      <text class="dl-boxtitle" x="474" y="90" text-anchor="middle">Runner on staging</text>
+      <text class="d-label" x="474" y="110" text-anchor="middle">two pages at once</text>
+
+      <rect class="d-box-accent" x="588" y="58" width="156" height="74" rx="10"/>
+      <text class="dl-boxtitle" x="666" y="90" text-anchor="middle">Production</text>
+      <text class="d-label" x="666" y="110" text-anchor="middle">on the runner</text>
+
+      <rect class="d-box-ok" x="780" y="58" width="156" height="74" rx="10"/>
+      <text class="dl-boxtitle" x="858" y="90" text-anchor="middle">Chromium removed</text>
+      <text class="d-label" x="858" y="110" text-anchor="middle">phase 8</text>
+
+      <line class="dl-fwd" x1="168" y1="95" x2="200" y2="95" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="184" y="40" text-anchor="middle">after phase 5</text>
+      <text class="dl-tl" x="184" y="52" text-anchor="middle">flag on</text>
+
+      <line class="dl-fwd" x1="360" y1="95" x2="392" y2="95" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="376" y="40" text-anchor="middle">comparison</text>
+      <text class="dl-tl" x="376" y="52" text-anchor="middle">passed, phase 6</text>
+
+      <line class="dl-fwd" x1="552" y1="95" x2="584" y2="95" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="568" y="40" text-anchor="middle">launch decision</text>
+      <text class="dl-tl" x="568" y="52" text-anchor="middle">flag on</text>
+
+      <line class="dl-fwd" x1="744" y1="95" x2="776" y2="95" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="760" y="40" text-anchor="middle">BV-4 done</text>
+      <text class="dl-tl" x="760" y="52" text-anchor="middle">phase 8</text>
+
+      <path class="dl-back" d="M282,132 C282,176 90,176 90,132" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="184" y="192" text-anchor="middle">flag off, no deploy</text>
+
+      <path class="dl-back" d="M474,132 C474,176 282,176 282,132" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="376" y="192" text-anchor="middle">one page again</text>
+
+      <path class="dl-back" d="M666,132 L666,252 L90,252 L90,132" marker-end="url(#dl-ro-arrow)"/>
+      <text class="dl-tl" x="600" y="244" text-anchor="middle">flag off, no deploy</text>
+
+      <rect class="dl-flagband" x="12" y="286" width="732" height="58" rx="10"/>
+      <rect class="dl-track" x="32" y="304" width="44" height="22" rx="11"/>
+      <circle class="dl-knob" cx="65" cy="315" r="8"/>
+      <text class="dl-flagtitle" x="92" y="312">Feature flag, phases 5 to 8</text>
+      <text class="dl-flagsub" x="92" y="330">Every new check returns to the browser in the API, with no deploy.</text>
+
+      <text class="dl-after" x="780" y="302">After phase 8:</text>
+      <text class="dl-after" x="780" y="318">revert the API and</text>
+      <text class="dl-after" x="780" y="334">the runner together.</text>
+    </svg>
+    </div>
+    <p class="dl-hint">Scroll sideways to see the whole path.</p>
+    <figcaption>The runner takes over staging one page at a time, then two pages at once, then production. The flag returns every new check to the browser in the API, with no deploy.</figcaption>
+  </figure>
+
+  <p>After phase 8, the rollback is a release revert of the API and the runner together. The API never switches by itself.</p>
+  <p>The comparison uses the same three apps as BV-1: Resep Dapur Ibu, Drinks at BVW and tiket.com, and real staging turns.</p>
+  <ul class="dl-moves grid-2" id="dl-moves"></ul>
+</section>
+
+<section class="section" id="dl-issues" aria-labelledby="dl-issues-h">
+  <div class="section-head">
+    <h2 id="dl-issues-h">Proposed child issues</h2>
+    <span class="count">5 proposals, none filed</span>
+  </div>
+  <p class="lede">#610 says that delivery children get their own issues once the design settles. These are proposals, and none is filed yet.</p>
+  <ul class="dl-issues grid-2" id="dl-issues-list"></ul>
+</section>
+
+<script>
+(() => {
+  "use strict";
+
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const STATUS = "not started";
+
+  const phases = [
+    {
+      n: 1,
+      title: "Unseen pages never pass",
+      start: "2026-11-11",
+      end: "2026-11-13",
+      days: "3 days",
+      summary: "Adds the outcome enum and fixes today's API so a route the browser never saw cannot pass, then runs one browser check at a time.",
+      deps: "None",
+      gateNote: "Phase 1 needs no gate. It is useful with or without the runner.",
+      mr: "One API MR",
+      exit: "A capture with an unseen page gives COULD_NOT_RUN, never a pass. Two checks at once run one after the other.",
+      testsNote: "",
+      docsNote: ""
+    },
+    {
+      n: 2,
+      title: "Capture function",
+      start: "2026-11-16",
+      end: "2026-11-16",
+      days: "1 day",
+      summary: "Gives the capture function a deadline and a number of pages at once, with one page as the default.",
+      deps: "Phase 1",
+      gateNote: "",
+      mr: "One API MR",
+      exit: "With one page at a time, the three test apps give the same verdicts and the same times as today.",
+      testsNote: "The local test harness from BV-1 was a throwaway script and is gone. Phase 2 needs a small local script again for the real-Chromium runs. It stays out of the repository, as before.",
+      docsNote: ""
+    },
+    {
+      n: 3,
+      title: "Runner service and image",
+      start: "2026-11-17",
+      end: "2026-11-19",
+      days: "3 days",
+      summary: "Wraps the capture function in an HTTP service, builds its image, and adds the build targets.",
+      deps: "Phase 2",
+      gateNote: "",
+      mr: "One MR",
+      exit: "The runner passes its fault tests locally, and the image runs the three test apps.",
+      testsNote: "",
+      docsNote: ""
+    },
+    {
+      n: 4,
+      title: "Cluster objects and access",
+      start: "2026-11-17",
+      end: "2026-11-18",
+      days: "2 days",
+      summary: "Adds the cluster objects, the API's right to call the runner, the token, the metrics and the alerts.",
+      deps: "No phase. It waits for the infrastructure review.",
+      gateNote: "",
+      mr: "One infrastructure MR, reviewed as infrastructure",
+      exit: "A request from the platform host reaches the runner on staging, and a request without the token fails.",
+      testsNote: "",
+      docsNote: ""
+    },
+    {
+      n: 5,
+      title: "Staging, one page at a time",
+      start: "2026-11-20",
+      end: "2026-11-23",
+      days: "2 days",
+      summary: "Adds the API client and the feature flag, then sends staging turns to the runner one page at a time.",
+      deps: "Phases 3 and 4",
+      gateNote: "",
+      mr: "One API MR, then a flag change",
+      exit: "Staging turns pass the comparison for one page at a time.",
+      testsNote: "",
+      docsNote: ""
+    },
+    {
+      n: 6,
+      title: "Staging, two pages at once",
+      start: "2026-11-24",
+      end: "2026-11-24",
+      days: "1 day",
+      summary: "Moves staging to two pages at once.",
+      deps: "Phase 5",
+      gateNote: "",
+      mr: "One change to a value in code",
+      exit: "The speed targets hold on staging, and the error controls still fail.",
+      testsNote: "",
+      docsNote: ""
+    },
+    {
+      n: 7,
+      title: "Production and BV-4",
+      start: "2026-12-01",
+      end: "2026-12-04",
+      days: "4 days",
+      summary: "Moves production to the runner, then measures BV-4.",
+      deps: "Phase 6",
+      gateNote: "",
+      mr: "Flag changes, then a report in #610",
+      exit: "BV-4's checkpoint text in #610.",
+      testsNote: "",
+      docsNote: ""
+    },
+    {
+      n: 8,
+      title: "Remove Chromium from the API",
+      start: "2026-12-07",
+      end: "2026-12-08",
+      days: "2 days",
+      summary: "Removes the in-API capture path, the flag and Chromium from the API image.",
+      deps: "Phase 7",
+      gateNote: "",
+      mr: "One API MR and one docs MR",
+      exit: "The API image has no Chromium, and all tests pass.",
+      testsNote: "",
+      docsNote: "ADR-042 named the runner as the way to take Chromium out of the API image. The new ADR records that this happened."
+    }
+  ];
+
+  const milestones = [
+    { name: "freeze", iso: "2026-11-25" },
+    { name: "launch", iso: "2026-11-30" }
+  ];
+
+  const gates = [
+    { code: "G1", name: "RFC-032 accepted, or accepted with changes", who: "Jonathan and Bertrand", start: "2026-11-11", end: "2026-11-13", by: 2, blocks: [2, 8] },
+    { code: "G2", name: "The RFC-029 mapping in RFC-032 §4 accepted, or exceptions recorded", who: "Jonathan and Bertrand", start: "", end: "", by: 2, blocks: [2, 8] },
+    { code: "G3", name: "Review of the spike's findings (spike F1 to F11)", who: "Infrastructure review", start: "2026-11-11", end: "2026-11-16", by: 4, blocks: [4, 8] },
+    { code: "G4", name: "The inbound rule's node address (RFC-032 §6, question 7, spike F8)", who: "Infrastructure review", start: "2026-11-11", end: "2026-11-16", by: 4, blocks: [4, 8] },
+    { code: "G5", name: "The #610 allowance revised", who: "Jonathan", start: "2026-11-11", end: "2026-11-13", by: 2, blocks: [2, 8] }
+  ];
+
+  const files = [
+    { path: "apps/api/app/schemas/generation/checks.py", tag: "CHANGED", phases: [1], note: "RUNNER_BUSY and RUNNER_UNAVAILABLE skip reasons, both \"could not run\"" },
+    { path: "apps/api/app/schemas/generation/browser_capture.py", tag: "NEW", phases: [1], note: "CaptureOutcome, CaptureRequest, CaptureResult" },
+    { path: "apps/api/app/services/generation/pod_probes.py", tag: "CHANGED", phases: [1], note: "marks unseen routes, takes a deadline" },
+    { path: "apps/api/app/services/generation/pod_probes.py", tag: "CHANGED", phases: [2], note: "pages at once, default one" },
+    { path: "apps/api/app/services/generation/checks/__init__.py", tag: "CHANGED", phases: [1], note: "NoConsoleErrorsCheck: an unseen route never passes" },
+    { path: "apps/api/app/services/generation/checks/__init__.py", tag: "CHANGED", phases: [5], note: "calls the runner client when the flag is on" },
+    { path: "apps/api/app/services/generation/browser_capture_lock.py", tag: "NEW", phases: [1], note: "one browser capture at a time in the API process" },
+    { path: "apps/api/app/services/generation/browser_capture_lock.py", tag: "REMOVED", phases: [8], note: "" },
+    { path: "apps/api/app/browser_runner/", tag: "NEW", phases: [3], note: "the runner service, its own entrypoint" },
+    { path: "apps/api/app/browser_runner/main.py", tag: "NEW", phases: [3], note: "the HTTP app: capture, liveness, readiness, metrics" },
+    { path: "apps/api/app/browser_runner/slot.py", tag: "NEW", phases: [3], note: "the one request slot, the readiness answer, attempt ids" },
+    { path: "apps/api/app/browser_runner/execution.py", tag: "NEW", phases: [3], note: "deadline, cancel on disconnect, process group kill" },
+    { path: "apps/api/app/integrations/infrastructure/kubernetes/browser_runner.py", tag: "NEW", phases: [5], note: "the client: service proxy call on browser-runner:http, kept connections, three tries after BUSY" },
+    { path: "apps/api/app/integrations/unleash/constants.py", tag: "CHANGED", phases: [5], note: "FeatureFlag.BROWSER_RUNNER" },
+    { path: "apps/api/app/integrations/unleash/constants.py", tag: "CHANGED", phases: [8], note: "the flag removed" },
+    { path: "apps/api/app/config.py", tag: "CHANGED", phases: [5], note: "the runner's service name and token settings" },
+    { path: "deploy/docker/browser-runner/", tag: "NEW", phases: [3], note: "Dockerfile, VERSION, README.md (built like the screenshot image)" },
+    { path: "deploy/docker/api/Dockerfile", tag: "CHANGED", phases: [8], note: "no Playwright browser install" },
+    { path: "deploy/k8s/browser-runner/", tag: "NEW", phases: [4], note: "namespace, deployment, service, network policy, role and binding for each environment, token secret example" },
+    { path: "deploy/k8s/cluster-base/monitoring/", tag: "CHANGED", phases: [4], note: "scrape the runner's metrics" },
+    { path: "deploy/ansible/roles/arcane-api/templates/api.env.j2", tag: "CHANGED", phases: [4], note: "the runner token from the vault" },
+    { path: "mk/templates.mk", tag: "CHANGED", phases: [3], note: "browser-runner-build-local, browser-runner-publish" },
+    { path: "docs/", tag: "CHANGED", phases: [1, 4, 8], note: "briefs, runbook, feature flags, ADR" }
+  ];
+
+  const tests = [
+    { phase: 1, name: "Unit: a capture with an unseen route and no error", proof: "The check gives COULD_NOT_RUN, not a pass" },
+    { phase: 1, name: "Unit: an unseen route next to a seen route with an error", proof: "The check fails, and a fix round starts" },
+    { phase: 1, name: "Unit: a second capture while one runs", proof: "It waits, and it reports BUSY when its deadline passes" },
+    { phase: 1, name: "Unit: the deadline passes mid-capture", proof: "TIMED_OUT, with the findings so far" },
+    { phase: 2, name: "Real Chromium, local: the three apps with one and with two pages at once", proof: "The same verdicts, and the time per pair of routes" },
+    { phase: 2, name: "Real Chromium, local: the clean page, the delayed error, the broken image", proof: "Two pages at once still catch the late error" },
+    { phase: 3, name: "Unit, runner: a second request, a repeated id, the deadline, a closed connection", proof: "BUSY, BUSY, TIMED_OUT, and the browser closed within 5 s" },
+    { phase: 3, name: "Unit, runner: readiness while busy and while draining", proof: "503 in both cases, 200 when free" },
+    { phase: 3, name: "Local, runner image: kill the browser mid-request", proof: "An explicit outcome, never a pass" },
+    { phase: 3, name: "Local, runner image: a page starts a program that outlives its browser, and writes a file to /tmp", proof: "The program and the file are gone before the replica turns ready again" },
+    { phase: 4, name: "Dev: a local API container calls the shared dev runner through the service proxy against its own dev preview", proof: "The request reaches only the dev runner and returns the capture" },
+    { phase: 4, name: "Dev credentials call the staging and production runners", proof: "Both refused" },
+    { phase: 4, name: "Staging: a request without the token, and a request from a preview pod", proof: "Both refused" },
+    { phase: 4, name: "Staging: a test pod in the runner namespace opens a private address", proof: "Blocked by the network policy" },
+    { phase: 5, name: "Unit, client: the service proxy answers no endpoints, then BUSY, then a broken connection", proof: "BUSY after three tries, and UNAVAILABLE" },
+    { phase: 5, name: "Staging: the comparison before the move", proof: "The move to one page at a time holds" },
+    { phase: 6, name: "Staging: two replicas, three checks at once", proof: "Two complete on different replicas, and the third gets BUSY" },
+    { phase: 7, name: "Production: BV-4", proof: "The targets, the verdicts and the API's memory" }
+  ];
+
+  const docs = [
+    { phase: 1, doc: "apps/api/app/services/generation/README.md and the app generation brief", change: "An unseen page never passes. One browser check at a time in the API" },
+    { phase: 4, doc: "deploy/k8s/README.md", change: "The runner runbook" },
+    { phase: 5, doc: "docs/operations/feature-flags.md", change: "The new flag and how to switch it" },
+    { phase: 5, doc: "The app generation and preview runtime briefs", change: "Where the browser runs, and the result outcomes" },
+    { phase: 8, doc: "A new ADR, and the RFC-032 row in docs/rfcs.md", change: "The decision, and the RFC marked resolved" },
+    { phase: 8, doc: "docs/operations/feature-flags.md", change: "The flag removed" }
+  ];
+
+  const moves = [
+    { name: "One page at a time on staging", hold: "The three apps give the same verdicts as the browser in the API. The times are within 2 s of today's, for the network cost. The clean page passes, and the delayed error and the broken image fail." },
+    { name: "Two pages at once on staging", hold: "The same verdicts. The speed targets in RFC-032 §3.6 hold. The memory of a replica stays under its limit." },
+    { name: "Production", hold: "A week of staging turns with no UNAVAILABLE that the team did not cause. The alert and the flag switch-back were both tried once." },
+    { name: "Removal", hold: "BV-4 done in production. No flag switch-back for a week." }
+  ];
+
+  const issues = [
+    { title: "A page that the browser never saw cannot pass", phases: [1], delegation: "Ready: the change and its tests are fixed by this plan" },
+    { title: "The browser runner service and image", phases: [2, 3], delegation: "Ready, once RFC-032 is accepted" },
+    { title: "The browser runner in the cluster", phases: [4], delegation: "Human-led: infrastructure and access rights" },
+    { title: "Switch validation to the browser runner", phases: [5, 6, 7], delegation: "Human-led: rollout on staging and production" },
+    { title: "Remove Chromium from the API image", phases: [8], delegation: "Ready, once BV-4 is done" }
+  ];
+
+  const make = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
+
+  const dayPart = (iso) => {
+    const parts = iso.split("-");
+    return { d: Number(parts[2]), m: MONTHS[Number(parts[1]) - 1] };
+  };
+
+  const range = (start, end) => {
+    const a = dayPart(start);
+    const b = dayPart(end);
+    if (a.d === b.d) return a.d + " " + a.m;
+    if (a.m === b.m) return a.d + " to " + b.d + " " + a.m;
+    return a.d + " " + a.m + " to " + b.d + " " + b.m;
+  };
+
+  const gatesFor = (n) => gates.filter((g) => n >= g.blocks[0] && n <= g.blocks[1]);
+  const filesFor = (n) => files.filter((f) => f.phases.indexOf(n) !== -1);
+  const testsFor = (n) => tests.filter((t) => t.phase === n);
+  const docsFor = (n) => docs.filter((d) => d.phase === n);
+
+  const tagClass = (tag) => tag === "NEW" ? "pill info" : tag === "REMOVED" ? "pill bad" : "pill";
+
+  document.getElementById("dl-milestones").textContent =
+    "Dashed lines: " + milestones.map((m) => m.name + " " + range(m.iso, m.iso)).join(", ") + ".";
+
+  const gateBody = document.getElementById("dl-gates-body");
+  gates.forEach((g) => {
+    const row = document.createElement("tr");
+    row.append(make("td", "mono", g.code));
+    row.append(make("td", "", g.name));
+    row.append(make("td", "", g.who));
+    row.append(make("td", "", g.start ? range(g.start, g.end) : "No date"));
+    row.append(make("td", "", "Phase " + g.by));
+    row.append(make("td", "", "Phases " + g.blocks[0] + " to " + g.blocks[1]));
+    gateBody.append(row);
+  });
+
+  const counts = { NEW: new Set(), CHANGED: new Set(), REMOVED: new Set() };
+  files.forEach((f) => counts[f.tag].add(f.path));
+  const countBox = document.getElementById("dl-file-counts");
+  [
+    { cls: "pill info", n: counts.NEW.size, word: "new" },
+    { cls: "pill", n: counts.CHANGED.size, word: "changed" },
+    { cls: "pill bad", n: counts.REMOVED.size, word: "removed" }
+  ].forEach((c) => {
+    countBox.append(make("span", c.cls, c.n + " " + c.word));
+  });
+  countBox.append(make("span", "dl-countnote muted", "One path is both new and removed, so 19 paths carry 20 tags."));
+
+  const rail = document.getElementById("dl-rail");
+  phases.forEach((p) => {
+    const item = make("li", "dl-phase");
+    item.id = "dl-p" + p.n;
+    item.append(make("span", "dl-node", "P" + p.n));
+
+    const fs = filesFor(p.n);
+    const ts = testsFor(p.n);
+    const ds = docsFor(p.n);
+    const body = make("div", "dl-body");
+
+    const head = make("div", "dl-head");
+    head.append(make("h3", "dl-title", p.title));
+    head.append(make("span", "pill", STATUS));
+    body.append(head);
+
+    body.append(make("p", "dl-dates mono muted", range(p.start, p.end) + ", " + p.days));
+    body.append(make("p", "dl-sum", p.summary));
+
+    const meta = make("dl", "dl-meta");
+    const depsRow = make("div");
+    depsRow.append(make("dt", "", "Depends on"));
+    depsRow.append(make("dd", "", p.deps));
+    meta.append(depsRow);
+
+    const gateRow = make("div");
+    gateRow.append(make("dt", "", "Gates"));
+    const gateDd = make("dd");
+    const blocking = gatesFor(p.n);
+    if (blocking.length === 0) {
+      gateDd.textContent = p.gateNote;
+    } else {
+      gateDd.textContent = blocking.map((g) => g.code).join(", ");
+      if (p.gateNote) gateDd.append(document.createTextNode(" " + p.gateNote));
+    }
+    gateRow.append(gateDd);
+    meta.append(gateRow);
+
+    body.append(meta);
+
+    const fold = make("details", "fold");
+    const summary = make("summary");
+    summary.append(make("span", "", "Files, tests and docs"));
+    summary.append(make("span", "dl-sumcount mono muted",
+      plural(fs.length, "file", "files") + ", " +
+      plural(ts.length, "test", "tests") + ", " +
+      plural(ds.length, "doc", "docs")));
+    fold.append(summary);
+
+    const inner = make("div", "dl-fold-inner");
+
+    const filesBlock = make("div", "dl-filesblock");
+    filesBlock.append(make("h4", "", "Files"));
+    if (fs.length === 0) {
+      filesBlock.append(make("p", "dl-empty muted", "No file is tagged for this phase in the plan tree."));
+    } else {
+      const list = make("ul", "dl-files");
+      fs.forEach((f) => {
+        const li = make("li", "dl-file");
+        const path = make("code", "dl-path" + (f.tag === "REMOVED" ? " dl-gone" : ""));
+        f.path.split("/").forEach((part, i) => {
+          if (i > 0) {
+            path.append(document.createTextNode("/"));
+            path.append(document.createElement("wbr"));
+          }
+          if (part) path.append(document.createTextNode(part));
+        });
+        li.append(path);
+        const metaLine = make("span", "dl-fmeta");
+        metaLine.append(make("span", tagClass(f.tag), f.tag));
+        if (f.note) metaLine.append(make("span", "dl-fnote", f.note));
+        li.append(metaLine);
+        list.append(li);
+      });
+      filesBlock.append(list);
+    }
+    inner.append(filesBlock);
+
+    const testsBlock = make("div");
+    testsBlock.append(make("h4", "", "Tests"));
+    if (ts.length === 0) {
+      testsBlock.append(make("p", "dl-empty muted", "No test is listed for this phase."));
+    } else {
+      const list = make("ul", "dl-tests");
+      ts.forEach((t) => {
+        const li = make("li", "dl-test");
+        li.append(make("p", "dl-tname", t.name));
+        li.append(make("p", "dl-tproof muted", "Proves: " + t.proof));
+        list.append(li);
+      });
+      testsBlock.append(list);
+    }
+    if (p.testsNote) testsBlock.append(make("p", "dl-empty muted", p.testsNote));
+    inner.append(testsBlock);
+
+    const docsBlock = make("div");
+    docsBlock.append(make("h4", "", "Docs and cleanup"));
+    if (ds.length === 0) {
+      docsBlock.append(make("p", "dl-empty muted", "No doc change is listed for this phase."));
+    } else {
+      const list = make("ul", "dl-docs");
+      ds.forEach((d) => {
+        const li = make("li", "dl-doc");
+        li.append(make("p", "dl-dname", d.doc));
+        li.append(make("p", "dl-tproof muted", d.change));
+        list.append(li);
+      });
+      docsBlock.append(list);
+    }
+    if (p.docsNote) docsBlock.append(make("p", "dl-empty muted", p.docsNote));
+    inner.append(docsBlock);
+
+    fold.append(inner);
+
+    const facts = make("dl", "dl-facts");
+    const mrFact = make("div");
+    mrFact.append(make("dt", "", "Merge request"));
+    mrFact.append(make("dd", "", p.mr));
+    const exitFact = make("div");
+    exitFact.append(make("dt", "", "Exit test"));
+    exitFact.append(make("dd", "", p.exit));
+    facts.append(mrFact, exitFact);
+    fold.append(facts);
+
+    body.append(fold);
+    item.append(body);
+    rail.append(item);
+  });
+
+  const moveList = document.getElementById("dl-moves");
+  moves.forEach((m) => {
+    const card = make("li", "card dl-move");
+    card.append(make("h3", "", m.name));
+    card.append(make("p", "", m.hold));
+    moveList.append(card);
+  });
+
+  const issueList = document.getElementById("dl-issues-list");
+  issues.forEach((issue) => {
+    const card = make("li", "card dl-issue");
+    card.append(make("h3", "", issue.title));
+    const chips = make("p", "dl-phasechips");
+    chips.append(make("span", "dl-k", "Phases"));
+    issue.phases.forEach((n) => {
+      const link = make("a", "pill", "P" + n);
+      link.href = "#dl-p" + n;
+      chips.append(link);
+    });
+    card.append(chips);
+    card.append(make("p", "muted", issue.delegation));
+    issueList.append(card);
+  });
+})();
+</script>
+
+
+  <section id="decisions" class="section">
+    <div class="section-head">
+      <h2>Decisions</h2>
+      <span class="count" id="decisions-count"></span>
+    </div>
+    <p class="lede">Open decisions come first, each with its owner and the phase it blocks. A settled decision carries its date.</p>
+    <div class="grid-2" id="decisions-grid"></div>
+    <noscript><p class="mono muted">The decision cards load from a data list in this page, so this section needs scripts.</p></noscript>
+  </section>
+
+  <footer>
+    <p class="mono muted">Bertrand updates this page. To change it, edit the data lists in the source and publish a new Kiln revision.</p>
+    <p class="mono muted">13 Nov 2026 · RFC-032 owns the design.</p>
+  </footer>
+
+</main>
+<script>
+(() => {
+  const decisions = [
+    {
+      q: "Do we accept RFC-032?",
+      ctx: "The RFC holds the design for this plan. Phase 2 waits on it, and so do the phases after it.",
+      meta: "Jonathan and Bertrand · needed by phase 2, blocks phases 2 to 8",
+      options: ["Accept it as written", "Accept it with changes"]
+    },
+    {
+      q: "Do we accept the RFC-029 mapping?",
+      ctx: "The mapping sits in RFC-032. Phase 2 waits on it, and so do the phases after it.",
+      meta: "Jonathan and Bertrand · needed by phase 2, blocks phases 2 to 8",
+      options: ["Accept the mapping", "Record exceptions"]
+    },
+    {
+      q: "Does the infrastructure review accept the spike findings?",
+      ctx: "The spike on 10 Nov 2026 found three facts: a service proxy request stays open for 200 s, network policies are enforced, and the nodes have room. The review makes sure that these findings hold for the build.",
+      meta: "Infrastructure review · needed by phase 4, blocks phases 4 to 8"
+    },
+    {
+      q: "Is the inbound rule's node address settled?",
+      ctx: "The network policy admits traffic only from the control-plane node's Weave address, where service proxy traffic comes from (spike F8). The review names that address.",
+      meta: "Infrastructure review · needed by phase 4, blocks phases 4 to 8"
+    },
+    {
+      q: "Does the #610 allowance cover the work?",
+      ctx: "The phases add up to about 18 working days. #610 allows five days for delivery.",
+      meta: "Jonathan · needed by phase 2, blocks phases 2 to 8",
+      rec: "Revise the #610 allowance with Jonathan before phase 2 starts."
+    },
+    {
+      q: "Does production come before or after the launch?",
+      ctx: "The forecast has the runner on staging before the 25 Nov freeze. If the infrastructure review takes longer, phases 4 to 6 move after the launch. The dates stay a forecast.",
+      meta: "Delivery decision",
+      options: ["Production before the launch", "Production after the launch"]
+    },
+    {
+      q: "What share of busy answers adds a replica and fires the alert?",
+      ctx: "The alert fires when busy answers pass a share agreed in RFC-032. The Deployment adds a replica on the same share.",
+      meta: "Build decision"
+    },
+    {
+      q: "Which HTTP framework runs the runner?",
+      ctx: "The runner is an HTTP service around the capture function. Its image installs the API's package with the validation extra.",
+      meta: "Build decision",
+      rec: "FastAPI. The API already uses it, so the image adds no new library."
+    },
+    {
+      q: "Where does each runner live?",
+      ctx: "Each environment needs its own token, access rules and network policies.",
+      meta: "Build decision",
+      decided: "One namespace per environment, named dewabuilder-browser-runner-<env>, with dev, stg and prod. Developers share the dev runner in the cluster."
+    },
+    {
+      q: "Does Chromium run with its sandbox?",
+      ctx: "The sandbox did not start in a locked-down pod on the cluster.",
+      meta: "Build decision",
+      decided: "Chromium runs without its sandbox, and the pod's limits stand in for it. After each check, the runner kills every other process in its container and empties its writable folders. A replica does not restart after a count of checks, because Kubernetes delays a container that exits often.",
+      date: "11 Nov 2026"
+    },
+    {
+      q: "Do we need a start-then-ask fallback?",
+      ctx: "The service proxy carries a request for 200 s, and the front proxy ends requests at 300 s, above the 180 s deadline (spike F1).",
+      meta: "Spike decision",
+      decided: "No start-then-ask fallback.",
+      date: "10 Nov 2026"
+    }
+  ];
+
+  const grid = document.getElementById("decisions-grid");
+  const count = document.getElementById("decisions-count");
+  if (!grid || !count) return;
+
+  const open = decisions.filter((d) => !d.decided).length;
+  const settled = decisions.length - open;
+  count.textContent = open + " open, " + settled + " settled";
+
+  const node = (tag, cls, text) => {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  };
+
+  const ordered = decisions.filter((d) => !d.decided).concat(decisions.filter((d) => d.decided));
+
+  ordered.forEach((d, i) => {
+    const card = node("article", "card dec");
+    card.dataset.settled = d.decided ? "true" : "false";
+
+    const head = node("div", "dec-head");
+    head.append(node("span", "pill " + (d.decided ? "ok" : "warn"), d.decided ? "Settled" : "Open"));
+
+    const question = node("h3", null, d.q);
+    question.id = "decisions-q-" + i;
+    card.setAttribute("aria-labelledby", question.id);
+
+    card.append(head, question);
+    if (d.meta) card.append(node("span", "dec-meta", d.meta));
+    card.append(node("p", null, d.ctx));
+
+    if (d.options) {
+      const list = node("ul", "dec-options");
+      d.options.forEach((option) => list.append(node("li", null, option)));
+      card.append(list);
+    }
+    if (d.rec) card.append(node("p", "dec-rec", "Recommended: " + d.rec));
+    if (d.decided) {
+      const prefix = d.date ? "Decided " + d.date + ": " : "Decided: ";
+      card.append(node("p", "dec-done", prefix + d.decided));
+    }
+
+    grid.append(card);
+  });
+})();
+</script>
+</body>
+</html>
