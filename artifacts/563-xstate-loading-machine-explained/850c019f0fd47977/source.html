@@ -1,0 +1,1599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From backend progress to the editor screen (#563)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..600&family=JetBrains+Mono:wght@400..500&display=swap">
+<style>
+  /* Kiln design system (proposal, 10 Nov 2026). Every color comes from this token block. */
+  :root {
+    color-scheme: light;
+    --kiln-bg: #faf9f5; --kiln-surface: #ffffff; --kiln-surface-2: #f0eee6;
+    --kiln-line: #e8e6dc; --kiln-line-strong: #d1cfc5;
+    --kiln-text: #141413; --kiln-muted: #5e5d59;
+    --kiln-accent: #d97757; --kiln-accent-strong: #c6613f;
+    --kiln-ok: #1d6956; --kiln-ok-wash: #e9f3ef;
+    --kiln-warn: #8a5a00; --kiln-warn-wash: #faf7e6;
+    --kiln-bad: #b3261e; --kiln-bad-wash: #fbeceb;
+    --kiln-accent-wash: color-mix(in srgb, var(--kiln-accent) 16%, var(--kiln-surface));
+    --kiln-sans: "Anthropic Sans", "Hanken Grotesk", system-ui, sans-serif;
+    --kiln-mono: "Anthropic Mono", "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --kiln-bg: #191919; --kiln-surface: #1f1f1f; --kiln-surface-2: #2a2a2a;
+      --kiln-line: #2e2e2e; --kiln-line-strong: #3d3d3d;
+      --kiln-text: #efefef; --kiln-muted: #9c9c9c;
+      --kiln-ok: #53c556; --kiln-ok-wash: #263627; --kiln-warn: #e49c06; --kiln-warn-wash: #3b301c;
+      --kiln-bad: #f17778; --kiln-bad-wash: #3c2b2b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --kiln-bg: #191919; --kiln-surface: #1f1f1f; --kiln-surface-2: #2a2a2a;
+    --kiln-line: #2e2e2e; --kiln-line-strong: #3d3d3d;
+    --kiln-text: #efefef; --kiln-muted: #9c9c9c;
+    --kiln-ok: #53c556; --kiln-ok-wash: #263627; --kiln-warn: #e49c06; --kiln-warn-wash: #3b301c;
+    --kiln-bad: #f17778; --kiln-bad-wash: #3c2b2b;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--kiln-bg); }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font-family: var(--kiln-sans); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-block: 40px 72px; }
+  .prose { max-width: 68ch; }
+  a { color: var(--kiln-text); text-decoration: underline; text-decoration-color: var(--kiln-accent); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; border-radius: 4px; }
+  .mono { font-family: var(--kiln-mono); font-size: 12.5px; letter-spacing: 0.01em; }
+  .muted { color: var(--kiln-muted); }
+  h1 { margin: 0; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; text-wrap: balance; }
+  h2 { margin: 0 0 16px; font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  h2 .count { font-family: var(--kiln-mono); font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--kiln-muted); }
+  h3 { margin: 28px 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--kiln-muted); }
+  code { font-variant-ligatures: none; font-family: var(--kiln-mono); font-size: 0.84em; background: var(--kiln-surface-2); border-radius: 5px; padding: 1px 5px; }
+  pre { font-family: var(--kiln-mono); font-size: 12px; line-height: 1.6; background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 10px; padding: 14px 16px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-variant-ligatures: none; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  header.top { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
+  header.top .lead { margin: 0; color: var(--kiln-muted); font-size: 17px; max-width: 64ch; }
+  nav.toc { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--kiln-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--kiln-line); margin: 0 -16px 40px; padding: 8px 16px; }
+  nav.toc ul { overflow-x: auto; list-style: none; display: flex; gap: 4px 18px; margin: 0; padding: 2px 0; white-space: nowrap; font-size: 14px; }
+  nav.toc li { margin: 0; }
+  nav.toc a { text-decoration: none; color: var(--kiln-muted); }
+  nav.toc a:hover { color: var(--kiln-text); text-decoration: underline; text-decoration-color: var(--kiln-accent); }
+  section { padding-bottom: 48px; margin-bottom: 48px; border-bottom: 1px solid var(--kiln-line); scroll-margin-top: 64px; }
+  section:last-of-type { border-bottom: 0; margin-bottom: 0; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-family: var(--kiln-mono); font-size: 12px; line-height: 1.5; white-space: nowrap; background: var(--kiln-surface-2); color: var(--kiln-muted); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border: 1px solid var(--kiln-line); border-radius: 16px; background: var(--kiln-surface); margin: 0 0 18px; }
+  .stat { padding: 16px 18px; border-right: 1px solid var(--kiln-line); }
+  .stat:last-child { border-right: 0; }
+  .stat .n { font-size: 28px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.1; }
+  .stat .l { font-family: var(--kiln-mono); font-size: 12px; color: var(--kiln-muted); margin-top: 6px; }
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .verdict, .pair { grid-template-columns: 1fr; } .stat { border-right: 0; border-bottom: 1px solid var(--kiln-line); } }
+  .side { border-top: 2px solid var(--kiln-line-strong); padding-top: 10px; }
+  .side.ok { border-top-color: var(--kiln-ok); }
+  .side.warn { border-top-color: var(--kiln-warn); }
+  .side h3 { margin: 0 0 6px; font-size: 15px; }
+  .side ul { margin: 0; font-size: 15px; color: var(--kiln-muted); }
+
+  .figure { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 14px; margin: 0 0 14px; overflow-x: auto; }
+  .figure svg { display: block; width: 100%; min-width: 880px; height: auto; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface); margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.5; }
+  th { text-align: left; font-family: var(--kiln-mono); font-weight: 400; font-size: 12px; color: var(--kiln-muted); background: var(--kiln-surface-2); padding: 9px 12px; border-bottom: 1px solid var(--kiln-line); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--kiln-line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: 12.5px; }
+  td:first-child { font-weight: 600; }
+  .callout { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 12px 16px; margin: 0 0 18px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 10px; }
+  .snippet { margin: 0; min-width: 0; }
+  .snippet figcaption { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+  .why { color: var(--kiln-muted); font-size: 15px; }
+  .regions { list-style: none; padding: 0; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .regions li { margin: 0; font-size: 15px; color: var(--kiln-muted); }
+  .regions code { color: var(--kiln-text); }
+
+  .steps { list-style: none; padding: 0; margin: 0; }
+  .steps > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 14px; margin: 0; }
+  .steps .rail { display: flex; flex-direction: column; align-items: center; }
+  .steps .code { font-family: var(--kiln-mono); font-size: 12px; font-weight: 500; width: 36px; height: 30px; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--kiln-line); background: var(--kiln-bg); }
+  .steps .line { flex: 1; width: 2px; background: var(--kiln-line); margin-block: 4px; min-height: 16px; }
+  .steps > li:last-child .line { display: none; }
+  .steps .body { padding-bottom: 20px; min-width: 0; }
+  .steps .head { min-height: 30px; display: flex; align-items: center; }
+  .steps .title { font-size: 16px; font-weight: 600; }
+  .steps .body p { color: var(--kiln-muted); font-size: 15px; margin: 2px 0 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 0 0 18px; }
+  .io { border-top: 2px solid var(--kiln-line-strong); padding-top: 10px; }
+  .io p { margin: 8px 0 0; font-size: 15px; color: var(--kiln-muted); }
+  .io code { color: var(--kiln-text); }
+  td .pill { margin-left: 6px; }
+  footer { color: var(--kiln-muted); }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="mono muted" style="margin:0">Issue #563 · MR !718 · commit 35d511ba · updated 13 Nov 2026</p>
+    <h1>From backend progress to the editor screen</h1>
+    <p class="lead">The editor now reads one editor state, from the live chat stream while a build runs and from one GET otherwise. This page shows where the work stands, how it was tested, and how the backend, the frontend and XState connect.</p>
+  </header>
+
+  <nav class="toc" aria-label="Sections">
+    <ul>
+      <li><a href="#status">Status</a></li>
+      <li><a href="#results">Tests</a></li>
+      <li><a href="#requests">API requests</a></li>
+      <li><a href="#transport">Phase journey</a></li>
+      <li><a href="#reload">After a reload</a></li>
+      <li><a href="#input-sources">All inputs</a></li>
+      <li><a href="#boundary">XState boundary</a></li>
+      <li><a href="#glance">At a glance</a></li>
+      <li><a href="#decides">What it decides</a></li>
+      <li><a href="#before">Before</a></li>
+      <li><a href="#after">After</a></li>
+      <li><a href="#files">Files</a></li>
+      <li><a href="#wiring">Frontend wiring</a></li>
+      <li><a href="#ideas">XState ideas</a></li>
+      <li><a href="#regions">Regions</a></li>
+      <li><a href="#phases">Phases</a></li>
+      <li><a href="#build">A real build</a></li>
+      <li><a href="#compare">Side by side</a></li>
+      <li><a href="#costs">Gains and costs</a></li>
+      <li><a href="#change">Changing it</a></li>
+    </ul>
+  </nav>
+
+<section id="status" aria-labelledby="status-title">
+    <h2 id="status-title">Where the work stands <span class="count">MR !718 · open · 13 Nov 2026</span></h2>
+
+    <div class="stats">
+      <div class="stat"><div class="n">!718</div><div class="l">merge request, open, targets staging</div></div>
+      <div class="stat"><div class="n">4</div><div class="l">commits on 13 Nov</div></div>
+      <div class="stat"><div class="n">81</div><div class="l">files changed, 3807 added, 1058 removed</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">new migration, b7e3c5a91d24</div></div>
+      <div class="stat"><div class="n">0</div><div class="l">conflicts in the staging merge</div></div>
+    </div>
+
+    <div class="prose">
+      <p><span class="pill warn">open</span> MR !718 is not merged. Branch <code>feat/563-editor-loading-statechart</code> holds all four 13 Nov commits.</p>
+    </div>
+
+    <h3>Three decisions, 13 Nov</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Decision</th><th scope="col">What it means</th></tr></thead>
+      <tbody>
+        <tr><td>Keep two delivery paths: the live chat stream and a GET as the fallback.</td><td>The stream has no delay. The GET answers after a reload.</td></tr>
+        <tr><td>Send one shape, <code>EditorState</code>, from a dedicated endpoint.</td><td>The view model reads one object and parses nothing.</td></tr>
+        <tr><td>Do not store the label. Drop <code>active_generations.progress_label</code> in one migration now.</td><td>There are no customers yet, and the deploy happens while there is no traffic.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>What changed</h3>
+    <div class="prose">
+      <p>The editor used to read three server shapes. It now reads one object, <code>EditorState</code>, from two paths. While a build turn streams, every generation field comes from the stream. The preview fields always come from the GET.</p>
+      <p>The label is not stored. The server computes it from the phase. The GET also fills the preview fields from the development deployment row, and it never fills the file counts.</p>
+      <p>The frontend deletes <code>derivePreviewState</code>, <code>preview-state.ts</code>, <code>build-progress-store.ts</code>, <code>build-progress-mirror.tsx</code> and the client-side file counting. It adds <code>select-editor-state.ts</code>, <code>live-editor-state-store.ts</code>, <code>live-editor-state-mirror.tsx</code> and <code>use-generating-editor-state.ts</code>.</p>
+    </div>
+
+    <h3>The one contract</h3>
+    <div class="prose">
+      <p>The GET is <code>GET /api/v1/apps/{app_id}/editor-state</code>. The stream is <code>POST /api/v1/chat/stream</code>. Both send the same type. The last two columns say which path fills a field.</p>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Field</th><th scope="col">What it means</th><th scope="col">GET</th><th scope="col">Stream</th></tr></thead>
+      <tbody>
+        <tr><td><code>is_generating</code></td><td>A generation is running for this app.</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><code>is_bootstrap</code></td><td>This build is the app's first build.</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><code>phase</code></td><td>The generation phase. Otherwise <code>syncing</code>, <code>provisioning</code> or <code>idle</code>.</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><code>label</code></td><td>The phase text while a generation runs, else null.</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><code>files_written</code></td><td>Files written in this turn. The count only rises.</td><td>No, always null</td><td>Yes, starts at 0</td></tr>
+        <tr><td><code>files_planned</code></td><td>Files this turn plans to write.</td><td>No, always null</td><td>Yes</td></tr>
+        <tr><td><code>preview_status</code></td><td>One of <code>no_deployment</code>, <code>provisioning</code>, <code>running</code>, <code>syncing</code>, <code>failed</code>, <code>stopped</code>.</td><td>Yes</td><td>No, always null</td></tr>
+        <tr><td><code>preview_url</code></td><td>The preview address, while the preview runs or syncs.</td><td>Yes</td><td>No, always null</td></tr>
+        <tr><td><code>synced_snapshot_version</code></td><td>The snapshot version the live preview has loaded.</td><td>Yes</td><td>No, always null</td></tr>
+        <tr><td><code>preview_error_message</code></td><td>The failure text, when the preview fails.</td><td>Yes</td><td>No, always null</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="prose">
+      <p>The preview status comes from the development deployment row:</p>
+      <ul>
+        <li>A RUNNING row with no URL reads as <code>provisioning</code>.</li>
+        <li>A RUNNING row with files syncing reads as <code>syncing</code>.</li>
+        <li>STOPPED and DEPROVISIONED read as <code>stopped</code>.</li>
+      </ul>
+      <p>Ownership follows the app read. Another user's app returns 403 with the text "Not your app". An unknown app returns 404. A request with no token returns 401.</p>
+    </div>
+
+    <h3>The label comes from the phase</h3>
+    <div class="prose">
+      <p><code>ProgressPhase.label</code> holds one text per phase. The migration dropped the stored column, so the phase is the only source.</p>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Phase</th><th scope="col">Label</th></tr></thead>
+      <tbody>
+        <tr><td><code>preparing</code></td><td>Menyiapkan…</td></tr>
+        <tr><td><code>planning</code></td><td>Menyusun rencana…</td></tr>
+        <tr><td><code>writing_code</code></td><td>Menulis kode…</td></tr>
+        <tr><td><code>making_images</code></td><td>Membuat gambar…</td></tr>
+        <tr><td><code>validating</code></td><td>Memvalidasi…</td></tr>
+        <tr><td><code>repairing</code></td><td>Memperbaiki…</td></tr>
+        <tr><td><code>syncing</code></td><td>Menyinkronkan preview…</td></tr>
+        <tr><td><code>saving_files</code></td><td>Menyimpan file…</td></tr>
+        <tr><td><code>updating_preview</code></td><td>Memperbarui preview…</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>How the work was done</h3>
+    <div class="grid3">
+      <div class="io"><div class="pill">1 · contract</div><p>The manager wrote the contract first: one type, two delivery paths, one label per phase.</p></div>
+      <div class="io"><div class="pill">2 · build</div><p>Two subagents built the backend and the frontend in parallel against that contract.</p></div>
+      <div class="io"><div class="pill ok">3 · test</div><p>Three subagents ran the live tests in parallel on the local stack.</p></div>
+    </div>
+
+    <div class="verdict">
+      <div class="side ok"><h3>Done</h3><ul>
+        <li>All four 13 Nov commits are on the branch. The MR targets <code>staging</code>.</li>
+        <li>The server returns one <code>EditorState</code>, and the stream sends the same type.</li>
+        <li>The editor reads one object. The view model parses nothing.</li>
+        <li>The label comes from the phase. The branch has one migration head.</li>
+        <li>Seven automated checks passed, and the live run passed on the local stack. <span class="pill ok">pass</span></li>
+      </ul></div>
+      <div class="side warn"><h3>Open</h3><ul>
+        <li><span class="pill warn">decision</span> Remove <code>active_generation</code> from the app GET? It is a public response change.</li>
+        <li><span class="pill warn">decision</span> Deploy while there is no traffic: an old server still running after the migration fails its builds.</li>
+        <li><span class="pill warn">unchecked</span> Staging and production.</li>
+        <li><span class="pill warn">unchecked</span> The app GET's computed label while a generation runs. Unit tests cover it.</li>
+        <li><span class="pill warn">unchecked</span> The repairing phase in the live run.</li>
+        <li>Three earlier LB-2 items wait for Jonathan. They are the stale Validating flash, Making images rarely showing, and the first-build scene covering the preview.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="results" aria-labelledby="results-title">
+    <h2 id="results-title">Test results <span class="count">7 automated checks · 14 live checks</span></h2>
+
+    <h3>Automated checks</h3>
+    <div class="prose">
+      <p>All seven checks ran on the combined tree on 13 Nov.</p>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Check</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>make lint</code> (Pyright, black)</td><td>0 errors, formatting clean <span class="pill ok">pass</span></td></tr>
+        <tr><td><code>make test-unit</code></td><td>4,258 passed, 13 skipped <span class="pill ok">pass</span></td></tr>
+        <tr><td><code>make test-integration</code></td><td>260 passed <span class="pill ok">pass</span></td></tr>
+        <tr><td>PostgreSQL tests, including the migration upgrade, then downgrade, then upgrade</td><td>37 passed <span class="pill ok">pass</span></td></tr>
+        <tr><td><code>make test-admin</code></td><td>291 passed <span class="pill ok">pass</span></td></tr>
+        <tr><td><code>make web-verify</code> (types, lint, format, tests)</td><td>1,204 passed <span class="pill ok">pass</span></td></tr>
+        <tr><td><code>pnpm test:editor-loading</code> (Storybook journeys)</td><td>6 passed <span class="pill ok">pass</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Live run</h3>
+    <div class="prose">
+      <p>This run used the local stack on 13 Nov. The text models answered through the ChatGPT subscription gateway, which <code>make dev-chatgpt-enable</code> turns on.</p>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Test</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+        <tr><td>Two new-app first builds</td><td>Both completed. The generated site appeared in the preview without a manual refresh. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Two edit turns on an existing app (Studio Lini)</td><td>Both completed. The changed heading appeared. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Live stream <code>editorState</code> on a real build</td><td>Phases in order: preparing → planning → writing_code → syncing → validating → saving_files → updating_preview, then null. The label matched the phase after every update, and the preview fields stayed null. The file count started at 0 and only rose. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Editor-state GET during builds</td><td>148 samples. All labels matched the phase, and the file counts were always null. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Reload mid-build</td><td>The saved phase's screen and label came back, with no invented file count. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Edit turn: preview under the overlay</td><td>The same iframe stayed mounted under the build overlay. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Testing badge</td><td>Shown during validation, with the preview visible. Repairing did not happen in the edit turns. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Auto reload after a build</td><td>The preview reloaded itself (snapshot version 1 to 2). <span class="pill ok">pass</span></td></tr>
+        <tr><td>App GET refresh</td><td>Refetched when <code>preview_status</code> changed. The publish popover's preview link was correct. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Polling cadence</td><td>About 5 s while running, about 3 s while syncing. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Editor-state GET on 10 apps</td><td>All matched their deployment rows (running, stopped, no deployment). <span class="pill ok">pass</span></td></tr>
+        <tr><td>Access control</td><td>Another user's app returns 403, an unknown app returns 404, and no token returns 401. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Database</td><td><code>active_generations</code> has no <code>progress_label</code>, and alembic is at <code>b7e3c5a91d24</code>. Finished runs' <code>chat_generation_runs.progress_label</code> came from the phase. <span class="pill ok">pass</span></td></tr>
+        <tr><td>Browser console</td><td>No errors in the edit-turn session. <span class="pill ok">pass</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="callout prose">
+      <p><strong>Found and fixed.</strong> A failed editor-state read left the preview on its loading skeleton forever. The old code showed "Tidak ada workspace tersedia". Commit <code>35d511ba</code> fixes it and adds a test.</p>
+    </div>
+
+    <h3>Older behavior seen, not changed</h3>
+    <div class="prose"><ul>
+      <li>A seeded or pushed app's first chat message counts as a first build, because no earlier assistant turn made its files. That build hides the running preview behind the full loading scene. Later messages are normal edit turns.</li>
+      <li>A new app shows "Tidak ada workspace tersedia" for about 3 to 5 s, until its preview deployment row exists. The old code did the same.</li>
+      <li>After a build, the overlay shows the syncing text for 4 s. The generic text appears only during the final 0.5 s fade. The old code did the same.</li>
+      <li>Two server errors did not come from this work. The worker's feature-flag cache file is corrupt. The file is stale. The thumbnail screenshot job fails because it needs a Kubernetes cluster, and the local stack has none.</li>
+    </ul></div>
+
+    <h3>Not checked</h3>
+    <div class="prose"><ul>
+      <li>Staging and production.</li>
+      <li>The app GET's computed label while a generation runs. Unit tests cover it.</li>
+      <li>The repairing phase in the live run.</li>
+    </ul></div>
+  </section>
+
+  <section id="requests" aria-labelledby="requests-title">
+    <h2 id="requests-title">Which requests does the browser make? <span class="count">2 reads · 1 stream · 1 check</span></h2>
+    <div class="callout prose"><p>The backend now reports the editor's own state as one object, <code>EditorState</code>. Two paths deliver it. The editor-state GET returns the saved state. The chat stream sends live state while a turn runs.</p><p>The app GET leaves the loading flow. It still supplies the app's data, such as its name, its admin panel, its publish link and its suggestion chips.</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Request</th><th>When the editor uses it</th><th>What the backend returns</th><th>Editor receiver</th></tr></thead><tbody>
+    <tr><td><code>GET /api/v1/apps/{app_id}/editor-state</code></td><td>On load, from the server prefetch and the client query. Then on a timer: every 5 s while the preview runs, and every 3 s otherwise.</td><td>One <code>EditorState</code>. The generation fields come from the saved marker. The preview fields come from the development deployment.</td><td><code>usePreviewViewModel</code> → <code>select-editor-state.ts</code> → <code>OBSERVE</code></td></tr>
+    <tr><td><code>POST /api/v1/chat/stream</code></td><td>Sends chat commands with <code>app_id</code>. A build turn runs through this connection.</td><td>An ongoing response stream. Its <code>ChatTransportState</code> carries <code>editorState</code> while the turn runs, with the generation fields only.</td><td><code>ChatRuntimeProvider</code> → <code>LiveEditorStateMirror</code> → <code>live-editor-state-store</code></td></tr>
+    <tr><td><code>POST /api/v1/apps/{app_id}/deployments/dev/ensure</code></td><td>Checks the workspace on editor load when a dev deployment exists, or on retry.</td><td>The deployment response. The hook refreshes the app GET and the editor-state GET.</td><td><code>useEnsureDevDeployment</code>. Its pending flag becomes <code>isVerifying</code>.</td></tr>
+    <tr><td><code>GET /api/v1/apps/{app_id}</code></td><td>Reads the app on load. Refreshed when <code>preview_status</code> or <code>preview_url</code> changes.</td><td>The app JSON. It still contains <code>active_generation</code> and <code>current_dev_deployment</code> for other readers.</td><td>React Query, the shared cache of API results. The editor no longer reads those two fields.</td></tr>
+    </tbody></table></div>
+    <div class="prose"><p>These are the requests relevant to this loading flow, not every editor endpoint. The backend reads the database. The browser never connects to the database directly.</p><p>Polling means fetching the same endpoint again on a timer. The interval follows the preview. While the preview runs, the editor polls the editor state every 5 seconds. In every other state it polls every 3 seconds. A build is the busy case, so it gets the faster poll.</p><p>Before this change, the editor read <code>active_generation</code> and <code>current_dev_deployment</code> from the app GET. It now reads one <code>EditorState</code> from a dedicated endpoint, so the view model parses nothing.</p><p>Two other events refresh the caches. When the preview status or URL changes, the editor refetches the app GET. That keeps the admin panel, the publish link and the suggestion chips current. When the ensure request finishes, both queries are marked stale.</p></div>
+  </section>
+  <section id="transport" aria-labelledby="transport-title">
+    <h2 id="transport-title">Follow one phase from backend to screen <span class="count">writing_code</span></h2>
+    <div class="prose"><p>The turn writes its phase into live chat state. It also saves the phase on its active-generation marker. The phase therefore arrives from two places. The stream pushes it during the turn. The editor-state GET returns it from the marker and the deployment row.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 600" role="img" aria-label="A phase reaches the screen by two paths: the chat stream carries the live editor state, and the editor-state GET carries the saved marker and the deployment row. Both enter select-editor-state, then OBSERVE, the XState actor and the screen.">
+<defs><marker id="w563aarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.w563abox{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong)}.w563at{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.w563as{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.w563ac{fill:var(--kiln-text);font:11px var(--kiln-mono)}.w563al{fill:none;stroke:var(--kiln-muted);stroke-width:1.5;marker-end:url(#w563aarr)}.w563ah{fill:var(--kiln-muted);font:600 10.5px var(--kiln-mono);letter-spacing:0.08em}</style>
+<text class="w563ah" x="20" y="20">BACKEND</text><text class="w563ah" x="392" y="20">HTTP</text><text class="w563ah" x="660" y="20">FRONTEND</text>
+<line x1="372" y1="30" x2="372" y2="350" stroke="var(--kiln-line)" stroke-dasharray="4 4"/>
+<line x1="648" y1="30" x2="648" y2="350" stroke="var(--kiln-line)" stroke-dasharray="4 4"/>
+
+<rect class="w563abox" x="20" y="44" width="330" height="92" rx="10"/>
+<text class="w563at" x="36" y="70">The turn reports a phase</text><text class="w563ac" x="36" y="96">editorState.phase = writing_code</text><text class="w563as" x="36" y="120">In-memory state of the live turn</text>
+<path class="w563al" d="M350 90H386"/>
+<rect class="w563abox" x="392" y="44" width="250" height="92" rx="10"/>
+<text class="w563ac" x="406" y="78">POST /api/v1/chat/stream</text><text class="w563as" x="406" y="102">ongoing response stream</text><text class="w563as" x="406" y="122">carries editorState</text>
+<path class="w563al" d="M642 90H654"/>
+<rect class="w563abox" x="660" y="44" width="300" height="92" rx="10"/>
+<text class="w563at" x="676" y="70">Stream editorState</text><text class="w563as" x="676" y="94">Generation fields only</text><text class="w563as" x="676" y="114">Preview fields are null</text>
+
+<rect class="w563abox" x="20" y="160" width="330" height="78" rx="10"/>
+<text class="w563at" x="36" y="184">Generation marker row</text><text class="w563ac" x="36" y="208">active_generations.phase</text><text class="w563as" x="36" y="230">Survives a browser reload</text>
+<rect class="w563abox" x="20" y="254" width="330" height="78" rx="10"/>
+<text class="w563at" x="36" y="278">Development deployment row</text><text class="w563ac" x="36" y="302">deployments.status = running</text><text class="w563as" x="36" y="324">Status, URL, snapshot version</text>
+<path class="w563al" d="M350 199H386"/>
+<path class="w563al" d="M350 293H386"/>
+<rect class="w563abox" x="392" y="160" width="250" height="172" rx="10"/>
+<text class="w563ac" x="406" y="190">GET /api/v1/apps/{app_id}/</text><text class="w563ac" x="406" y="208">editor-state</text><text class="w563as" x="406" y="234">Polled every 5 s while the</text><text class="w563as" x="406" y="252">preview runs, every 3 s</text><text class="w563as" x="406" y="270">otherwise</text><text class="w563as" x="406" y="300">One object, every field</text>
+<path class="w563al" d="M642 246H654"/>
+<rect class="w563abox" x="660" y="160" width="240" height="172" rx="10"/>
+<text class="w563at" x="676" y="184">GET EditorState</text><text class="w563as" x="676" y="208">Preview fields set</text><text class="w563ac" x="676" y="232">files_written: null</text><text class="w563ac" x="676" y="252">files_planned: null</text><text class="w563as" x="676" y="282">The saved marker keeps</text><text class="w563as" x="676" y="302">no file counts</text>
+
+<path class="w563al" d="M930 136V366"/>
+<path class="w563al" d="M810 332V366"/>
+<rect class="w563abox" x="20" y="372" width="940" height="64" rx="10"/>
+<text class="w563at" x="36" y="396">select-editor-state.ts</text><text class="w563ac" x="36" y="420">selectEditorState(saved, live, isLiveRequest)</text><text class="w563as" x="600" y="396">One choice between the two sources</text><text class="w563as" x="600" y="420">Live generation fields win whole</text>
+
+<path class="w563al" d="M490 436V446H165V454"/>
+<rect class="w563abox" x="20" y="460" width="290" height="76" rx="10"/>
+<text class="w563at" x="36" y="484">OBSERVE</text><text class="w563ac" x="36" y="508">send({ type: &quot;OBSERVE&quot;, … })</text><text class="w563as" x="36" y="528">{ appId, editorState, isVerifying }</text>
+<path class="w563al" d="M310 498H344"/>
+<rect class="w563abox" x="350" y="460" width="280" height="76" rx="10"/>
+<text class="w563at" x="366" y="484">XState actor</text><text class="w563ac" x="366" y="508">preview-loading.machine.ts</text><text class="w563as" x="366" y="528">Same regions, guards and timers</text>
+<path class="w563al" d="M630 498H664"/>
+<rect class="w563abox" x="670" y="460" width="290" height="76" rx="10"/>
+<text class="w563at" x="686" y="484">Screen</text><text class="w563ac" x="686" y="508">PreviewContent</text><text class="w563as" x="686" y="528">switch (loading.screen)</text>
+
+<text class="w563as" x="20" y="566">The label is never a stored field. Each phase carries its own label.</text>
+<text class="w563as" x="20" y="584">Preview fields never come from the stream, because the stream does not read the deployment.</text>
+</svg></div>
+    <h3>What each path carries</h3>
+    <div class="prose"><p>These are example payloads, not a network capture. The field names are real. The values marked as examples are invented for this page. Fields that are always null on that path are marked too.</p></div>
+    <div class="pair"><figure class="snippet"><figcaption><span class="pill">Live stream</span><span class="mono muted">ChatTransportState.editorState</span></figcaption><pre><code>// While a build turn runs. Generation
+// fields only. Other fields omitted.
+{
+  is_generating: true,
+  is_bootstrap: true,               // example
+  phase: &quot;writing_code&quot;,            // example
+  label: &quot;Menulis kode…&quot;,           // example
+  files_written: 4,                 // example
+  files_planned: 12,                // example
+  preview_status: null,             // always
+  preview_url: null,                // always
+  synced_snapshot_version: null,    // always
+  preview_error_message: null       // always
+}</code></pre></figure><figure class="snippet"><figcaption><span class="pill">Editor-state GET</span><span class="mono muted">EditorState</span></figcaption><pre><code>// The same turn, read from the marker
+// and the deployment row. Other fields
+// omitted.
+{
+  is_generating: true,
+  is_bootstrap: true,               // example
+  phase: &quot;writing_code&quot;,            // example
+  label: &quot;Menulis kode…&quot;,           // example
+  files_written: null,              // no counts
+  files_planned: null,              // no counts
+  preview_status: &quot;running&quot;,        // example
+  preview_url: &quot;https://preview.example&quot;, // example
+  synced_snapshot_version: 12,      // example
+  preview_error_message: null
+}</code></pre></figure></div>
+    <div class="prose"><p>The stream starts its file count at 0, and the count only rises. The GET never reports a count, because the saved marker keeps none. The stream fills <code>editorState</code> when a build turn runs. It is null when the turn ends, and absent on question turns.</p></div>
+    <h3>Which fields win if both paths have data?</h3>
+    <pre><code>// apps/web/src/domains/editor/preview/select-editor-state.ts
+export function selectEditorState(
+  savedEditorState: EditorState | undefined,
+  liveEditorState: EditorState | null,
+  isLiveRequest: boolean
+): EditorState | null {
+  if (!savedEditorState) return null;
+
+  if (liveEditorState) {
+    return {
+      ...savedEditorState,
+      is_generating: true,
+      is_bootstrap: liveEditorState.is_bootstrap,
+      phase: liveEditorState.phase ?? null,
+      label: liveEditorState.label ?? null,
+      files_written: liveEditorState.files_written ?? null,
+      files_planned: liveEditorState.files_planned ?? null,
+    };
+  }
+
+  return {
+    ...savedEditorState,
+    is_generating: savedEditorState.is_generating || isLiveRequest,
+  };
+}</code></pre>
+    <div class="prose"><p>While the stream has an <code>editorState</code>, its generation fields win as a group. A live null phase stays null. The editor never falls back to the saved phase during a live turn. The preview fields always come from the saved side, because only the GET reads the deployment.</p><p>With no live state, the saved object is the whole answer. One extra flag still applies: a local chat request in flight also reads as generating.</p><p><code>updating_preview</code> arrives only on the stream. It arrives with <code>is_generating: true</code>, after the backend deletes the saved marker. The editor-state GET can never report it.</p></div>
+    <h3>The label comes from the phase</h3>
+    <pre><code># db/db/models/enums.py
+class ProgressPhase(str, enum.Enum):
+    PREPARING = &quot;preparing&quot;
+    PLANNING = &quot;planning&quot;
+    WRITING_CODE = &quot;writing_code&quot;
+    …
+
+    @property
+    def label(self) -&gt; str:
+        &quot;&quot;&quot;The user-facing text for this phase. Derived, never stored (#563).&quot;&quot;&quot;
+        return _PROGRESS_PHASE_LABELS[self]</code></pre>
+    <div class="prose"><p>Nothing stores the label. The backend computes it from the phase on every response. Migration <code>b7e3c5a91d24</code> drops <code>active_generations.progress_label</code> for that reason. The editor shows the label that arrives. When no label arrives, for example on a syncing preview, the editor uses its own fixed copy for that screen.</p></div>
+  </section>
+  <section id="reload" aria-labelledby="reload-title">
+    <h2 id="reload-title">What changes when I reload? <span class="count">live turn vs saved state</span></h2>
+    <div class="verdict"><div class="side"><h3>While this tab has the live stream</h3><ol><li>The browser sends the chat POST.</li><li>The response keeps delivering chat state, with <code>editorState</code> inside it.</li><li><code>LiveEditorStateMirror</code> copies that value into <code>live-editor-state-store</code>.</li><li>The merge lets the live generation fields win, so the phase, label and file counts come from the stream.</li></ol></div>
+    <div class="side"><h3>After the browser reloads</h3><ol><li>The original live connection is gone.</li><li>The server prefetch and the client query fetch <code>GET /api/v1/apps/{app_id}/editor-state</code>.</li><li>That one object supplies every field: phase, label, preview status and preview URL.</li><li>The chat overlay polls the same GET every 3 s while <code>is_generating</code> is true. When it turns false, the editor refreshes chat history.</li></ol></div></div>
+    <div class="prose"><p>With no live stream, the GET is the only source. The saved marker holds the generation phase and <code>is_bootstrap</code>. The development deployment holds the preview status, the URL and the snapshot version. The backend joins them into one <code>EditorState</code>.</p><p>The saved marker keeps no file counts. After a reload, <code>files_written</code> and <code>files_planned</code> are null. The screen shows the phase and its label without an invented number. A mid-build reload in the live run brought back the saved screen and label, with no file count.</p><p>The label survives the reload because the backend derives it from the saved phase. Nothing has to read text back out of the database to find it.</p></div>
+    <div class="callout prose"><p>One shape, two delivery paths. A reload loses the live file counts. It does not lose the phase, the label or the preview state, because the GET reads all three from the database.</p><p>When a live turn finishes, the chat runtime refreshes the app GET and the editor-state GET. A recovered turn waits for its own poll to report the end.</p></div>
+  </section>
+  <section id="input-sources" aria-labelledby="input-sources-title">
+    <h2 id="input-sources-title">Where do all the screen inputs come from? <span class="count">backend + browser</span></h2>
+    <div class="table-wrap"><table><thead><tr><th>Input to the loading flow</th><th>Original source</th><th>Frontend path</th></tr></thead><tbody>
+    <tr><td><code>editorState</code> (merged)</td><td>Editor-state GET for every field. The live stream supplies the generation fields while a turn runs.</td><td><code>selectEditorState</code> merges the two. <code>usePreviewLoadingViewModel</code> sends the result in <code>OBSERVE</code>.</td></tr>
+    <tr><td><code>isVerifying</code></td><td>Local pending flag of the workspace-check request</td><td><code>useEnsureDevDeployment</code> → <code>PreviewContent</code> → view model → <code>OBSERVE</code>. This is not a backend generation phase.</td></tr>
+    <tr><td><code>appId</code></td><td>The editor route parameter</td><td><code>PreviewPanel</code> prop → view model → <code>OBSERVE</code>. A change sends the machine back to its first state.</td></tr>
+    <tr><td><code>LOAD_ARMED</code>, <code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code></td><td>Iframe mounting or reloading, and browser <code>postMessage</code> events from the preview page</td><td><code>PreviewProvider</code> → actor directly. The provider checks the message source and origin.</td></tr>
+    <tr><td>Timeouts and fades</td><td>XState's own timers</td><td>Timers update the actor. No backend request reports a fade.</td></tr>
+    </tbody></table></div>
+    <div class="prose"><p>A running deployment does not prove that its iframe is ready. The editor therefore needs browser messages as well as the editor-state GET. The GET answers what the backend knows. The iframe messages answer what the browser has loaded.</p></div>
+    <h3>Which rows replaced which</h3>
+    <ul>
+      <li><code>progress</code> and <code>activeGeneration</code> are now the generation fields of <code>editorState</code>. The stream still fills those fields live during a turn.</li>
+      <li><code>previewState</code> is now <code>editorState.preview_status</code>. The backend derives that value from the deployment row, so the client no longer derives it.</li>
+      <li><code>isGenerating</code> is now <code>editorState.is_generating</code>. The saved marker and the live stream both supply it.</li>
+    </ul>
+  </section>
+  <section id="boundary" aria-labelledby="boundary-title">
+    <h2 id="boundary-title">What does XState do with these inputs? <span class="count">no network requests</span></h2>
+    <div class="prose"><p>The view model gathers values. The actor applies display rules. The selector prepares props. The component draws them. Only the code outside the actor talks to the API.</p><p>The machine now observes three values: <code>appId</code>, <code>editorState</code> and <code>isVerifying</code>. Its regions, states, guards, timers and transitions did not change. The diagram generated from the machine is byte-identical.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 664" role="img" aria-label="Frontend interaction loop: the editor-state GET and the live stream merge in select-editor-state, then pass through the view model, OBSERVE, the XState actor, the selector and the screen. An emitted refresh goes through the provider and React Query back to the backend.">
+<defs><marker id="w563barr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--kiln-muted)"/></marker><marker id="w563bgreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--kiln-ok)"/></marker></defs>
+<style>.w563bbox{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong);stroke-width:1.4}.w563bactor{fill:var(--kiln-surface);stroke:var(--kiln-text);stroke-width:1.6}.w563bhead{font:600 14px var(--kiln-sans);fill:var(--kiln-text)}.w563bcode{font:11.5px var(--kiln-mono);fill:var(--kiln-text)}.w563bsub{font:12px var(--kiln-sans);fill:var(--kiln-muted)}.w563bline{fill:none;stroke:var(--kiln-muted);stroke-width:1.6;marker-end:url(#w563barr)}.w563beffect{fill:none;stroke:var(--kiln-ok);stroke-width:1.6;stroke-dasharray:6 4;marker-end:url(#w563bgreen)}</style>
+<text class="w563bsub" x="20" y="20">Solid arrows: data to draw. Dashed arrows: the refresh request after a turn ends.</text>
+
+<rect class="w563bbox" x="20" y="70" width="230" height="110" rx="10"/>
+<text class="w563bhead" x="35" y="96">Backend API</text><text class="w563bcode" x="35" y="122">GET …/editor-state</text><text class="w563bcode" x="35" y="142">POST /chat/stream</text><text class="w563bsub" x="35" y="164">One EditorState per path</text>
+<path class="w563bline" d="M250 125H320"/><text class="w563bsub" x="256" y="115">response</text>
+
+<rect class="w563bbox" x="326" y="70" width="300" height="130" rx="10"/>
+<text class="w563bhead" x="342" y="96">Frontend inputs</text><text class="w563bcode" x="342" y="122">editor-state GET + live stream</text><text class="w563bcode" x="342" y="142">→ select-editor-state</text><text class="w563bsub" x="342" y="168">One merged EditorState</text>
+<path class="w563bline" d="M626 125H684"/><text class="w563bsub" x="634" y="115">1. read</text>
+
+<rect class="w563bbox" x="690" y="70" width="270" height="130" rx="10"/>
+<text class="w563bhead" x="706" y="96">View model gathers inputs</text><text class="w563bcode" x="706" y="122">usePreviewLoadingViewModel</text><text class="w563bsub" x="706" y="148">Sends { appId, editorState,</text><text class="w563bsub" x="706" y="168">isVerifying } in one event</text>
+<path class="w563bline" d="M825 200V288"/><text class="w563bcode" x="832" y="236">2. send(OBSERVE)</text><text class="w563bsub" x="832" y="258">merged editor state</text>
+
+<rect class="w563bactor" x="690" y="294" width="270" height="120" rx="10"/>
+<text class="w563bhead" x="706" y="320">XState actor</text><text class="w563bsub" x="706" y="346">Updates context, applies rules,</text><text class="w563bsub" x="706" y="366">owns timers and region states</text><text class="w563bcode" x="706" y="396">NO fetch / DB / stream decoding</text>
+<path class="w563bline" d="M690 354H616"/><text class="w563bsub" x="653" y="342" text-anchor="middle">3. snapshot</text>
+
+<rect class="w563bbox" x="326" y="294" width="290" height="120" rx="10"/>
+<text class="w563bhead" x="342" y="320">Selector</text><text class="w563bcode" x="342" y="346">selectPreviewLoading</text><text class="w563bsub" x="342" y="372">snapshot → display props</text><text class="w563bsub" x="342" y="392">useSelector subscribes</text>
+<path class="w563bline" d="M326 354H236"/><text class="w563bsub" x="315" y="342" text-anchor="end">4. props</text>
+
+<rect class="w563bbox" x="20" y="294" width="210" height="120" rx="10"/>
+<text class="w563bhead" x="35" y="320">PreviewContent</text><text class="w563bsub" x="35" y="346">Draws the main screen,</text><text class="w563bsub" x="35" y="366">overlays and animation</text><text class="w563bcode" x="35" y="396">switch (loading.screen)</text>
+
+<rect class="w563bbox" x="326" y="490" width="290" height="110" rx="10"/>
+<text class="w563bhead" x="342" y="516">PreviewProvider handles the effect</text><text class="w563bcode" x="342" y="542">loadingActor.on(…)</text><text class="w563bsub" x="342" y="568">invalidateQueries for the app GET</text><text class="w563bsub" x="342" y="588">and the editor-state GET</text>
+<path class="w563beffect" d="M825 414V545H616"/><text class="w563bcode" x="803" y="470" text-anchor="end">emit invalidateDeployment</text><text class="w563bsub" x="803" y="492" text-anchor="end">refreshes both queries</text>
+<path class="w563beffect" d="M326 545H250V208H460V206"/><text class="w563bsub" x="295" y="232">both queries marked stale</text>
+<path class="w563beffect" d="M470 70V40H135V64"/><text class="w563bsub" x="152" y="58">React Query fetches fresh values</text>
+
+<text class="w563bsub" x="20" y="632">Iframe messages enter the actor through the provider. They do not pass through OBSERVE.</text>
+<text class="w563bsub" x="20" y="650">Timer transitions can also produce a new snapshot without any API response.</text>
+</svg></div>
+    <div class="prose"><p>The refresh loop is optional. When a turn ends, the actor emits <code>invalidateDeployment</code>. The provider marks the editor-state query and the app query stale. React Query fetches both again, and fresh values return through <code>OBSERVE</code>.</p><p>A second refresh runs outside the actor. The view model watches <code>preview_status</code> and <code>preview_url</code>. When either changes, it refetches the app GET, so the admin panel, the publish link and the suggestion chips stay current.</p><p>For the full event sequence, see <a href="#wiring">Frontend wiring</a>. For the display rules, see <a href="#regions">Regions</a>.</p></div>
+  </section>
+  <section id="glance" aria-labelledby="glance-title">
+    <h2 id="glance-title">At a glance</h2>
+    <div class="stats">
+      <div class="stat"><div class="n">1</div><div class="l">event in: OBSERVE, one editor state</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">parallel regions</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">timers, all owned by the machine</div></div>
+      <div class="stat"><div class="n">15</div><div class="l">machine tests, simulated clock</div></div>
+      <div class="stat"><div class="n">670 → 916</div><div class="l">lines of loading code</div></div>
+    </div>
+    <div class="verdict">
+      <div class="side ok"><h3>What XState gives</h3><ul>
+        <li>Every loading rule in one file, each with a name.</li>
+        <li>Timers start and stop with their states. No code cancels them by hand.</li>
+        <li>A diagram generated from the code, and a test that fails when it is stale.</li>
+        <li>Timer tests that run in milliseconds, without React.</li>
+        <li>One input shape, so the machine has nothing to guess.</li>
+      </ul></div>
+      <div class="side warn"><h3>What it costs</h3><ul>
+        <li>About 250 more lines, and two new packages.</li>
+        <li>New ideas for the team: regions, guards, eventless and delayed transitions.</li>
+        <li>Its own traps: one <code>reenter: true</code> restarted every region on each iframe load.</li>
+        <li>One merge rule to learn: while a turn streams, its fields win whole.</li>
+        <li>It cannot fix stale inputs.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="decides" aria-labelledby="decides-title">
+    <h2 id="decides-title">What the machine decides <span class="count">4 sources · 5 timers</span></h2>
+    <div class="prose">
+      <p>At every moment the preview panel shows one main screen, plus up to three layers on top:</p>
+      <ul>
+        <li>The main screen: a skeleton, the workspace check (Verifying), the workspace start (Provisioning), the first-build scene, the live preview, or a status message. The status message reads "failed" or "timed out".</li>
+        <li>The build overlay, with one of the ten #556 animations, which fades in and out.</li>
+        <li>The wake-up overlay while the preview page starts, and its error panel.</li>
+        <li>The testing badge, while the AI validates or repairs the site.</li>
+      </ul>
+      <p>The inputs come from four places: the live chat stream, the editor-state GET, the workspace check, and messages from the preview page. The GET carries both the saved generation and the deployment, so those two now arrive in one response and in one shape. Five timers also matter. There is a 60-second limit for starting the workspace and a 4-second bridge after a build ends. Two 0.5-second fades follow, plus a 30-second safety limit for the wake-up overlay.</p>
+    </div>
+  </section>
+
+  <section id="before" aria-labelledby="before-title">
+    <h2 id="before-title">Before: the state was spread out <span class="count">5 files</span></h2>
+    <div class="prose"><p>Each box kept its own state with React hooks (<code>useState</code>, <code>useReducer</code>, <code>useRef</code>) and started its own timers in effects. The red dashed lines are rules that crossed files. For example, the wake-up overlay was hidden by a prop set from the build overlay's phase, in a third file.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 470" role="img" aria-label="Before: loading state spread across four hooks and a provider">
+<defs><marker id="bfm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.bfst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.5}.bfold{fill:var(--kiln-surface);stroke:var(--kiln-warn);stroke-width:1.6}.bfnw{fill:var(--kiln-surface);stroke:var(--kiln-ok);stroke-width:2}.bfin{fill:var(--kiln-surface-2);stroke:var(--kiln-line);stroke-width:1.2}.bft{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.bfs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.bfln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}.bfhd{stroke:var(--kiln-bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}.bflb{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.bflr{fill:var(--kiln-bad);font:600 11px var(--kiln-sans)}</style>
+<rect class="bfin" x="10" y="15" width="300" height="95" rx="9"/>
+<text class="bft" x="22" y="35">Inputs</text>
+<text class="bfs" x="22" y="53">editor-store: live stream flag</text>
+<text class="bfs" x="22" y="68">build-progress-store: label, files</text>
+<text class="bfs" x="22" y="83">app GET poll: deployment + marker</text>
+<text class="bfs" x="22" y="98">iframe postMessage: boot / ready / error</text>
+<rect class="bfold" x="350" y="15" width="300" height="110" rx="9"/>
+<text class="bft" x="362" y="35">usePreviewViewModel</text>
+<text class="bfs" x="362" y="53">useState isTimedOut</text>
+<text class="bfs" x="362" y="68">effect: setTimeout 60 s while provisioning</text>
+<text class="bfs" x="362" y="83">effect cleanup resets the flag</text>
+<text class="bfs" x="362" y="98">returns status, or &#x27;timeout&#x27;</text>
+<rect class="bfold" x="670" y="15" width="300" height="110" rx="9"/>
+<text class="bft" x="682" y="35">usePreviewTestingSignal</text>
+<text class="bfs" x="682" y="53">matches label text against</text>
+<text class="bfs" x="682" y="68">PREVIEW_TESTING_LABELS</text>
+<text class="bfs" x="682" y="83">(&quot;Memvalidasi…&quot;, &quot;Memperbaiki…&quot;)</text>
+<text class="bfs" x="682" y="98">returns isTesting</text>
+<rect class="bfold" x="350" y="160" width="300" height="140" rx="9"/>
+<text class="bft" x="362" y="180">usePreviewGenerationOverlay</text>
+<text class="bfs" x="362" y="198">useReducer: hidden | visible | fading</text>
+<text class="bfs" x="362" y="213">useState bridging + 3 refs</text>
+<text class="bfs" x="362" y="228">effect: previous-value edge → bridge,</text>
+<text class="bfs" x="362" y="243">  invalidate query, setTimeout 4 s</text>
+<text class="bfs" x="362" y="258">effect: syncing seen → clear bridge</text>
+<text class="bfs" x="362" y="273">effect: setTimeout 0.5 s fade</text>
+<rect class="bfold" x="670" y="160" width="300" height="140" rx="9"/>
+<text class="bft" x="682" y="180">PreviewProvider</text>
+<text class="bfs" x="682" y="198">useState lifecycle: hidden | visible |</text>
+<text class="bfs" x="682" y="213">  fading | error</text>
+<text class="bfs" x="682" y="228">timeoutRef (30 s) + fadeRef (0.5 s)</text>
+<text class="bfs" x="682" y="243">beginFade(fromError) rule:</text>
+<text class="bfs" x="682" y="258">  &#x27;a timeout must not clear an error&#x27;</text>
+<text class="bfs" x="682" y="273">message listener → set state</text>
+<rect class="bfold" x="350" y="340" width="620" height="110" rx="9"/>
+<text class="bft" x="362" y="360">PreviewContent (render)</text>
+<text class="bfs" x="362" y="378">if verifying → scene   else if bootstrap marker → scene   else switch(status) …</text>
+<text class="bfs" x="362" y="393">  running|syncing → iframe + &lt;GenerationOverlay&gt; + testing badge +</text>
+<text class="bfs" x="362" y="408">  &lt;ColdStartOverlay suppressed={generationOverlay.phase !== &#x27;hidden&#x27;} /&gt;</text>
+<text class="bfs" x="362" y="423">The order of these checks is the precedence. It exists only in this function.</text>
+<path class="bfln" d="M310,60 L348,60" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,90 C330,150 330,200 348,215" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,100 C560,135 640,120 668,60" marker-end="url(#bfm)"/>
+<path class="bfln" d="M310,80 C600,150 640,140 668,215" marker-end="url(#bfm)"/>
+<path class="bfln" d="M500,125 L500,158" marker-end="url(#bfm)"/>
+<path class="bfhd" d="M820,125 L820,142 L660,142 L660,338" marker-end="url(#bfm)"/><text class="bflb" x="668" y="152" text-anchor="start">isTesting passed down</text>
+<path class="bfhd" d="M500,300 L500,338" marker-end="url(#bfm)"/><text class="bflb" x="492" y="322" text-anchor="end">overlay phase hides cold start</text>
+<path class="bfhd" d="M820,300 L820,338" marker-end="url(#bfm)"/><text class="bflb" x="828" y="322" text-anchor="start">lifecycle phase</text>
+<text class="bflr" x="10" y="150">Red dashed:</text><text class="bfs" x="10" y="166">rules that cross files.</text><text class="bfs" x="10" y="181">No single place shows</text><text class="bfs" x="10" y="196">how they combine.</text>
+<text class="bflr" x="10" y="240">5 timers</text><text class="bfs" x="10" y="256">in 3 files, each started</text><text class="bfs" x="10" y="271">and cleared by hand in</text><text class="bfs" x="10" y="286">effects or refs.</text>
+</svg></div>
+    <div class="prose"><p>This code worked. Its difficulty was that no single place described the whole flow. To answer "what does the user see if the preview page reports ready while a build is fading out?", a reviewer had to read all five files and simulate the effects in their head.</p></div>
+  </section>
+
+  <section id="after" aria-labelledby="after-title">
+    <h2 id="after-title">After: one machine owns the decisions <span class="count">1 shape · 1 machine</span></h2>
+    <div class="figure"><svg viewBox="0 0 980 430" role="img" aria-label="After: one machine owns every loading decision">
+<defs><marker id="afm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.afst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.5}.afold{fill:var(--kiln-surface);stroke:var(--kiln-warn);stroke-width:1.6}.afnw{fill:var(--kiln-surface);stroke:var(--kiln-ok);stroke-width:2}.afin{fill:var(--kiln-surface-2);stroke:var(--kiln-line);stroke-width:1.2}.aft{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.afs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.afln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}.afhd{stroke:var(--kiln-bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}.aflb{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.aflr{fill:var(--kiln-bad);font:600 11px var(--kiln-sans)}</style>
+<rect class="afin" x="10" y="20" width="270" height="95" rx="9"/>
+<text class="aft" x="22" y="40">Inputs (one shape)</text>
+<text class="afs" x="22" y="58">editorState.phase · label · files_written</text>
+<text class="afs" x="22" y="73">editorState.preview_status · preview_url</text>
+<text class="afs" x="22" y="88">editorState.is_bootstrap · is_generating</text>
+<text class="afs" x="22" y="103">isVerifying: the workspace check</text>
+<rect class="afin" x="10" y="300" width="270" height="95" rx="9"/>
+<text class="aft" x="22" y="320">Preview iframe</text>
+<text class="afs" x="22" y="338">postMessage boot / ready / error</text>
+<text class="afs" x="22" y="353">provider checks source + origin</text>
+<rect class="afnw" x="330" y="20" width="300" height="95" rx="9"/>
+<text class="aft" x="342" y="40">usePreviewLoadingViewModel</text>
+<text class="afs" x="342" y="58">reads the editor state, sends ONE event:</text>
+<text class="afs" x="342" y="73">OBSERVE {appId, editorState,</text>
+<text class="afs" x="342" y="88">isVerifying}</text>
+<rect class="afnw" x="330" y="160" width="300" height="170" rx="9"/>
+<text class="aft" x="342" y="180">previewLoadingMachine (actor)</text>
+<text class="afs" x="342" y="198">5 parallel regions:</text>
+<text class="afs" x="342" y="213">  provisioning · activity · generation</text>
+<text class="afs" x="342" y="228">  coldStart · screen</text>
+<text class="afs" x="342" y="243">owns all 5 timers (after: …)</text>
+<text class="afs" x="342" y="258">guards = named rules</text>
+<text class="afs" x="342" y="273">no React, no fetching, no DOM</text>
+<rect class="afst" x="330" y="370" width="300" height="50" rx="9"/>
+<text class="aft" x="342" y="390">PreviewProvider</text>
+<text class="afs" x="342" y="408">starts the actor · performs emitted effects</text>
+<rect class="afnw" x="680" y="160" width="290" height="100" rx="9"/>
+<text class="aft" x="692" y="180">selectPreviewLoading</text>
+<text class="afs" x="692" y="198">snapshot → { screen, editorState,</text>
+<text class="afs" x="692" y="216">generation, coldStart,</text>
+<text class="afs" x="692" y="234">showColdStart, isTesting, animation }</text>
+<rect class="afst" x="680" y="280" width="290" height="80" rx="9"/>
+<text class="aft" x="692" y="300">PreviewContent + overlays</text>
+<text class="afs" x="692" y="318">draws what the selector returns</text>
+<text class="afs" x="692" y="333">no decisions left in render</text>
+<path class="afln" d="M280,67 L328,67" marker-end="url(#afm)"/>
+<path class="afln" d="M480,115 L480,158" marker-end="url(#afm)"/><text class="aflb" x="488" y="140" text-anchor="start">OBSERVE</text>
+<path class="afln" d="M280,380 C300,390 310,395 328,395" marker-end="url(#afm)"/>
+<path class="afln" d="M420,368 L420,332" marker-end="url(#afm)"/><text class="aflb" x="428" y="352" text-anchor="start">LOAD_ARMED, FRAME_*</text>
+<path class="afln" d="M560,332 L560,368" marker-end="url(#afm)"/><text class="aflb" x="568" y="352" text-anchor="start">emit: init, invalidate</text>
+<path class="afln" d="M630,200 L678,200" marker-end="url(#afm)"/><text class="aflb" x="636" y="192" text-anchor="start">snapshot</text>
+<path class="afln" d="M825,260 L825,278" marker-end="url(#afm)"/><text class="aflb" x="833" y="262" text-anchor="start">useSelector</text>
+</svg></div>
+    <div class="prose">
+      <p>The inputs are one object now. <code>usePreviewViewModel</code> merges the live stream into the saved editor state with <code>selectEditorState</code>. <code>usePreviewLoadingViewModel</code> reads that object and the verify flag, then sends a single <code>OBSERVE</code> event. The provider forwards checked iframe messages as events. The machine updates its state, and a selector, <code>selectPreviewLoading</code>, turns that state into what to render. The components no longer decide anything.</p>
+      <p>Every region, state, guard, timer and transition stayed the same when the inputs merged. The machine never touches the browser or the query cache. When it needs a side effect, it emits a named event (<code>sendLifecycleInit</code>, <code>invalidateDeployment</code>), and the provider performs it. That keeps the machine plain data that a test can run without React.</p>
+    </div>
+  </section>
+
+  <section id="files" aria-labelledby="files-title">
+    <h2 id="files-title">The files, before and after <span class="count">editor domain: 13 added · 5 deleted · 29 changed</span></h2>
+    <div class="prose"><p>Most of the loading code sits in one folder, <code>apps/web/src/domains/editor/preview/</code>. The 13 Nov commits replaced the three input shapes with one <code>EditorState</code>. The editor domain gained 13 files, lost 5 and changed 29. The five that went away are two hooks, the two build-progress files, and one test. Two of the changes are renames. The ten animation files were already there from #556. Before this change nothing used them. The tree shows the loading-related files. The counts above cover the whole editor domain.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 762" role="img" aria-label="Directory tree of the loading code before and after the change">
+<style>.fl563tr{font:12.5px var(--kiln-mono);fill:var(--kiln-muted)}.fl563nm{font:12.5px var(--kiln-mono);fill:var(--kiln-text)}.fl563dir{font-weight:600}.fl563del{fill:var(--kiln-bad);text-decoration:line-through}.fl563add{fill:var(--kiln-ok);font-weight:600}.fl563un{fill:var(--kiln-muted)}.fl563h{font:600 14px var(--kiln-sans);fill:var(--kiln-text)}.fl563lg{font:11.5px var(--kiln-sans);fill:var(--kiln-muted)}</style>
+<text class="fl563h" x="10" y="20">Before (staging)</text><text class="fl563h" x="500" y="20">After (MR !718)</text>
+<rect x="10" y="32" width="10" height="10" rx="2" fill="var(--kiln-ok)"/><text class="fl563lg" x="25" y="41">added</text><rect x="67.5" y="32" width="10" height="10" rx="2" fill="var(--kiln-text)"/><text class="fl563lg" x="82.5" y="41">changed</text><rect x="137.6" y="32" width="10" height="10" rx="2" fill="var(--kiln-bad)"/><text class="fl563lg" x="152.6" y="41">deleted</text><rect x="207.7" y="32" width="10" height="10" rx="2" fill="var(--kiln-muted)"/><text class="fl563lg" x="222.7" y="41">unchanged</text>
+<line x1="490" y1="8" x2="490" y2="756" stroke="var(--kiln-line)"/>
+<text class="fl563tr" x="10" y="70" xml:space="preserve">├─ </text>
+<text class="fl563nm fl563dir" x="32.8" y="70">domains/editor/</text>
+<text class="fl563tr" x="10" y="91" xml:space="preserve">│  ├─ </text>
+<rect x="55.6" y="82" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="fl563nm fl563del" x="68.6" y="91">chat/build-progress-mirror.tsx</text>
+<text class="fl563tr" x="10" y="112" xml:space="preserve">│  ├─ </text>
+<rect x="55.6" y="103" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="fl563nm fl563del" x="68.6" y="112">stores/build-progress-store.ts</text>
+<text class="fl563tr" x="10" y="133" xml:space="preserve">│  ├─ </text>
+<rect x="55.6" y="124" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="68.6" y="133">components/editor-layout.tsx</text>
+<text class="fl563tr" x="10" y="154" xml:space="preserve">│  └─ </text>
+<text class="fl563nm fl563dir" x="55.6" y="154">preview/</text>
+<text class="fl563tr" x="10" y="175" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="166" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="175">constants.ts</text>
+<text class="fl563tr" x="10" y="196" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="187" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="fl563nm fl563un" x="91.4" y="196">lifecycle/bus.ts</text>
+<text class="fl563tr" x="10" y="217" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="208" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="fl563nm fl563un" x="91.4" y="217">loading-animations/  (10, unused)</text>
+<text class="fl563tr" x="10" y="238" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="229" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="238">preview-cold-start-overlay.tsx</text>
+<text class="fl563tr" x="10" y="259" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="250" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="259">preview-content.tsx</text>
+<text class="fl563tr" x="10" y="280" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="271" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="280">preview-generation-overlay.tsx</text>
+<text class="fl563tr" x="10" y="301" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="292" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="301">preview-loading-scene.tsx</text>
+<text class="fl563tr" x="10" y="322" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="313" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="322">preview-panel.tsx</text>
+<text class="fl563tr" x="10" y="343" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="334" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="343">preview-provider.tsx</text>
+<text class="fl563tr" x="10" y="364" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="355" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="364">preview-testing-badge.tsx</text>
+<text class="fl563tr" x="10" y="385" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="376" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="fl563nm fl563del" x="91.4" y="385">use-preview-generation-overlay.ts</text>
+<text class="fl563tr" x="10" y="406" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="397" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="fl563nm fl563del" x="91.4" y="406">use-preview-testing-signal.ts</text>
+<text class="fl563tr" x="10" y="427" xml:space="preserve">│     ├─ </text>
+<rect x="78.4" y="418" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="91.4" y="427">use-preview-view-model.ts</text>
+<text class="fl563tr" x="10" y="448" xml:space="preserve">│     └─ </text>
+<text class="fl563nm fl563dir" x="78.4" y="448">__tests__/</text>
+<text class="fl563tr" x="10" y="469" xml:space="preserve">│        ├─ </text>
+<rect x="101.2" y="460" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="114.2" y="469">preview-generation-overlay.test.tsx</text>
+<text class="fl563tr" x="10" y="490" xml:space="preserve">│        └─ </text>
+<rect x="101.2" y="481" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="114.2" y="490">…7 more test files</text>
+<text class="fl563tr" x="10" y="511" xml:space="preserve">└─ </text>
+<text class="fl563nm fl563dir" x="32.8" y="511">docs/flows/</text>
+<text class="fl563tr" x="10" y="532" xml:space="preserve">   └─ </text>
+<rect x="55.6" y="523" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="68.6" y="532">editor-interactivity.md</text>
+<text class="fl563tr" x="500" y="70" xml:space="preserve">├─ </text>
+<text class="fl563nm fl563dir" x="522.8" y="70">domains/editor/</text>
+<text class="fl563tr" x="500" y="91" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="82" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="fl563nm fl563del" x="558.6" y="91">chat/build-progress-mirror.tsx</text>
+<text class="fl563tr" x="500" y="112" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="103" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="558.6" y="112">chat/live-editor-state-mirror.tsx</text>
+<text class="fl563tr" x="500" y="133" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="124" width="8" height="8" rx="2" fill="var(--kiln-bad)"/>
+<text class="fl563nm fl563del" x="558.6" y="133">stores/build-progress-store.ts</text>
+<text class="fl563tr" x="500" y="154" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="145" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="558.6" y="154">stores/live-editor-state-store.ts</text>
+<text class="fl563tr" x="500" y="175" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="166" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="558.6" y="175">components/editor-layout.tsx</text>
+<text class="fl563tr" x="500" y="196" xml:space="preserve">│  ├─ </text>
+<rect x="545.6" y="187" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="558.6" y="196">mocks/preview-loading-backend.ts</text>
+<text class="fl563tr" x="500" y="217" xml:space="preserve">│  └─ </text>
+<text class="fl563nm fl563dir" x="545.6" y="217">preview/</text>
+<text class="fl563tr" x="500" y="238" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="229" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="238">constants.ts</text>
+<text class="fl563tr" x="500" y="259" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="250" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="fl563nm fl563un" x="581.4" y="259">lifecycle/bus.ts</text>
+<text class="fl563tr" x="500" y="280" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="271" width="8" height="8" rx="2" fill="var(--kiln-muted)"/>
+<text class="fl563nm fl563un" x="581.4" y="280">loading-animations/  (10, now used)</text>
+<text class="fl563tr" x="500" y="301" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="292" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="301">preview-cold-start-overlay.tsx</text>
+<text class="fl563tr" x="500" y="322" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="313" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="322">preview-content.tsx</text>
+<text class="fl563tr" x="500" y="343" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="334" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="343">preview-generation-overlay.tsx</text>
+<text class="fl563tr" x="500" y="364" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="355" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="364">preview-loading-scene.tsx</text>
+<text class="fl563tr" x="500" y="385" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="376" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="581.4" y="385">preview-loading.machine.ts</text>
+<text class="fl563tr" x="500" y="406" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="397" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="581.4" y="406">preview-loading.selectors.ts</text>
+<text class="fl563tr" x="500" y="427" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="418" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="581.4" y="427">preview-loading.stories.tsx</text>
+<text class="fl563tr" x="500" y="448" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="439" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="448">preview-panel.tsx</text>
+<text class="fl563tr" x="500" y="469" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="460" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="581.4" y="469">preview-phase-animation.tsx</text>
+<text class="fl563tr" x="500" y="490" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="481" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="490">preview-provider.tsx</text>
+<text class="fl563tr" x="500" y="511" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="502" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="511">preview-testing-badge.tsx</text>
+<text class="fl563tr" x="500" y="532" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="523" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="581.4" y="532">select-editor-state.ts</text>
+<text class="fl563tr" x="500" y="553" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="544" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="581.4" y="553">use-preview-loading-view-model.ts</text>
+<text class="fl563tr" x="500" y="574" xml:space="preserve">│     ├─ </text>
+<rect x="568.4" y="565" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="581.4" y="574">use-preview-view-model.ts</text>
+<text class="fl563tr" x="500" y="595" xml:space="preserve">│     └─ </text>
+<text class="fl563nm fl563dir" x="568.4" y="595">__tests__/</text>
+<text class="fl563tr" x="500" y="616" xml:space="preserve">│        ├─ </text>
+<rect x="591.2" y="607" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="604.2" y="616">preview-loading.machine.test.ts</text>
+<text class="fl563tr" x="500" y="637" xml:space="preserve">│        ├─ </text>
+<rect x="591.2" y="628" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="604.2" y="637">machine-diagram.ts</text>
+<text class="fl563tr" x="500" y="658" xml:space="preserve">│        ├─ </text>
+<rect x="591.2" y="649" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="604.2" y="658">select-editor-state.test.ts</text>
+<text class="fl563tr" x="500" y="679" xml:space="preserve">│        └─ </text>
+<rect x="591.2" y="670" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="604.2" y="679">…8 more test files</text>
+<text class="fl563tr" x="500" y="700" xml:space="preserve">└─ </text>
+<text class="fl563nm fl563dir" x="522.8" y="700">docs/flows/</text>
+<text class="fl563tr" x="500" y="721" xml:space="preserve">   ├─ </text>
+<rect x="545.6" y="712" width="8" height="8" rx="2" fill="var(--kiln-text)"/>
+<text class="fl563nm" x="558.6" y="721">editor-interactivity.md</text>
+<text class="fl563tr" x="500" y="742" xml:space="preserve">   └─ </text>
+<rect x="545.6" y="733" width="8" height="8" rx="2" fill="var(--kiln-ok)"/>
+<text class="fl563nm fl563add" x="558.6" y="742">editor-preview-loading.md</text>
+</svg></div>
+    <h3>Where each old piece went</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Before</th><th scope="col">What it did</th><th scope="col">Now</th></tr></thead>
+      <tbody>
+        <tr><td><code>use-preview-generation-overlay.ts</code> <span class="pill bad">deleted</span></td><td>Build overlay phase, the bridge, two timers</td><td>The <code>activity</code> and <code>generation</code> regions</td></tr>
+        <tr><td><code>use-preview-testing-signal.ts</code> <span class="pill bad">deleted</span></td><td>Matched label text to spot testing</td><td>The <code>isTesting</code> guard, reading the phase key</td></tr>
+        <tr><td><code>build-progress-store.ts</code>, <code>build-progress-mirror.tsx</code> <span class="pill bad">deleted</span></td><td>Counted written files in the browser and kept the stream's phase in a store</td><td><code>live-editor-state-store.ts</code> and <code>live-editor-state-mirror.tsx</code> copy the stream's <code>EditorState</code> instead. The server counts the files now</td></tr>
+        <tr><td><code>use-active-generation-recovery.ts</code> <span class="pill warn">renamed</span></td><td>Polled the app GET after a reload to recover a running turn</td><td><code>use-generating-editor-state.ts</code>. It polls the editor-state GET every 3 seconds while a turn runs</td></tr>
+        <tr><td><code>derivePreviewState</code> and the <code>PreviewState</code> type <span class="pill bad">deleted</span></td><td>Turned the deployment row into a status union</td><td>The backend fills <code>preview_status</code>. <code>select-editor-state.ts</code> merges the two sources, and the machine imports <code>PreviewStatus</code> from the generated client</td></tr>
+        <tr><td><code>preview-provider.tsx</code></td><td>Wake-up state, 30-second and fade timers</td><td>The <code>coldStart</code> region. The provider now starts the actor, forwards checked iframe messages and performs emitted effects</td></tr>
+        <tr><td><code>use-preview-view-model.ts</code></td><td>Polling plus the 60-second timer</td><td>The editor-state poll, and the merge of the two sources. The timer is the <code>provisioning</code> region</td></tr>
+        <tr><td><code>preview-content.tsx</code></td><td>The if-chain that picked the screen</td><td>The <code>screen</code> region and the selector. The component only switches on <code>loading.screen</code></td></tr>
+        <tr><td>(none)</td><td></td><td><code>preview-phase-animation.tsx</code> maps a phase to one of the ten animations</td></tr>
+        <tr><td>(none)</td><td></td><td><code>use-preview-loading-view-model.ts</code> is the one place that sends <code>OBSERVE</code></td></tr>
+        <tr><td>(none)</td><td></td><td><code>select-editor-state.ts</code> picks the live generation fields over the saved ones while a turn streams</td></tr>
+      </tbody>
+    </table></div>
+    <div class="prose"><p>The same change added three backend pieces. <code>apps/api/app/schemas/editor_state.py</code> defines <code>EditorState</code>. <code>apps/api/app/services/editor_state.py</code> fills it from the active-generation marker and the development deployment row. Migration <code>b7e3c5a91d24</code> drops <code>active_generations.progress_label</code>, and its downgrade adds the column back empty.</p></div>
+  </section>
+
+  <section id="wiring" aria-labelledby="wiring-title">
+    <h2 id="wiring-title">How the wiring works <span class="count">events in · snapshots out</span></h2>
+    <div class="callout prose">
+      <p><strong>Does the frontend just call the XState file?</strong> No. <code>preview-loading.machine.ts</code> is a blueprint: states, rules and timers written as data. Nothing calls a function in it. The editor makes one running copy of it, called an actor. Components talk to the actor in only two ways: they <em>send it events</em>, and they <em>read its snapshots</em>.</p>
+    </div>
+    <div class="grid3">
+      <div class="io"><div class="pill">1 · create</div><p><code>PreviewProvider</code> calls <code>useActorRef(previewLoadingMachine)</code>. That creates one actor and starts it after the provider mounts. The editor remounts the provider for each app, so each app gets a fresh actor.</p></div>
+      <div class="io"><div class="pill">2 · input</div><p>Code sends events with <code>loadingActor.send(…)</code>. The view model sends <code>OBSERVE</code> with the current editor state. The provider sends <code>LOAD_ARMED</code> and <code>FRAME_*</code>. Events sent before the actor starts wait in its mailbox.</p></div>
+      <div class="io"><div class="pill ok">3 · output</div><p>Each event produces a new snapshot. <code>useSelector</code> re-renders a component when its selected value changes. Effects come out as emitted events, which the provider handles with <code>loadingActor.on(…)</code>.</p></div>
+    </div>
+    <h3>One round trip, step by step</h3>
+    <div class="prose"><p>Black arrows are events going into the actor, green arrows are its output, and grey arrows are ordinary calls. The actor handles each event straight away, then waits. The only things it does on its own are its timers.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 665" role="img" aria-label="How events go into the actor and where its output goes">
+<defs><marker id="wr563m" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.wr563hd{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong)}.wr563hdc{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.wr563t{font:600 12.5px var(--kiln-sans);fill:var(--kiln-text)}.wr563s{font:10.5px var(--kiln-sans);fill:var(--kiln-muted)}.wr563life{stroke:var(--kiln-line-strong);stroke-dasharray:3 4}.wr563in{stroke:var(--kiln-text);stroke-width:1.6;fill:none}.wr563out{stroke:var(--kiln-ok);stroke-width:1.6;fill:none}.wr563plain{stroke:var(--kiln-muted);stroke-width:1.2;fill:none}.wr563self{stroke:var(--kiln-muted);stroke-width:1.2;fill:none}.wr563lb{font:11.5px var(--kiln-sans);fill:var(--kiln-text)}.wr563n{font:600 10.5px var(--kiln-mono);fill:var(--kiln-muted)}.wr563act{fill:var(--kiln-accent-wash);stroke:none}</style>
+<rect class="wr563hd" x="9" y="8" width="172" height="46" rx="10"/><text class="wr563t" x="95" y="28" text-anchor="middle">State sources</text><text class="wr563s" x="95" y="44" text-anchor="middle">editor-state GET · live stream</text>
+<line class="wr563life" x1="95" y1="56" x2="95" y2="659"/>
+<rect class="wr563hd" x="214" y="8" width="172" height="46" rx="10"/><text class="wr563t" x="300" y="28" text-anchor="middle">View model + PreviewContent</text><text class="wr563s" x="300" y="44" text-anchor="middle">usePreviewLoadingViewModel</text>
+<line class="wr563life" x1="300" y1="56" x2="300" y2="659"/>
+<rect class="wr563hdc" x="419" y="8" width="172" height="46" rx="10"/><text class="wr563t" x="505" y="28" text-anchor="middle">Actor</text><text class="wr563s" x="505" y="44" text-anchor="middle">running previewLoadingMachine</text>
+<line class="wr563life" x1="505" y1="56" x2="505" y2="659"/>
+<rect class="wr563hd" x="614" y="8" width="172" height="46" rx="10"/><text class="wr563t" x="700" y="28" text-anchor="middle">PreviewProvider</text><text class="wr563s" x="700" y="44" text-anchor="middle">owns the actor</text>
+<line class="wr563life" x1="700" y1="56" x2="700" y2="659"/>
+<rect class="wr563hd" x="799" y="8" width="172" height="46" rx="10"/><text class="wr563t" x="885" y="28" text-anchor="middle">Browser</text><text class="wr563s" x="885" y="44" text-anchor="middle">iframe · React Query cache</text>
+<line class="wr563life" x1="885" y1="56" x2="885" y2="659"/>
+<rect class="wr563act" x="499" y="68" width="12" height="561" rx="4"/>
+<text class="wr563n" x="12" y="90"> 1</text>
+<path class="wr563in" d="M694,86 L511,86" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="513" y="81">create once with useActorRef, start after mount</text>
+<text class="wr563n" x="12" y="123"> 2</text>
+<path class="wr563plain" d="M101,119 L294,119" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="103" y="114">read the latest values</text>
+<text class="wr563n" x="12" y="156"> 3</text>
+<path class="wr563in" d="M306,152 L499,152" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="308" y="147">send OBSERVE { appId, editorState, isVerifying }</text>
+<text class="wr563n" x="12" y="189"> 4</text>
+<path class="wr563self" d="M511,179 h34 v14 h-32" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="551" y="190">update context · check rules · start or stop timers</text>
+<text class="wr563n" x="12" y="222"> 5</text>
+<path class="wr563out" d="M499,218 L306,218" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="308" y="213">new snapshot → useSelector(selectPreviewLoading)</text>
+<text class="wr563n" x="12" y="255"> 6</text>
+<path class="wr563self" d="M306,245 h34 v14 h-32" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="346" y="256">render loading.screen and the overlays</text>
+<text class="wr563n" x="12" y="288"> 7</text>
+<path class="wr563out" d="M511,284 L694,284" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="513" y="279">emit invalidateDeployment (a build just ended)</text>
+<text class="wr563n" x="12" y="321"> 8</text>
+<path class="wr563plain" d="M706,317 L879,317" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="708" y="312">invalidate: app GET + editor-state GET</text>
+<text class="wr563n" x="12" y="354"> 9</text>
+<path class="wr563plain" d="M879,350 L101,350" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="103" y="345">fresh editor state → back to step 2</text>
+<text class="wr563n" x="12" y="387">10</text>
+<path class="wr563plain" d="M306,383 L694,383" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="308" y="378">iframe mounts → armPreviewLoad()</text>
+<text class="wr563n" x="12" y="420">11</text>
+<path class="wr563in" d="M694,416 L511,416" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="513" y="411">send LOAD_ARMED</text>
+<text class="wr563n" x="12" y="453">12</text>
+<path class="wr563out" d="M511,449 L694,449" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="513" y="444">emit sendLifecycleInit</text>
+<text class="wr563n" x="12" y="486">13</text>
+<path class="wr563plain" d="M706,482 L879,482" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="708" y="477">iframe.postMessage(init)</text>
+<text class="wr563n" x="12" y="519">14</text>
+<path class="wr563plain" d="M879,515 L706,515" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="708" y="510">dewa:preview:ready (source and origin checked)</text>
+<text class="wr563n" x="12" y="552">15</text>
+<path class="wr563in" d="M694,548 L511,548" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="513" y="543">send FRAME_READY</text>
+<text class="wr563n" x="12" y="585">16</text>
+<path class="wr563self" d="M511,575 h34 v14 h-32" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="551" y="586">later: a timer ends by itself (0.5 s fade)</text>
+<text class="wr563n" x="12" y="618">17</text>
+<path class="wr563out" d="M499,614 L306,614" marker-end="url(#wr563m)"/>
+<text class="wr563lb" x="308" y="609">new snapshot → re-render</text>
+</svg></div>
+    <h3>What goes in and what comes out</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Direction</th><th scope="col">What</th><th scope="col">From or to</th></tr></thead>
+      <tbody>
+        <tr><td>In</td><td><code>OBSERVE</code> with <code>{ appId, editorState, isVerifying }</code></td><td>From <code>usePreviewLoadingViewModel</code>, whenever the editor state, the app id or the verify flag changes</td></tr>
+        <tr><td>In</td><td><code>LOAD_ARMED</code></td><td>From the provider when the iframe mounts or reloads</td></tr>
+        <tr><td>In</td><td><code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code></td><td>From the provider's message listener, after it checks the message's source and origin</td></tr>
+        <tr><td>Out</td><td>Snapshot through <code>selectPreviewLoading</code></td><td>To <code>PreviewContent</code> and its overlays</td></tr>
+        <tr><td>Out</td><td>Snapshot through <code>selectPreviewStatus</code></td><td>To <code>PreviewPanel</code>, for the toolbar's status dot</td></tr>
+        <tr><td>Out</td><td>Every snapshot, by subscription</td><td>To the <code>DEWA_PREVIEW_DEBUG</code> log in the provider</td></tr>
+        <tr><td>Out</td><td>Emitted <code>invalidateDeployment</code></td><td>To the provider, which asks React Query for a fresh app GET and a fresh editor-state GET</td></tr>
+        <tr><td>Out</td><td>Emitted <code>sendLifecycleInit</code></td><td>To the provider, which posts <code>init</code> to the iframe</td></tr>
+      </tbody>
+    </table></div>
+    <h3>The data at one moment</h3>
+    <div class="prose"><p>These are the real shapes, filled with example values for the moment the build writes code. <code>selectEditorState</code> builds the editor state from two sources: the saved GET fields, plus the live stream's generation fields on top. The preview fields always come from the GET.</p></div>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill">In</span><span class="mono muted">usePreviewLoadingViewModel</span></figcaption><pre><code>// IN — the view model sends this at the &quot;writing code&quot; moment
+loadingActor.send({
+  type: &quot;OBSERVE&quot;,
+  appId: &quot;86803fdd-…&quot;,
+  editorState: {
+    is_generating: true,
+    is_bootstrap: true,
+    phase: &quot;writing_code&quot;,
+    label: &quot;Menulis kode…&quot;,
+    files_written: 12,
+    files_planned: 20,
+    preview_status: &quot;running&quot;,
+    preview_url: &quot;http://127.0.0.1:54461&quot;,
+    synced_snapshot_version: null,
+    preview_error_message: null,
+  },
+  isVerifying: false,
+});</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">Out</span><span class="mono muted">machine → selectPreviewLoading</span></figcaption><pre><code>// INSIDE — the snapshot after the event (snapshot.value)
+{
+  provisioning: &quot;idle&quot;,
+  activity: &quot;generating&quot;,
+  generation: &quot;visible&quot;,
+  coldStart: &quot;hidden&quot;,
+  screen: &quot;bootstrap&quot;,
+}
+
+// OUT — useSelector(loadingActor, selectPreviewLoading)
+{
+  screen: &quot;bootstrap&quot;,
+  editorState: { …the object sent above… },
+  generation: {
+    phase: &quot;visible&quot;, animation: &quot;writing_code&quot;,
+    copy: &quot;Menulis kode…&quot;, ariaLabel: &quot;Membuat preview&quot;,
+    progress: { label: &quot;Menulis kode…&quot;, filesWritten: 12,
+                filesPlanned: 20 },
+  },
+  coldStart: { phase: &quot;hidden&quot;, error: null },
+  showColdStart: false,
+  isTesting: false,
+  animation: &quot;writing_code&quot;,
+}</code></pre></figure>
+    </div>
+    <div class="prose"><p class="why">Tests skip React entirely: they create their own actor with <code>createActor</code> and a simulated clock, send the same events, and check the same selector output.</p></div>
+  </section>
+
+  <section id="ideas" aria-labelledby="ideas-title">
+    <h2 id="ideas-title">XState ideas, mapped to this file <span class="count">10 ideas</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Idea</th><th scope="col">What it means</th><th scope="col">In preview-loading.machine.ts</th></tr></thead>
+      <tbody>
+        <tr><td>Context</td><td>The data the machine remembers: the latest observation and the last fatal frame error.</td><td><code>context</code>, <code>PreviewLoadingContext</code></td></tr>
+        <tr><td>Event</td><td>Something that happened. The machine reacts only to events.</td><td><code>OBSERVE</code>, <code>LOAD_ARMED</code>, <code>FRAME_BOOT</code>, <code>FRAME_READY</code>, <code>FRAME_ERROR</code>, <code>RECONCILE</code></td></tr>
+        <tr><td>State</td><td>A named mode, such as <code>bridging</code> or <code>fading</code>. One at a time per region.</td><td>the <code>states</code> objects</td></tr>
+        <tr><td>Parallel regions</td><td>Several independent state machines side by side inside one actor.</td><td><code>type: "parallel"</code>, five regions</td></tr>
+        <tr><td>Transition</td><td>A move to another state when an event arrives.</td><td><code>on: { FRAME_READY: { target: "fading" } }</code></td></tr>
+        <tr><td>Eventless transition</td><td>A move checked after every event, taken when its condition becomes true.</td><td><code>always: { guard: "isGenerating", … }</code></td></tr>
+        <tr><td>Guard</td><td>A named yes-or-no rule that allows or blocks a move.</td><td><code>isTesting</code>, <code>showGenerationOverlay</code>, …</td></tr>
+        <tr><td>Delayed transition</td><td>A move after a set time. The timer starts on entering the state and stops on leaving it.</td><td><code>after: { generationBridge: "idle" }</code>, durations in <code>delays</code></td></tr>
+        <tr><td>Action</td><td>Work done on a move: update context, or emit an effect for the host.</td><td><code>observe</code>, <code>recordFrameError</code>, <code>emit(…)</code></td></tr>
+        <tr><td>Actor, snapshot</td><td>A running copy of the machine, and its state at one moment.</td><td><code>useActorRef</code> in the provider, <code>useSelector</code> for snapshots</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="regions" aria-labelledby="regions-title">
+    <h2 id="regions-title">The five regions <span class="count">5</span></h2>
+    <div class="prose"><p>Each region answers one question. Because they run in parallel, a change in one region never resets another, and each region's timers belong to it alone.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 420" role="img" aria-label="The five parallel regions of the loading machine">
+<defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.rgrg{fill:none;stroke:var(--kiln-line);stroke-width:1.5;stroke-dasharray:5 4}.rgst{fill:var(--kiln-surface);stroke:var(--kiln-line-strong);stroke-width:1.6}.rgt{fill:var(--kiln-text);font:600 13px var(--kiln-sans)}.rgh{fill:var(--kiln-text);font:700 14px var(--kiln-mono)}.rgs{fill:var(--kiln-muted);font:11.5px var(--kiln-sans)}.rgln{stroke:var(--kiln-muted);stroke-width:1.4;fill:none}</style>
+<text class="rgs" x="490.0" y="16" text-anchor="middle">All five regions run at the same time inside one actor. Dashed borders mark parallel regions.</text>
+<rect class="rgrg" x="5" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="98.0" y="54" text-anchor="middle">provisioning</text>
+<text class="rgs" x="98.0" y="72" text-anchor="middle">60-second deadline</text>
+<rect class="rgst" x="27" y="92" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="114" text-anchor="middle">idle</text>
+<path class="rgln" d="M98.0,126 L98.0,164" marker-end="url(#ma)"/>
+<rect x="27.0" y="137" width="142.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="98.0" y="149" text-anchor="middle">status is provisioning</text>
+<rect class="rgst" x="27" y="166" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="188" text-anchor="middle">waiting</text>
+<path class="rgln" d="M98.0,200 L98.0,238" marker-end="url(#ma)"/>
+<rect x="63.0" y="211" width="70.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="98.0" y="223" text-anchor="middle">after 60 s</text>
+<rect class="rgst" x="27" y="240" width="142" height="34" rx="9"/><text class="rgt" x="98.0" y="262" text-anchor="middle">timedOut</text>
+<text class="rgs" x="98.0" y="322" text-anchor="middle">Leaves for idle once</text>
+<text class="rgs" x="98.0" y="337" text-anchor="middle">provisioning ends.</text>
+<rect class="rgrg" x="200" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="293.0" y="54" text-anchor="middle">activity</text>
+<text class="rgs" x="293.0" y="72" text-anchor="middle">is a build running?</text>
+<rect class="rgst" x="222" y="92" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="114" text-anchor="middle">idle</text>
+<path class="rgln" d="M293.0,126 L293.0,164" marker-end="url(#ma)"/>
+<rect x="222.0" y="137" width="142.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="293.0" y="149" text-anchor="middle">stream or saved marker</text>
+<rect class="rgst" x="222" y="166" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="188" text-anchor="middle">generating</text>
+<path class="rgln" d="M293.0,200 L293.0,238" marker-end="url(#ma)"/>
+<rect x="207.0" y="211" width="172.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="293.0" y="223" text-anchor="middle">build ended: refresh status</text>
+<rect class="rgst" x="222" y="240" width="142" height="34" rx="9"/><text class="rgt" x="293.0" y="262" text-anchor="middle">bridging</text>
+<text class="rgs" x="293.0" y="322" text-anchor="middle">Back to idle after 4 s, or</text>
+<text class="rgs" x="293.0" y="337" text-anchor="middle">as soon as syncing is seen.</text>
+<rect class="rgrg" x="395" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="488.0" y="54" text-anchor="middle">generation</text>
+<text class="rgs" x="488.0" y="72" text-anchor="middle">build overlay</text>
+<rect class="rgst" x="417" y="92" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="114" text-anchor="middle">hidden</text>
+<path class="rgln" d="M488.0,126 L488.0,164" marker-end="url(#ma)"/>
+<rect x="396.0" y="137" width="184.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="488.0" y="149" text-anchor="middle">building, bridging or syncing</text>
+<rect class="rgst" x="417" y="166" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="188" text-anchor="middle">visible</text>
+<path class="rgln" d="M488.0,200 L488.0,238" marker-end="url(#ma)"/>
+<rect x="468.0" y="211" width="40.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="488.0" y="223" text-anchor="middle">0.5 s</text>
+<rect class="rgst" x="417" y="240" width="142" height="34" rx="9"/><text class="rgt" x="488.0" y="262" text-anchor="middle">fading</text>
+<text class="rgs" x="488.0" y="322" text-anchor="middle">Steps aside while</text>
+<text class="rgs" x="488.0" y="337" text-anchor="middle">validating or repairing.</text>
+<rect class="rgrg" x="590" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="683.0" y="54" text-anchor="middle">coldStart</text>
+<text class="rgs" x="683.0" y="72" text-anchor="middle">wake-up overlay</text>
+<rect class="rgst" x="612" y="92" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="114" text-anchor="middle">hidden</text>
+<path class="rgln" d="M683.0,126 L683.0,164" marker-end="url(#ma)"/>
+<rect x="603.0" y="137" width="160.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="683.0" y="149" text-anchor="middle">iframe armed; 30 s safety</text>
+<rect class="rgst" x="612" y="166" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="188" text-anchor="middle">visible</text>
+<path class="rgln" d="M683.0,200 L683.0,238" marker-end="url(#ma)"/>
+<rect x="636.0" y="211" width="94.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="683.0" y="223" text-anchor="middle">ready, or 30 s</text>
+<rect class="rgst" x="612" y="240" width="142" height="34" rx="9"/><text class="rgt" x="683.0" y="262" text-anchor="middle">fading</text>
+<text class="rgs" x="683.0" y="322" text-anchor="middle">error on a fatal page</text>
+<text class="rgs" x="683.0" y="337" text-anchor="middle">error; a later ready clears</text>
+<text class="rgs" x="683.0" y="352" text-anchor="middle">it.</text>
+<rect class="rgrg" x="785" y="28" width="186" height="384" rx="12"/>
+<text class="rgh" x="878.0" y="54" text-anchor="middle">screen</text>
+<text class="rgs" x="878.0" y="72" text-anchor="middle">what fills the panel</text>
+<rect class="rgst" x="807" y="92" width="142" height="34" rx="9"/><text class="rgt" x="878.0" y="114" text-anchor="middle">deciding</text>
+<path class="rgln" d="M878.0,126 L878.0,164" marker-end="url(#ma)"/>
+<rect x="825.0" y="137" width="106.0" height="16" fill="var(--kiln-bg)"/><text class="rgs" x="878.0" y="149" text-anchor="middle">first match wins</text>
+<rect class="rgst" x="807" y="166" width="142" height="34" rx="9"/><text class="rgt" x="878.0" y="188" text-anchor="middle">one of 9 screens</text>
+<text class="rgs" x="803" y="210" font-weight="600">Order checked:</text>
+<text class="rgs" x="811" y="228">1. verifying</text>
+<text class="rgs" x="811" y="243">2. bootstrap</text>
+<text class="rgs" x="811" y="258">3. loading</text>
+<text class="rgs" x="811" y="273">4. timeout</text>
+<text class="rgs" x="811" y="288">5. provisioning</text>
+<text class="rgs" x="811" y="303">6. preview</text>
+<text class="rgs" x="811" y="318">7. failed</text>
+<text class="rgs" x="811" y="333">8. stopped</text>
+<text class="rgs" x="811" y="348">9. unavailable</text>
+<text class="rgs" x="878.0" y="377" text-anchor="middle">Re-decides on every OBSERVE.</text>
+</svg></div>
+    <ul class="regions">
+      <li><code>provisioning</code> runs the 60-second limit for starting a workspace. When it expires, the screen shows the timeout message.</li>
+      <li><code>activity</code> answers "is a build running?". When a build ends it enters <code>bridging</code>, asks for fresh status, and holds the overlay up to 4 seconds until syncing is seen.</li>
+      <li><code>generation</code> is the build overlay: hidden, visible or fading. It steps aside during validating and repairing.</li>
+      <li><code>coldStart</code> is the wake-up overlay. It follows the preview page's messages, with a 30-second safety limit and an error state.</li>
+      <li><code>screen</code> picks the main screen. It re-decides on every observation, checking its rules in a fixed order.</li>
+    </ul>
+  </section>
+
+  <section id="phases" aria-labelledby="phases-title">
+    <h2 id="phases-title">Phases and regions <span class="count">9 phases · 1 region reacts</span></h2>
+    <div class="prose">
+      <p>A region is the editor's own state: the machine moves it, by its rules and timers. The phase is data from the backend, and it is one field of the editor state in the machine's context: the machine only reads it. Each region reads a few fields, and only one region, <code>generation</code>, reads the phase at all.</p>
+      <p>The label is not a separate input. The backend derives it from the phase with <code>ProgressPhase.label</code>. Migration <code>b7e3c5a91d24</code> dropped the stored <code>active_generations.progress_label</code>, so no column can disagree with the phase. The editor state carries the label, filled from the phase.</p>
+    </div>
+    <div class="figure"><svg viewBox="0 0 980 560" role="img" aria-label="Which inputs each region reads, and where each build phase goes">
+<defs><marker id="pmm563" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--kiln-muted)"/></marker></defs>
+<style>.pm563in{fill:var(--kiln-surface-2);stroke:var(--kiln-line-strong)}.pm563ph{fill:var(--kiln-surface);stroke:var(--kiln-line-strong)}.pm563hot{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.pm563rg{fill:var(--kiln-surface);stroke:var(--kiln-text);stroke-width:1.4}.pm563out{fill:var(--kiln-ok-wash);stroke:var(--kiln-ok)}.pm563t{font:600 12.5px var(--kiln-sans);fill:var(--kiln-text)}.pm563m{font:12px var(--kiln-mono);fill:var(--kiln-text)}.pm563s{font:11px var(--kiln-sans);fill:var(--kiln-muted)}.pm563h{font:600 13px var(--kiln-sans);fill:var(--kiln-muted)}.pm563ln{stroke:var(--kiln-muted);stroke-width:1.2;fill:none}.pm563hl{stroke:var(--kiln-accent);stroke-width:2;fill:none}</style>
+<text class="pm563h" x="10" y="18">INPUTS (context)</text><text class="pm563h" x="380" y="18">REGIONS (state)</text><text class="pm563h" x="745" y="18">WHAT IS DRAWN</text>
+<rect class="pm563in" x="10" y="40" width="230" height="40" rx="8"/><text class="pm563m" x="22" y="57">editorState.preview_status</text><text class="pm563s" x="22" y="72">deployment field</text>
+<rect class="pm563in" x="10" y="92" width="230" height="40" rx="8"/><text class="pm563m" x="22" y="109">isVerifying</text><text class="pm563s" x="22" y="124">workspace check</text>
+<rect class="pm563in" x="10" y="144" width="230" height="40" rx="8"/><text class="pm563m" x="22" y="161">editorState.is_generating</text><text class="pm563s" x="22" y="176">live stream or saved GET</text>
+<rect class="pm563in" x="10" y="196" width="230" height="40" rx="8"/><text class="pm563m" x="22" y="213">editorState.is_bootstrap</text><text class="pm563s" x="22" y="228">saved GET</text>
+<rect class="pm563in" x="10" y="248" width="230" height="40" rx="8"/><text class="pm563m" x="22" y="265">iframe events</text><text class="pm563s" x="22" y="280">LOAD_ARMED, FRAME_*</text>
+<rect class="pm563hot" x="10" y="310" width="230" height="236" rx="10"/><text class="pm563m" x="22" y="330">editorState.phase</text><text class="pm563s" x="150" y="330">backend field</text>
+<rect class="pm563ph" x="22" y="342.0" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="354.0" style="font-size:11px">preparing</text>
+<rect class="pm563ph" x="22" y="361.5" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="373.5" style="font-size:11px">planning</text>
+<rect class="pm563ph" x="22" y="381.0" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="393.0" style="font-size:11px">writing_code</text>
+<rect class="pm563ph" x="22" y="400.5" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="412.5" style="font-size:11px">making_images</text>
+<rect class="pm563ph" x="22" y="420.0" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="432.0" style="font-size:11px">syncing</text>
+<rect class="pm563ph" x="22" y="439.5" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="451.5" style="font-size:11px">saving_files</text>
+<rect class="pm563ph" x="22" y="459.0" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="471.0" style="font-size:11px">updating_preview</text>
+<rect class="pm563hot" x="22" y="478.5" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="490.5" style="font-size:11px">validating</text>
+<rect class="pm563hot" x="22" y="498.0" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="510.0" style="font-size:11px">repairing</text>
+<rect class="pm563ph" x="22" y="517.5" width="206" height="16" rx="5"/><text class="pm563m" x="30" y="529.5" style="font-size:11px">none / unknown</text>
+<rect class="pm563rg" x="380" y="40" width="190" height="46" rx="10"/><text class="pm563m" x="395" y="60" style="font-weight:600">provisioning</text>
+<rect class="pm563rg" x="380" y="110" width="190" height="46" rx="10"/><text class="pm563m" x="395" y="130" style="font-weight:600">activity</text>
+<rect class="pm563rg" x="380" y="180" width="190" height="46" rx="10"/><text class="pm563m" x="395" y="200" style="font-weight:600">generation</text>
+<rect class="pm563rg" x="380" y="250" width="190" height="46" rx="10"/><text class="pm563m" x="395" y="270" style="font-weight:600">coldStart</text>
+<rect class="pm563rg" x="380" y="320" width="190" height="46" rx="10"/><text class="pm563m" x="395" y="340" style="font-weight:600">screen</text>
+<text class="pm563s" x="395" y="76">60 s workspace limit</text>
+<text class="pm563s" x="395" y="146">is a build running?</text>
+<text class="pm563s" x="395" y="216">build overlay</text>
+<text class="pm563s" x="395" y="286">wake-up overlay</text>
+<text class="pm563s" x="395" y="356">main screen</text>
+<path class="pm563ln" d="M240,60 C310.0,60 310.0,58 378,58" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,60 C310.0,60 310.0,332 378,332" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,112 C310.0,112 310.0,340 378,340" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,164 C310.0,164 310.0,133 378,133" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,164 C310.0,164 310.0,198 378,198" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,216 C310.0,216 310.0,348 378,348" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,268 C310.0,268 310.0,273 378,273" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,60 C310.0,60 310.0,208 378,208" marker-end="url(#pmm563)"/>
+<path class="pm563hl" d="M228,486.5 C304.0,486.5 304.0,216 378,216" marker-end="url(#pmm563)"/>
+<path class="pm563hl" d="M228,506.0 C304.0,506.0 304.0,218 378,218" marker-end="url(#pmm563)"/>
+<text class="pm563s" x="300" y="460" style="font-weight:600">validating, repairing → isTesting</text>
+<rect class="pm563out" x="740" y="70" width="230" height="60" rx="10"/><text class="pm563t" x="754" y="89">Full-panel scene</text>
+<text class="pm563s" x="754" y="105">Verifying · Provisioning</text>
+<text class="pm563s" x="754" y="120">first-build scene</text>
+<rect class="pm563out" x="740" y="170" width="230" height="45" rx="10"/><text class="pm563t" x="754" y="189">Build overlay</text>
+<text class="pm563s" x="754" y="205">animation picked by phase</text>
+<rect class="pm563out" x="740" y="250" width="230" height="45" rx="10"/><text class="pm563t" x="754" y="269">Testing badge</text>
+<text class="pm563s" x="754" y="285">Validating · Repairing</text>
+<rect class="pm563out" x="740" y="330" width="230" height="45" rx="10"/><text class="pm563t" x="754" y="349">Wake-up overlay</text>
+<text class="pm563s" x="754" y="365">Cold start · error panel</text>
+<rect class="pm563out" x="740" y="410" width="230" height="45" rx="10"/><text class="pm563t" x="754" y="429">Toolbar status dot</text>
+<text class="pm563s" x="754" y="445">selectPreviewStatus</text>
+<path class="pm563ln" d="M570,343 C655.0,343 655.0,85 738,85" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M570,343 C655.0,343 655.0,425 738,425" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M570,203 C655.0,203 655.0,185 738,185" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M570,273 C655.0,273 655.0,345 738,345" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M570,203 C655.0,203 655.0,265 738,265" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,420 C540,470 640,300 738,205" stroke-dasharray="5 4" marker-end="url(#pmm563)"/>
+<path class="pm563ln" d="M240,428 C560,500 660,330 738,282" stroke-dasharray="5 4" marker-end="url(#pmm563)"/><path class="pm563ln" d="M240,412 C520,440 640,140 738,112" stroke-dasharray="5 4" marker-end="url(#pmm563)"/>
+<text class="pm563s" x="470" y="470">dashed: the selector reads the phase to pick the animation</text><text class="pm563s" x="470" y="485">no region changes</text>
+<path class="pm563ln" d="M475,156 L475,178" marker-end="url(#pmm563)"/><text class="pm563s" x="482" y="171">bridging holds it up</text></svg></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Phase</th><th scope="col">Label, derived from the phase</th><th scope="col">Region it changes</th><th scope="col">What the reader sees</th></tr></thead>
+      <tbody>
+        <tr><td><code>preparing</code></td><td>Menyiapkan…</td><td>none</td><td>Picks the animation in the build overlay, or in the first-build scene</td></tr>
+        <tr><td><code>planning</code></td><td>Menyusun rencana…</td><td>none</td><td>Picks the animation in the build overlay, or in the first-build scene</td></tr>
+        <tr><td><code>writing_code</code></td><td>Menulis kode…</td><td>none</td><td>Picks the animation in the build overlay, or in the first-build scene</td></tr>
+        <tr><td><code>making_images</code></td><td>Membuat gambar…</td><td>none</td><td>Picks the animation in the build overlay, or in the first-build scene</td></tr>
+        <tr><td><code>syncing</code></td><td>Menyinkronkan preview…</td><td>none</td><td>Picks the animation in the build overlay, or in the first-build scene</td></tr>
+        <tr><td><code>saving_files</code></td><td>Menyimpan file…</td><td>none</td><td>Shows the Syncing animation, with the phase's own label</td></tr>
+        <tr><td><code>updating_preview</code></td><td>Memperbarui preview…</td><td>none</td><td>Shows the Syncing animation, with the phase's own label</td></tr>
+        <tr><td><code>validating</code></td><td>Memvalidasi…</td><td><code>generation</code>: the <code>isTesting</code> guard turns true, so the overlay fades and hides</td><td>Testing badge with a small Validating animation, and the preview stays visible. On a first build the full scene stays (decision 4)</td></tr>
+        <tr><td><code>repairing</code></td><td>Memperbaiki…</td><td><code>generation</code>: the <code>isTesting</code> guard turns true, so the overlay fades and hides</td><td>Testing badge with a small Repairing animation, and the preview stays visible. On a first build the full scene stays (decision 4)</td></tr>
+        <tr><td><code>none</code>, or a value the editor does not know</td><td>no label</td><td>none</td><td>The rotating generic loading copy, with no phase animation</td></tr>
+      </tbody>
+    </table></div>
+    <div class="prose">
+      <p>While no turn runs, <code>phase</code> names a preview activity instead: <code>syncing</code>, <code>provisioning</code> or <code>idle</code>. The machine reads the field only while a turn runs, so those values reach no region.</p>
+      <p>Three animations do not come from a phase at all. Verifying and Provisioning come from the <code>screen</code> region, and Cold start comes from the <code>coldStart</code> region.</p>
+      <p>Planning and writing are both just <code>generating</code> to the <code>activity</code> region. The machine does not copy the backend's steps into regions. The backend already runs its own state machine for them, and its steps can go backwards. The editor only needs to know whether the AI is testing, and which animation to draw.</p>
+    </div>
+  </section>
+
+  <section id="build" aria-labelledby="build-title">
+    <h2 id="build-title">The regions during a real build <span class="count">6 lanes · 6 min</span></h2>
+    <div class="prose"><p>This is the first build recorded for !718, redrawn from its debug log. Each row is a region, and each bar is how long it stayed in a state. Orange bars are the active states. About five minutes of writing code are cut from the middle.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 330" role="img" aria-label="How each region of the machine moved during the recorded first build">
+<style>.tlb{fill:var(--kiln-text);font:600 12.5px var(--kiln-mono)}.tls{fill:var(--kiln-muted);font:11px var(--kiln-sans)}.tlv{font:11px var(--kiln-sans);fill:var(--kiln-text)}.tloff{fill:var(--kiln-surface-2);stroke:var(--kiln-line)}.tlon{fill:var(--kiln-accent-wash);stroke:var(--kiln-accent)}.tlgood{fill:var(--kiln-ok-wash);stroke:var(--kiln-ok)}.tlwarn{fill:var(--kiln-warn-wash);stroke:var(--kiln-warn)}.tlbad{fill:var(--kiln-bad-wash);stroke:var(--kiln-bad)}.tlph{fill:var(--kiln-surface);stroke:var(--kiln-line)}.tlax{stroke:var(--kiln-line);stroke-width:1}</style>
+<text class="tlb" x="8" y="60">provisioning</text>
+<rect class="tloff" x="178.7" y="44" width="130.0" height="24" rx="4"/>
+<text class="tlv" x="243.7" y="60" text-anchor="middle">idle</text>
+<rect class="tlon" x="308.7" y="44" width="75.8" height="24" rx="4"/>
+<text class="tlv" x="346.6" y="60" text-anchor="middle">waiting</text>
+<rect class="tloff" x="384.5" y="44" width="45.5" height="24" rx="4"/>
+<text class="tlv" x="407.2" y="60" text-anchor="middle">idle</text>
+<rect class="tloff" x="520.0" y="44" width="445.0" height="24" rx="4"/>
+<text class="tlv" x="742.5" y="60" text-anchor="middle">idle</text>
+<text class="tlb" x="8" y="100">activity</text>
+<rect class="tlon" x="178.7" y="84" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="100" text-anchor="middle">generating</text>
+<rect class="tlon" x="520.0" y="84" width="370.8" height="24" rx="4"/>
+<text class="tlv" x="705.4" y="100" text-anchor="middle">generating</text>
+<rect class="tlwarn" x="890.8" y="84" width="45.6" height="24" rx="4"/>
+<rect class="tloff" x="936.5" y="84" width="28.5" height="24" rx="4"/>
+<text class="tlv" x="950.7" y="100" text-anchor="middle">idle</text>
+<text class="tlb" x="8" y="140">generation</text>
+<rect class="tlon" x="178.7" y="124" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="140" text-anchor="middle">visible</text>
+<rect class="tlon" x="520.0" y="124" width="73.0" height="24" rx="4"/>
+<text class="tlv" x="556.5" y="140" text-anchor="middle">visible</text>
+<rect class="tlwarn" x="593.0" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="598.7" y="124" width="194.0" height="24" rx="4"/>
+<text class="tlv" x="695.7" y="140" text-anchor="middle">hidden</text>
+<rect class="tlon" x="792.7" y="124" width="19.4" height="24" rx="4"/>
+<rect class="tlwarn" x="812.1" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="817.8" y="124" width="54.8" height="24" rx="4"/>
+<text class="tlv" x="845.2" y="140" text-anchor="middle">hidden</text>
+<rect class="tlon" x="872.6" y="124" width="13.7" height="24" rx="4"/>
+<rect class="tlwarn" x="886.3" y="124" width="4.6" height="24" rx="4"/>
+<rect class="tlon" x="890.8" y="124" width="45.6" height="24" rx="4"/>
+<text class="tlv" x="913.7" y="140" text-anchor="middle">visible</text>
+<rect class="tlwarn" x="936.5" y="124" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="942.2" y="124" width="22.8" height="24" rx="4"/>
+<text class="tlb" x="8" y="180">coldStart</text>
+<rect class="tloff" x="178.7" y="164" width="251.3" height="24" rx="4"/>
+<text class="tlv" x="304.3" y="180" text-anchor="middle">hidden</text>
+<rect class="tloff" x="520.0" y="164" width="372.0" height="24" rx="4"/>
+<text class="tlv" x="706.0" y="180" text-anchor="middle">hidden</text>
+<rect class="tlon" x="892.0" y="164" width="5.7" height="24" rx="4"/>
+<rect class="tlwarn" x="897.7" y="164" width="5.7" height="24" rx="4"/>
+<rect class="tloff" x="903.4" y="164" width="61.6" height="24" rx="4"/>
+<text class="tlv" x="934.2" y="180" text-anchor="middle">hidden</text>
+<text class="tlb" x="8" y="220">screen</text>
+<rect class="tloff" x="178.7" y="204" width="130.0" height="24" rx="4"/>
+<text class="tlv" x="243.7" y="220" text-anchor="middle">unavailable</text>
+<rect class="tlon" x="308.7" y="204" width="75.8" height="24" rx="4"/>
+<text class="tlv" x="346.6" y="220" text-anchor="middle">provisioning</text>
+<rect class="tlon" x="384.5" y="204" width="45.5" height="24" rx="4"/>
+<rect class="tlon" x="520.0" y="204" width="370.8" height="24" rx="4"/>
+<text class="tlv" x="705.4" y="220" text-anchor="middle">bootstrap</text>
+<rect class="tlgood" x="890.8" y="204" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="927.9" y="220" text-anchor="middle">preview</text>
+<text class="tlb" x="8" y="260">phase (context)</text>
+<rect class="tlph" x="178.7" y="244" width="58.5" height="24" rx="4"/>
+<text class="tlv" x="207.9" y="260" text-anchor="middle">none</text>
+<rect class="tlph" x="237.2" y="244" width="19.5" height="24" rx="4"/>
+<rect class="tlph" x="256.7" y="244" width="173.3" height="24" rx="4"/>
+<text class="tlv" x="343.3" y="260" text-anchor="middle">planning</text>
+<rect class="tlph" x="520.0" y="244" width="16.0" height="24" rx="4"/>
+<rect class="tlph" x="536.0" y="244" width="57.1" height="24" rx="4"/>
+<text class="tlv" x="564.5" y="260" text-anchor="middle">syncing</text>
+<rect class="tlph" x="593.0" y="244" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="630.1" y="260" text-anchor="middle">validating</text>
+<rect class="tlph" x="667.2" y="244" width="125.5" height="24" rx="4"/>
+<text class="tlv" x="729.9" y="260" text-anchor="middle">repairing</text>
+<rect class="tlph" x="792.7" y="244" width="19.4" height="24" rx="4"/>
+<rect class="tlph" x="812.1" y="244" width="60.5" height="24" rx="4"/>
+<rect class="tlph" x="872.6" y="244" width="2.0" height="24" rx="4"/>
+<rect class="tlph" x="873.7" y="244" width="12.6" height="24" rx="4"/>
+<rect class="tlph" x="886.3" y="244" width="4.6" height="24" rx="4"/>
+<rect class="tlph" x="890.8" y="244" width="74.2" height="24" rx="4"/>
+<text class="tlv" x="927.9" y="260" text-anchor="middle">none</text>
+<line class="tlax" x1="170" y1="286" x2="430" y2="286"/>
+<line class="tlax" x1="520" y1="286" x2="965" y2="286"/>
+<line class="tlax" x1="170.0" y1="286" x2="170.0" y2="291"/><text class="tls" x="170.0" y="304" text-anchor="middle">0:14</text>
+<line class="tlax" x1="235.0" y1="286" x2="235.0" y2="291"/><text class="tls" x="235.0" y="304" text-anchor="middle">0:17</text>
+<line class="tlax" x1="300.0" y1="286" x2="300.0" y2="291"/><text class="tls" x="300.0" y="304" text-anchor="middle">0:20</text>
+<line class="tlax" x1="365.0" y1="286" x2="365.0" y2="291"/><text class="tls" x="365.0" y="304" text-anchor="middle">0:23</text>
+<line class="tlax" x1="430.0" y1="286" x2="430.0" y2="291"/><text class="tls" x="430.0" y="304" text-anchor="middle">0:26</text>
+<line class="tlax" x1="542.8" y1="286" x2="542.8" y2="291"/><text class="tls" x="542.8" y="304" text-anchor="middle">5:30</text>
+<line class="tlax" x1="599.9" y1="286" x2="599.9" y2="291"/><text class="tls" x="599.9" y="304" text-anchor="middle">5:35</text>
+<line class="tlax" x1="656.9" y1="286" x2="656.9" y2="291"/><text class="tls" x="656.9" y="304" text-anchor="middle">5:40</text>
+<line class="tlax" x1="714.0" y1="286" x2="714.0" y2="291"/><text class="tls" x="714.0" y="304" text-anchor="middle">5:45</text>
+<line class="tlax" x1="771.0" y1="286" x2="771.0" y2="291"/><text class="tls" x="771.0" y="304" text-anchor="middle">5:50</text>
+<line class="tlax" x1="828.1" y1="286" x2="828.1" y2="291"/><text class="tls" x="828.1" y="304" text-anchor="middle">5:55</text>
+<line class="tlax" x1="885.1" y1="286" x2="885.1" y2="291"/><text class="tls" x="885.1" y="304" text-anchor="middle">6:00</text>
+<line class="tlax" x1="942.2" y1="286" x2="942.2" y2="291"/><text class="tls" x="942.2" y="304" text-anchor="middle">6:05</text>
+<text class="tls" x="475.0" y="26" text-anchor="middle">≈ 5 min of writing cut</text>
+<path d="M434,34 L516,34" stroke="var(--kiln-muted)" stroke-dasharray="4 4" fill="none"/>
+<text class="tls" x="565" y="320" text-anchor="middle">time since recording start (minutes:seconds)</text>
+<text x="913.7" y="99" text-anchor="middle" style="font:9.5px var(--kiln-sans);fill:var(--kiln-text)">bridging</text></svg></div>
+    <div class="prose">
+      <p>During validating and repairing, <code>generation</code> fades and hides, so the preview shows with the testing badge. When the build ends, <code>activity</code> enters <code>bridging</code> and the overlay comes back for 4 seconds. Meanwhile <code>screen</code> switches to the preview, the iframe loads, and <code>coldStart</code> runs its own short show-and-fade cycle. When the bridge ends, the overlay fades and the site is visible. Each region moved on its own clock, and no code coordinated them by hand.</p>
+      <p class="muted">The phase row is not a region. It is the build phase stored in the machine's context, which the animation follows. The short <code>validating*</code> after <code>updating_preview</code> is a stale value, explained under "Gains and costs".</p>
+    </div>
+  </section>
+
+  <section id="compare" aria-labelledby="compare-title">
+    <h2 id="compare-title">The same rules, written both ways <span class="count">5 comparisons</span></h2>
+    <h3>1. The 4-second bridge after a build</h3>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">use-preview-generation-overlay.ts</span></figcaption><pre><code>const prevIsGenerating = useRef(isGenerating);
+const [bridging, setBridging] = useState(false);
+
+useEffect(() =&gt; {
+  // detect the &quot;build ended&quot; edge by hand
+  const wasGenerating = prevIsGenerating.current;
+  prevIsGenerating.current = isGenerating;
+  if (!wasGenerating || isGenerating) return;
+  setBridging(true);
+  void queryClientRef.current.invalidateQueries(/* app GET */);
+  const id = setTimeout(() =&gt; setBridging(false), BRIDGE_MS);
+  // remember to cancel it
+  return () =&gt; clearTimeout(id);
+}, [isGenerating]);
+
+// a second effect ends the bridge early
+useEffect(() =&gt; {
+  if (isSyncing &amp;&amp; bridging) setBridging(false);
+}, [isSyncing, bridging]);</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts</span></figcaption><pre><code>activity: {
+  initial: &quot;idle&quot;,
+  states: {
+    idle: {
+      always: { guard: &quot;isGenerating&quot;, target: &quot;generating&quot; },
+    },
+    generating: {
+      always: {
+        guard: &quot;generationEnded&quot;,
+        target: &quot;bridging&quot;,
+        actions: &quot;invalidateDeployment&quot;,
+      },
+    },
+    bridging: {
+      always: [
+        { guard: &quot;isGenerating&quot;, target: &quot;generating&quot; },
+        { guard: &quot;isSyncing&quot;, target: &quot;idle&quot; },
+      ],
+      // the timer dies when the state is left
+      after: { generationBridge: &quot;idle&quot; },
+    },
+  },
+},</code></pre></figure>
+    </div>
+    <p class="prose why">Without XState, the hook kept the previous value in a ref to spot the end of a build. It started a timer, cancelled it in a cleanup, and used a second effect to end the bridge early. With XState, <code>bridging</code> is a state: entering it starts the timer, and leaving it for any reason cancels the timer.</p>
+    <h3>2. "A timeout must never clear an error"</h3>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-provider.tsx</span></figcaption><pre><code>const beginFade = useCallback((fromError = false) =&gt; {
+  clearTimeout(timeoutRef.current);
+  setLifecycle((current) =&gt; {
+    if (current.phase === &quot;hidden&quot;) return current;
+    // The safety timeout must NOT fade an error.
+    if (current.phase === &quot;error&quot; &amp;&amp; !fromError)
+      return current;
+    return { phase: &quot;fading&quot;, error: null };
+  });
+  fadeRef.current = setTimeout(
+    () =&gt; setLifecycle({ phase: &quot;hidden&quot;, error: null }), FADE_MS);
+}, []);
+// …and every caller must pass the right fromError flag.</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts</span></figcaption><pre><code>visible: {
+  after: {
+    lifecycleInit: { actions: &quot;sendLifecycleInit&quot; },
+    // the 30 s safety timer lives here
+    coldStartDeadline: &quot;fading&quot;,
+  },
+  on: {
+    FRAME_READY: { target: &quot;fading&quot;, actions: &quot;sendLifecycleInit&quot; },
+  },
+},
+error: {
+  // No `after` in this state: no timer can ever fire here.
+  on: {
+    FRAME_READY: {
+      target: &quot;fading&quot;,
+      actions: [&quot;clearFrameError&quot;, &quot;sendLifecycleInit&quot;],
+    },
+  },
+},</code></pre></figure>
+    </div>
+    <p class="prose why">Before, the rule was an <code>if</code> in a shared function plus a flag that every caller had to pass correctly. After, the rule is built into the structure: the 30-second timer belongs to <code>visible</code>, and <code>error</code> has no timer, so nothing can fire there.</p>
+    <h3>3. Which screen wins</h3>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-content.tsx</span></figcaption><pre><code>// PreviewContent: the order of these checks IS the rule.
+if (ensureState.isVerifying) return &lt;PreviewLoadingScene … /&gt;;
+if (activeGeneration?.is_bootstrap &amp;&amp;
+    (status === &quot;running&quot; || status === &quot;syncing&quot;))
+  return &lt;PreviewLoadingScene … /&gt;;
+switch (previewState.status) {
+  case &quot;running&quot;: case &quot;syncing&quot;:
+    return (&lt;&gt;
+      &lt;PreviewIframe … /&gt;
+      &lt;PreviewGenerationOverlay {...generationOverlay} /&gt;
+      {isTesting &amp;&amp; &lt;PreviewTestingBadge /&gt;}
+      &lt;PreviewColdStartOverlay
+        suppressed={generationOverlay.phase !== &quot;hidden&quot;} /&gt;
+    &lt;/&gt;);
+  …
+}</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.ts + selectors</span></figcaption><pre><code>screen: {
+  initial: &quot;deciding&quot;,
+  on: { RECONCILE: { target: &quot;.deciding&quot; } },
+  states: {
+    deciding: {
+      always: [                       // first match wins, in this order
+        { guard: &quot;isVerifying&quot;, target: &quot;verifying&quot; },
+        { guard: &quot;isBootstrap&quot;, target: &quot;bootstrap&quot; },
+        { guard: &quot;isLoading&quot;, target: &quot;loading&quot; },
+        { guard: &quot;isTimedOut&quot;, target: &quot;timeout&quot; },
+        { guard: &quot;isProvisioning&quot;, target: &quot;provisioning&quot; },
+        { guard: &quot;isPreviewAvailable&quot;, target: &quot;preview&quot; },
+        …
+      ],
+    },
+  },
+},
+// selector: the cold-start overlay waits for the build overlay
+showColdStart:
+  snapshot.value.generation === &quot;hidden&quot; &amp;&amp;
+  snapshot.value.coldStart !== &quot;hidden&quot;</code></pre></figure>
+    </div>
+    <p class="prose why">Before, the order of <code>if</code> statements in a render function was the precedence, and the wake-up overlay learned about the build overlay through a prop. After, the order is an explicit list of named guards. The cross-overlay rule is one line in the selector, and both show in the generated diagram.</p>
+    <h3>4. Testing a timer</h3>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">old preview-generation-overlay.test.tsx</span></figcaption><pre><code>// old overlay test: real timers, the test waits it out
+await act(() =&gt; new Promise((r) =&gt;
+  setTimeout(r, PREVIEW_GENERATION_TO_SYNCING_BRIDGE_MS + 50)));</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-loading.machine.test.ts</span></figcaption><pre><code>// machine test: a simulated clock, no React, no waiting
+observe({ editorState: { is_generating: true } });
+observe({ editorState: { is_generating: false } });
+clock.increment(PREVIEW_GENERATION_TO_SYNCING_BRIDGE_MS - 1);
+expect(view().generation.phase).toBe(&quot;visible&quot;);
+clock.increment(1);
+expect(view().generation.phase).toBe(&quot;fading&quot;);</code></pre></figure>
+    </div>
+    <p class="prose why">The old test rendered the hook and really waited more than 4 seconds. The machine test moves a simulated clock, checks the exact millisecond the bridge ends, and runs without rendering.</p>
+    <h3>5. How a state reaches the screen</h3>
+    <div class="prose"><p>The panel is four layers. Each layer is drawn from one field of the selector's output, so a component never works out on its own what to draw.</p></div>
+    <div class="figure"><svg viewBox="0 0 980 300" role="img" aria-label="The four layers of the preview panel and the selector field that controls each">
+<style>.lyl{fill:var(--kiln-surface);stroke:var(--kiln-line-strong)}.lytop{fill:var(--kiln-surface);stroke:var(--kiln-text);stroke-width:1.4}.lyt{font:600 13px var(--kiln-sans);fill:var(--kiln-text)}.lys{font:11.5px var(--kiln-sans);fill:var(--kiln-muted)}.lym{font:12px var(--kiln-mono);fill:var(--kiln-text)}.lyz{font:11px var(--kiln-mono);fill:var(--kiln-muted)}</style>
+<rect class="lytop" x="20" y="14" width="480" height="58" rx="12"/>
+<text class="lyz" x="34" y="36">layer 4</text><text class="lyt" x="92" y="36">Wake-up overlay</text><text class="lys" x="34" y="56">shown only once the build overlay is fully hidden</text>
+<line x1="500" y1="43" x2="530" y2="43" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="47">showColdStart, coldStart</text>
+<rect class="lyl" x="36" y="84" width="464" height="58" rx="12"/>
+<text class="lyz" x="50" y="106">layer 3</text><text class="lyt" x="108" y="106">Testing badge</text><text class="lys" x="50" y="126">small animation while the AI tests the preview</text>
+<line x1="500" y1="113" x2="530" y2="113" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="117">isTesting, animation</text>
+<rect class="lyl" x="52" y="154" width="448" height="58" rx="12"/>
+<text class="lyz" x="66" y="176">layer 2</text><text class="lyt" x="124" y="176">Build overlay</text><text class="lys" x="66" y="196">full animation, label, file count. It fades out</text>
+<line x1="500" y1="183" x2="530" y2="183" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="187">generation (phase, animation, copy, progress)</text>
+<rect class="lyl" x="68" y="224" width="432" height="58" rx="12"/>
+<text class="lyz" x="82" y="246">layer 1</text><text class="lyt" x="140" y="246">Main screen</text><text class="lys" x="82" y="266">skeleton, Verifying, Provisioning, first build, preview, or a message</text>
+<line x1="500" y1="253" x2="530" y2="253" stroke="var(--kiln-line-strong)" stroke-dasharray="3 3"/>
+<text class="lym" x="540" y="257">screen, editorState</text>
+<text class="lys" x="540" y="292">fields of the object returned by selectPreviewLoading</text>
+</svg></div>
+    <div class="pair">
+      <figure class="snippet"><figcaption><span class="pill warn">Without XState</span><span class="mono muted">preview-content.tsx and the overlays</span></figcaption><pre><code>// preview-content.tsx — three hooks, then an if-chain
+const isTesting = usePreviewTestingSignal(appId);
+const generationOverlay = usePreviewGenerationOverlay({
+  appId,
+  isSyncing: previewState.status === &quot;syncing&quot;,
+  isTesting,
+});
+const activeGeneration = useActiveGenerationSignal(appId);
+
+if (ensureState.isVerifying)
+  return &lt;PreviewLoadingScene copy=&quot;Memverifikasi workspace...&quot; /&gt;;
+…
+&lt;PreviewGenerationOverlay {...generationOverlay} /&gt;
+&lt;PreviewColdStartOverlay
+  suppressed={generationOverlay.phase !== &quot;hidden&quot;} /&gt;
+
+// each overlay also fetched its own pieces
+function PreviewGenerationOverlay({ phase, copy, ariaLabel }) {
+  const buildProgress = useBuildProgressStore((s) =&gt; s.progress);
+  …
+}
+function PreviewColdStartOverlay({ suppressed }) {
+  const { lifecycle } = usePreview();
+  if (suppressed || lifecycle.phase === &quot;hidden&quot;) return null;
+  …
+}</code></pre></figure>
+      <figure class="snippet"><figcaption><span class="pill ok">With XState</span><span class="mono muted">preview-content.tsx and the overlays</span></figcaption><pre><code>// preview-content.tsx — one object, one switch
+const loading = usePreviewLoadingViewModel({
+  appId,
+  editorState,
+  isVerifying: ensureState.isVerifying,
+});
+const observedEditorState = loading.editorState;
+
+switch (loading.screen) {
+  case &quot;verifying&quot;:
+    return &lt;PreviewLoadingScene
+      copy=&quot;Memverifikasi workspace...&quot; animation=&quot;verifying&quot; /&gt;;
+  case &quot;preview&quot;:
+    return (&lt;&gt;
+      {observedEditorState?.preview_url ? (
+        &lt;PreviewIframe previewUrl={observedEditorState.preview_url} /&gt;
+      ) : null}
+      &lt;PreviewGenerationOverlay {...loading.generation} /&gt;
+      {loading.isTesting &amp;&amp; (
+        &lt;PreviewTestingBadge animation={loading.animation} /&gt;
+      )}
+      &lt;PreviewColdStartOverlay
+        lifecycle={loading.coldStart}
+        visible={loading.showColdStart} /&gt;
+    &lt;/&gt;);
+  …
+}
+
+// overlays only draw the props they receive
+function PreviewColdStartOverlay({ lifecycle, visible }) {
+  if (!visible) return null;
+  …
+}</code></pre></figure>
+    </div>
+    <p class="prose why">Before, <code>PreviewContent</code> called three hooks and combined them in an if-chain. Each overlay also fetched its own data. The build overlay read the progress store, and the wake-up overlay read the provider's lifecycle and a <code>suppressed</code> prop. After, <code>PreviewContent</code> receives one ready-made object and switches on <code>loading.screen</code>, and each overlay draws exactly the props it is given. Changing which layer wins means changing the machine or the selector, never a component.</p>
+  </section>
+
+  <section id="costs" aria-labelledby="costs-title">
+    <h2 id="costs-title">Gains and costs <span class="count">8 gains · 5 costs</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">Question</th><th scope="col">Without XState</th><th scope="col">With XState</th></tr></thead>
+      <tbody>
+        <tr><td>Where is the logic?</td><td>Three hooks and a provider, plus the order of checks in a render function</td><td><code>preview-loading.machine.ts</code>, its selector file, and one merge file for the two delivery paths</td></tr>
+        <tr><td>How many input shapes?</td><td>Three: live progress, the saved marker, the deployment status</td><td>One <code>EditorState</code>. <code>selectEditorState</code> merges the two sources into it</td></tr>
+        <tr><td>Who owns the timers?</td><td>Five timers in three files, in refs and effects, cancelled by hand</td><td>Five named <code>delays</code>, started and stopped with their states</td></tr>
+        <tr><td>Can you see the flow?</td><td>Only by reading all the code</td><td>A generated diagram in <code>docs/flows/editor-preview-loading.md</code>, checked by a test</td></tr>
+        <tr><td>Impossible combinations?</td><td>Possible: flags and phases disagreed across hooks</td><td>Each region is in exactly one state, and a test proves every state is reachable and has a way out</td></tr>
+        <tr><td>Timer tests</td><td>Real waiting in rendered hooks</td><td>Simulated clock, no React</td></tr>
+        <tr><td>Debugging</td><td>Log lines in each hook</td><td>One subscription logs every region change to <code>DEWA_PREVIEW_DEBUG</code></td></tr>
+        <tr><td>Reviewing a change</td><td>Read the effects and imagine the timing</td><td>Read the machine diff and the diagram diff</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Costs</h3>
+    <div class="prose"><ul>
+      <li><strong>More code.</strong> About 670 lines in five files became about 916 in seven. The machine file alone is 293 lines. The gain is in finding and checking rules, not in typing less.</li>
+      <li><strong>Two packages.</strong> <code>xstate</code> 5.33.2 and <code>@xstate/react</code> 6.1.0. The bundle cost for this app is not measured yet (Sitrep measured about 14 KiB gzipped).</li>
+      <li><strong>New ideas to learn.</strong> The table of XState ideas above is the minimum a reader needs.</li>
+      <li><strong>One merge rule.</strong> While a turn streams, the live generation fields win whole. A live null phase is a real "no phase", and the saved phase does not fill it in.</li>
+      <li><strong>Its own traps.</strong> <code>LOAD_ARMED</code> once used <code>reenter: true</code> to move from a region to its own child. In a parallel machine that restarts every region, so each iframe load cut the bridge and the fade short. The debug log caught it, not the tests. Commit <code>2d808714</code> fixed it and added a regression test.</li>
+    </ul></div>
+    <div class="callout prose">
+      <p><strong>What XState does not fix.</strong> The machine is only as correct as its inputs. When a build ends, the stream stops sending its editor state. Until the next editor-state poll arrives, the machine still sees the last saved observation. That observation can still say a build runs at <code>validating</code>, so the overlay can fade late and the badge can flash. The old code had the same wait. Fixing it needs fresher data, such as an immediate refresh when the stream ends. That is a decision for LB-2.</p>
+    </div>
+  </section>
+
+  <section id="change" aria-labelledby="change-title">
+    <h2 id="change-title">How to change the machine <span class="count">5 steps</span></h2>
+    <ol class="steps">
+      <li><div class="rail"><span class="code">1</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Edit the machine</span></div><p>Add a state, guard or delay by name in <code>preview-loading.machine.ts</code>. Keep React and fetching out of it.</p></div></li>
+      <li><div class="rail"><span class="code">2</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Update the selector</span></div><p>If what the panel shows changes, update <code>preview-loading.selectors.ts</code>.</p></div></li>
+      <li><div class="rail"><span class="code">3</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Add a test</span></div><p>Add it to <code>__tests__/preview-loading.machine.test.ts</code>, with the simulated clock for anything timed.</p></div></li>
+      <li><div class="rail"><span class="code">4</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Regenerate the diagram</span></div><p>Run <code>pnpm --dir apps/web vitest run src/domains/editor/preview/__tests__/preview-loading.machine.test.ts -u</code> and review the diagram's diff.</p></div></li>
+      <li><div class="rail"><span class="code">5</span><span class="line"></span></div><div class="body"><div class="head"><span class="title">Check it in a browser</span></div><p>Run <code>pnpm --dir apps/web test:editor-loading</code>, then open the editor with <code>localStorage.setItem("DEWA_PREVIEW_DEBUG", "1")</code> and watch the log.</p></div></li>
+    </ol>
+  </section>
+
+  <footer class="mono">Written for MR !718, 11 Nov 2026. Built with the proposed Kiln design system: tokens, fonts and theme convention from the Kiln artifact guide proposal.</footer>
+</div>
+<script>
+  // Kiln renders artifacts in a srcdoc frame whose base URL is the Kiln page, so
+  // a plain "#section" link would load that page inside the frame. Scroll instead.
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const target = document.getElementById(link.getAttribute("href").slice(1));
+    if (!target) return;
+    event.preventDefault();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    const heading = target.querySelector("h2");
+    if (heading) { heading.setAttribute("tabindex", "-1"); heading.focus({ preventScroll: true }); }
+  });
+</script>
+</body>
+</html>

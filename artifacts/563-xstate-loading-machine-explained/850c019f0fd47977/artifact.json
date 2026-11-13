@@ -1,0 +1,20 @@
+{
+  "slug": "563-xstate-loading-machine-explained",
+  "title": "From backend progress to the editor screen (#563)",
+  "framework": "html",
+  "metadata": {
+    "description": "Where the #563 work stands and its test results, then how the backend, the frontend and XState connect: one EditorState from the editor-state GET and the live chat stream, the label derived from the phase, the machine's regions and phases.",
+    "tags": [
+      "563",
+      "xstate",
+      "editor",
+      "explainer",
+      "api",
+      "status",
+      "test-results",
+      "kiln-design-proposal"
+    ]
+  },
+  "revision": "850c019f0fd47977",
+  "updated_at": "2026-11-13T10:20:41.854Z"
+}
