@@ -1,0 +1,19 @@
+{
+  "slug": "618-support-impersonation-flow",
+  "title": "How support impersonation works in Arcane (#618, !732)",
+  "framework": "html",
+  "metadata": {
+    "description": "Visual walkthrough of MR !732: why impersonation broke after ADR-063, the full start sequence from the admin console through Arcane to Authentik, the two-session timeline, the access checks, the stop banner, and the sub-to-pk lookup.",
+    "tags": [
+      "618",
+      "732",
+      "auth",
+      "impersonation",
+      "authentik",
+      "admin-console",
+      "explainer"
+    ]
+  },
+  "revision": "42f44095ca7490a9",
+  "updated_at": "2026-11-13T02:45:26.996Z"
+}
