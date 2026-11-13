@@ -1,0 +1,398 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+  :root[data-theme="dark"] { color-scheme: dark; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 16px;
+    background: var(--kiln-bg);
+    color: var(--kiln-text);
+    font: 15px/1.6 var(--kiln-font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 0 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+  a { color: var(--kiln-accent-text); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; border-radius: 3px; }
+
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .muted { color: var(--kiln-muted); }
+  .small { font-size: 13.5px; line-height: 1.5; }
+
+  header { display: flex; flex-direction: column; gap: 14px; }
+  .topline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 5.2vw, 42px);
+    line-height: 1.08;
+    font-weight: 500;
+    letter-spacing: -0.035em;
+  }
+  .lead { margin: 0; max-width: 64ch; font-size: 16.5px; line-height: 1.55; }
+
+  .sec { display: flex; flex-direction: column; gap: 14px; }
+  .sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+  h2 {
+    margin: 0;
+    font-size: 23px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .count { font-family: var(--kiln-font-mono); font-size: 12.5px; color: var(--kiln-muted); }
+  .sec p { margin: 0; max-width: 68ch; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font: 12px var(--kiln-font-mono);
+    background: var(--kiln-surface-2);
+    color: var(--kiln-muted);
+    white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.warn { background: var(--kiln-warn-wash); color: var(--kiln-warn); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .callout {
+    border: 1px solid var(--kiln-line);
+    border-left: 3px solid var(--kiln-accent);
+    border-radius: 12px;
+    background: var(--kiln-surface-2);
+    padding: 14px 16px;
+    max-width: 68ch;
+  }
+  .callout p { margin: 0; }
+
+  .scroll {
+    overflow-x: auto;
+    border: 1px solid var(--kiln-line);
+    border-radius: 12px;
+    background: var(--kiln-surface);
+  }
+  table { width: 100%; border-collapse: collapse; min-width: 880px; }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font: 12px var(--kiln-font-mono);
+    letter-spacing: 0.03em;
+    color: var(--kiln-muted);
+    background: var(--kiln-surface-2);
+    border-bottom: 1px solid var(--kiln-line);
+    white-space: nowrap;
+  }
+  td {
+    padding: 12px 14px;
+    border-top: 1px solid var(--kiln-line);
+    vertical-align: top;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  tbody tr:first-child td { border-top: 0; }
+  td.code { font-family: var(--kiln-font-mono); font-size: 12.5px; white-space: nowrap; }
+  .w-code { width: 56px; }
+  .w-ref { width: 68px; }
+  .dir { white-space: nowrap; }
+  .mp { min-width: 290px; }
+  .host { margin-top: 4px; overflow-wrap: break-word; }
+  .note { margin-top: 6px; font-size: 13px; }
+  .path { white-space: nowrap; }
+  td.ep { white-space: nowrap; }
+
+  .empty {
+    border: 1px dashed var(--kiln-line-strong);
+    border-radius: 12px;
+    background: var(--kiln-surface);
+    padding: 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 68ch;
+  }
+  .empty p { margin: 0; }
+  .empty-title { font-weight: 500; }
+
+  .card {
+    border: 1px solid var(--kiln-line);
+    border-radius: 12px;
+    background: var(--kiln-surface);
+    padding: 18px 20px;
+  }
+  .card ul { margin: 0; padding-left: 20px; list-style: disc; }
+  .card li + li { margin-top: 6px; }
+  .card li::marker { color: var(--kiln-muted); }
+
+  footer {
+    border-top: 1px solid var(--kiln-line);
+    padding-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--kiln-muted);
+  }
+  footer p { margin: 0; max-width: 68ch; }
+</style>
+
+<div class="wrap" lang="en">
+  <header>
+    <div class="topline">
+      <span class="mono muted" id="date"></span>
+      <span class="mono muted" aria-hidden="true">/</span>
+      <a class="mono" id="issue-link" href="#">Arcane issue #631</a>
+      <span class="pill info">Draft v1</span>
+    </div>
+    <h1>Espay first card payment: UAT building blocks (#631)</h1>
+    <p class="lead">This page lists the four endpoints of the first card payment. It shows the endpoint that each row of the Espay UAT script tests.</p>
+  </header>
+
+  <div class="callout" id="callout" role="status">
+    <p></p>
+  </div>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Scope</h2>
+      <span class="count">1 card payment</span>
+    </div>
+    <p>The scope is the first card payment only. The customer pays once with a card on an Espay page. Arcane sends the request, then it confirms the result with a status lookup. Card data stays on the Espay page and does not reach Arcane.</p>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Endpoints</h2>
+      <span class="count">4 endpoints, 2 in each direction</span>
+    </div>
+    <p class="muted">Arcane calls E1 and E2 on the Espay host. Espay calls E3 and E4 on the Arcane host. The URLs of E3 and E4 are registered in the Espay merchant portal.</p>
+    <div class="scroll">
+      <table aria-label="Endpoints of the first card payment">
+        <thead>
+          <tr>
+            <th class="w-code">#</th>
+            <th>Direction</th>
+            <th>Method and path</th>
+            <th>Purpose</th>
+            <th>Success code</th>
+          </tr>
+        </thead>
+        <tbody id="ep-body"></tbody>
+      </table>
+    </div>
+    <p class="small muted">A success code is the response code of the SNAP reply. When a call to Arcane fails, the Espay portal shows <span class="mono">[0031] Rejected, Error komunikasi dengan mitra</span>.</p>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>UAT rows and the endpoint that each row tests</h2>
+      <span class="count" id="row-count"></span>
+    </div>
+    <div class="pills" id="app-summary"></div>
+    <div class="scroll">
+      <table aria-label="UAT rows mapped to the endpoint that each row tests">
+        <thead>
+          <tr>
+            <th class="w-ref">Row</th>
+            <th>What the test does</th>
+            <th>Endpoint</th>
+            <th>Applicability</th>
+          </tr>
+        </thead>
+        <tbody id="row-body"></tbody>
+      </table>
+    </div>
+    <p class="small muted">Applies means that the row is in scope for the SNAP Host to Host setup. To confirm with Espay means that the sample marks the row for an embed kit or non SNAP merchant. Pending implementation means that Arcane and Espay have not agreed the reply for that row.</p>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>User flow</h2>
+      <span class="count">empty, 0 screenshots</span>
+    </div>
+    <div class="empty">
+      <p class="empty-title">Screenshots from the Arcane sandbox flow come after the implementation.</p>
+      <p class="muted">This section will hold the steps of the flow with one screenshot for each step. The flow goes from the Arcane checkout to the Espay card page, then back to Arcane, then to the paid state.</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Out of scope</h2>
+      <span class="count">5 items</span>
+    </div>
+    <div class="card">
+      <ul id="oos-list"></ul>
+    </div>
+  </section>
+
+  <footer>
+    <p class="small">Sources: the Espay sample Merchant Integration UAT Script (Dynamic), the sandbox facts from the issue #570 spike, and Arcane issue #631.</p>
+    <p class="mono">Last update 13 Nov 2026. This page is public and holds no merchant code, key, token or tunnel URL.</p>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var DATA = {
+      issue: "https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/issues/631",
+      updated: "13 Nov 2026",
+      endpoints: [
+        {
+          id: "E1",
+          direction: "Arcane to Espay",
+          method: "POST",
+          path: "/apimerchant/v1.0/debit/payment-host-to-host",
+          host: "sandbox-api.espay.id (production: api-merchant.espay.id)",
+          purpose: "Starts the card payment. The reply holds webRedirectUrl, the URL of the Espay card page. Arcane sends the customer browser there.",
+          note: "Arcane sends the order ID in partnerReferenceNo, the amount as \"10000.00\" IDR, payMethod 008, payType REDIRECT, a return URL in urlParam and validUpTo. The signature is RSA-SHA256 in X-SIGNATURE.",
+          code: "2005400"
+        },
+        {
+          id: "E2",
+          direction: "Arcane to Espay",
+          method: "POST",
+          path: "/apimerchant/v1.0/transfer-va/status",
+          host: "sandbox-api.espay.id (production: api-merchant.espay.id)",
+          purpose: "Reads the order state. Arcane confirms the payment with this call and does not grant a purchase from the notification alone.",
+          note: "State S means success, IP means in progress and SP means suspect. A call with additionalInfo.isPaymentNotif \"Y\" asks Espay to send the notification again. The spike did not record the success code of this call.",
+          code: "Not recorded"
+        },
+        {
+          id: "E3",
+          direction: "Espay to Arcane",
+          method: "POST",
+          path: "/api/v1/webhooks/payments/espay/inquiry",
+          host: "Arcane host, URL registered in the Espay merchant portal",
+          purpose: "Answers the inquiry that Espay sends when it creates the order, before the card page opens. Arcane returns the order amount in virtualAccountData.",
+          note: "A wrong URL, signature or format makes Espay show the [0031] error. The signature is a SNAP signature that Arcane checks with the Espay public key.",
+          code: "2002400"
+        },
+        {
+          id: "E4",
+          direction: "Espay to Arcane",
+          method: "POST",
+          path: "/api/v1/webhooks/payments/espay/payment",
+          host: "Arcane host, URL registered in the Espay merchant portal",
+          purpose: "Takes the payment notification. Arcane reads additionalInfo.transactionStatus and paidAmount, then replies with the success code.",
+          note: "A wrong signature or URL leaves the order Suspect with remark PR31 in the Espay portal. Espay did not retry a failed notification within 15 minutes in the sandbox.",
+          code: "2002500"
+        }
+      ],
+      rows: [
+        { ref: "2.1", text: "Positive inquiry. Espay calls the Inquiry URL when it creates the order, before the card page opens. Arcane replies 2002400 with the order amount.", endpoint: "E3 Inquiry URL", applicability: "applies" },
+        { ref: "2.2", text: "Wrong Inquiry URL. The portal points at a path that does not exist. Espay shows the [0031] error.", endpoint: "E3 Inquiry URL", applicability: "applies" },
+        { ref: "2.3", text: "Wrong API key. The sample marks this row as an embed kit check.", endpoint: "E3 Inquiry URL", applicability: "to confirm with Espay" },
+        { ref: "2.4", text: "Wrong password. The sample marks this row as a check for a merchant that does not use SNAP.", endpoint: "E3 Inquiry URL", applicability: "to confirm with Espay" },
+        { ref: "2.5", text: "Wrong signature. The inquiry carries a signature that Arcane cannot check. Arcane rejects the call and Espay shows the [0031] error.", endpoint: "E3 Inquiry URL", applicability: "applies" },
+        { ref: "2.6", text: "Wrong response format. Arcane returns a body that does not match the SNAP format. Espay shows the [0031] error.", endpoint: "E3 Inquiry URL", applicability: "applies" },
+        { ref: "3.1", text: "Positive payment. The customer pays on the Espay card page. Espay sends the notification to the Payment Notif URL and Arcane replies 2002500.", endpoint: "E4 Payment Notif URL", applicability: "applies" },
+        { ref: "3.2", text: "Wrong Payment Notif URL. Espay cannot reach Arcane. The order stays Suspect with remark PR31 in the portal.", endpoint: "E4 Payment Notif URL", applicability: "applies" },
+        { ref: "3.3", text: "Wrong signature. The notification signature does not match the Espay public key. The order stays Suspect with remark PR31.", endpoint: "E4 Payment Notif URL", applicability: "applies" },
+        { ref: "3.4", text: "Wrong password. The sample marks this row as a check for a merchant that does not use SNAP.", endpoint: "E4 Payment Notif URL", applicability: "to confirm with Espay" },
+        { ref: "3.5", text: "Wrong signature components. One signed field does not match the body. Arcane rejects the notification.", endpoint: "E4 Payment Notif URL", applicability: "applies" },
+        { ref: "3.6", text: "Wrong response format. Arcane returns a reply that does not match the SNAP format. The order stays Suspect with remark PR31.", endpoint: "E4 Payment Notif URL", applicability: "applies" },
+        { ref: "3.7", text: "Double payment. Espay sends the same notification twice. Arcane must not grant the purchase twice. The exact reply is open.", endpoint: "E4 Payment Notif URL", applicability: "pending implementation" },
+        { ref: "4.1", text: "Card statement label. The statement shows ESPAY when Espay acts as the aggregator for the card acquirer. The tester reads the card statement, not the portal.", endpoint: "E1 card page and settlement", applicability: "applies" }
+      ],
+      outOfScope: [
+        "Saved cards and card on file. The customer types the card data for each payment.",
+        "Renewals and recurring charges.",
+        "Refunds and partial refunds.",
+        "Virtual account (VA) payments.",
+        "QRIS payments."
+      ]
+    };
+
+    function el(tag, cls, text) {
+      var node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text != null) node.textContent = text;
+      return node;
+    }
+
+    document.getElementById("date").textContent = DATA.updated;
+
+    var link = document.getElementById("issue-link");
+    if (DATA.issue.indexOf("https://") === 0) {
+      link.href = DATA.issue;
+      link.rel = "noopener noreferrer";
+    } else {
+      link.remove();
+    }
+
+    var epBody = document.getElementById("ep-body");
+    DATA.endpoints.forEach(function (ep) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "code", ep.id));
+      tr.appendChild(el("td", "dir", ep.direction));
+
+      var mp = el("td", "mp");
+      mp.appendChild(el("div", "mono", ep.method));
+      mp.appendChild(el("div", "mono path", ep.path));
+      mp.appendChild(el("div", "mono muted host", ep.host));
+      tr.appendChild(mp);
+
+      var purpose = el("td");
+      purpose.appendChild(el("div", null, ep.purpose));
+      purpose.appendChild(el("div", "note muted", ep.note));
+      tr.appendChild(purpose);
+
+      tr.appendChild(el("td", "code", ep.code));
+      epBody.appendChild(tr);
+    });
+
+    var pillClass = {
+      "applies": "ok",
+      "to confirm with Espay": "warn",
+      "pending implementation": "info"
+    };
+
+    var rowBody = document.getElementById("row-body");
+    DATA.rows.forEach(function (row) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "code", row.ref));
+      tr.appendChild(el("td", null, row.text));
+      tr.appendChild(el("td", "mono ep", row.endpoint));
+
+      var cell = el("td");
+      cell.appendChild(el("span", "pill " + pillClass[row.applicability], row.applicability));
+      tr.appendChild(cell);
+
+      rowBody.appendChild(tr);
+    });
+
+    var counts = {};
+    DATA.rows.forEach(function (row) {
+      counts[row.applicability] = (counts[row.applicability] || 0) + 1;
+    });
+
+    var summary = document.getElementById("app-summary");
+    Object.keys(pillClass).forEach(function (key) {
+      summary.appendChild(el("span", "pill " + pillClass[key], (counts[key] || 0) + " " + key));
+    });
+
+    document.getElementById("row-count").textContent = DATA.rows.length + " rows";
+
+    var callout = document.querySelector("#callout p");
+    var confirmCount = counts["to confirm with Espay"] || 0;
+    var pendingCount = counts["pending implementation"] || 0;
+    callout.textContent = confirmCount + " rows need a confirmation from Espay. " + pendingCount + " row waits for the implementation. The rows table gives the endpoint for each row.";
+
+    var oos = document.getElementById("oos-list");
+    DATA.outOfScope.forEach(function (item) {
+      oos.appendChild(el("li", null, item));
+    });
+  })();
+</script>
