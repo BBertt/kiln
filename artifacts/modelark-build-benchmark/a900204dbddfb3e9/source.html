@@ -1,0 +1,588 @@
+<style>
+  :root { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { color-scheme: dark; } }
+  :root[data-theme='dark'] { color-scheme: dark; }
+  body { margin: 0; padding: 0 16px; background: var(--kiln-bg); color: var(--kiln-text); font: 15px/1.55 var(--kiln-font-sans); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 72px; display: flex; flex-direction: column; gap: 48px; }
+  header { display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 8px 0 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.08; font-weight: 500; letter-spacing: -0.035em; }
+  h2 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -0.02em; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  p { margin: 0; max-width: 68ch; }
+  .muted { color: var(--kiln-muted); }
+  .mono { font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font: 12px var(--kiln-font-mono); background: var(--kiln-surface-2); color: var(--kiln-muted); white-space: nowrap; align-self: flex-start; }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { background: var(--kiln-ok-wash); color: var(--kiln-ok); }
+  .pill.bad { background: var(--kiln-bad-wash); color: var(--kiln-bad); }
+  .pill.info { background: var(--kiln-info-wash); color: var(--kiln-info); }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .card { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .card .label { font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .cardhead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .cardhead .name { font: 500 12.5px var(--kiln-font-mono); color: var(--kiln-text); }
+  .cardhead .fam { font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  .card .value { font-size: 26px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; }
+  .card .unit { font-size: 14px; color: var(--kiln-muted); font-weight: 400; }
+  .card .note { font-size: 13.5px; color: var(--kiln-muted); }
+  .card .note strong { color: var(--kiln-text); font-weight: 500; }
+  .card .aside { font-size: 13px; color: var(--kiln-muted); }
+  .panel { background: var(--kiln-surface); border: 1px solid var(--kiln-line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .callout { background: var(--kiln-surface-2); border-left: 3px solid var(--kiln-accent); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .callout.ok { border-left-color: var(--kiln-ok); }
+  .callout.bad { border-left-color: var(--kiln-bad); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--kiln-line); vertical-align: middle; }
+  th { position: sticky; top: 0; background: var(--kiln-surface-2); font: 12px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-family: var(--kiln-font-mono); white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  td.wide { min-width: 240px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .scroll { overflow-x: auto; border: 1px solid var(--kiln-line); border-radius: 12px; }
+  .cell-ok { color: var(--kiln-ok); }
+  .cell-warn { color: var(--kiln-warn); }
+  .cell-bad { color: var(--kiln-bad); }
+  code { font-family: var(--kiln-font-mono); font-size: 13px; background: var(--kiln-surface-2); padding: 1px 5px; border-radius: 5px; }
+  pre { margin: 0; background: var(--kiln-surface-2); border: 1px solid var(--kiln-line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; font-family: var(--kiln-font-mono); font-size: 12.5px; line-height: 1.5; }
+  pre code { background: none; padding: 0; font-size: 12.5px; }
+  ol, ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; max-width: 68ch; }
+  li { padding-left: 2px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .group-label { font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; margin-right: 2px; }
+  .filters button { font: 12px var(--kiln-font-mono); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--kiln-line-strong); background: var(--kiln-surface); color: var(--kiln-text); cursor: pointer; }
+  .filters button:hover { background: var(--kiln-surface-2); }
+  .filters button[aria-pressed='true'] { background: var(--kiln-accent-wash); border-color: var(--kiln-accent-strong); color: var(--kiln-accent-text); }
+  .filters button:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+  .links { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--kiln-font-mono); font-size: 12.5px; }
+  a { color: var(--kiln-info); }
+  a:focus-visible { outline: 2px solid var(--kiln-accent-strong); outline-offset: 2px; }
+  .site-shots { display: flex; flex-direction: column; gap: 10px; }
+  .shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  @media (max-width: 760px) { .shots { grid-template-columns: repeat(3, 260px); overflow-x: auto; padding-bottom: 8px; } }
+  .shot-frame { max-height: 760px; overflow-y: auto; border: 1px solid var(--kiln-line); border-radius: 12px; background: var(--kiln-surface-2); }
+  .shot-frame img { display: block; width: 100%; min-height: 160px; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  figcaption { font-size: 13px; color: var(--kiln-muted); }
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .mini { background: var(--kiln-surface-2); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .mini .label { font: 11.5px var(--kiln-font-mono); color: var(--kiln-muted); text-transform: uppercase; letter-spacing: .04em; }
+  footer { border-top: 1px solid var(--kiln-line); padding-top: 16px; color: var(--kiln-muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<div class='wrap' lang='en'>
+  <header>
+    <div class='chips'>
+      <span class='pill'>13–14 Nov 2026</span>
+      <span class='pill'>round 2</span>
+      <span class='pill'>120 builds</span>
+      <span class='pill'>93 blind reviews</span>
+      <span class='pill info'>supersedes round 1</span>
+    </div>
+    <h1>Which model should build the site</h1>
+    <p class='muted'>Eight models, five futuristic briefs, three runs each, through the production plan-and-write pipeline. Every build was rendered, checked against its brief, and reviewed blind. Round 2 replaces round 1's result.</p>
+    <div class='links'>
+      <a href='https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/work_items/638' target='_blank' rel='noopener'>issue 638</a>
+      <a href='https://dev.dewaweb.team/application-developer/arcane/dewabuilder/-/merge_requests/737' target='_blank' rel='noopener'>MR !737</a>
+    </div>
+  </header>
+
+  <section>
+    <div class='callout ok'>
+      <p><strong>DeepSeek V4.1 Flash should take the build slot.</strong> It passed every check on 13 of 15 builds and scored 22.5 of 25 in the blind review, the best mean of the eight models. Seed 2.1 Turbo passed one more build on all checks (14 of 15; both are 14 of 15 on validation) but scored 17.4, so it is the more reliable model with the weaker sites.</p>
+      <p><strong>The finding that matters more is about Gemini.</strong> In 21 of its 23 failures, Gemini put the database schema in the wrong place in the tool call. Our argument model drops unknown fields without an error, so no migration was written, no collection was created, and the turn still ended <code>ok</code>. Production builds every app with Gemini 3.7 on <code>app-base</code>, so this likely ships apps without a database today. That is an inference until someone checks production run history. <a href='#key-finding'>The key finding</a> has the details.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every model <span class='mono muted'>one card each, ordered by blind score</span></h2>
+    <div class='cards' id='model-cards'></div>
+  </section>
+
+  <section>
+    <h2>Standings <span class='mono muted'>the numbers behind the call</span></h2>
+    <div class='cards' id='winners'></div>
+  </section>
+
+  <section>
+    <h2>Results, round 2 <span class='mono muted'>8 models, 15 builds each</span></h2>
+    <div class='filters' role='group' aria-label='Filter by model family'>
+      <span class='group-label'>Family</span>
+      <button type='button' data-family='all' aria-pressed='true'>All 8</button>
+      <button type='button' data-family='BytePlus' aria-pressed='false'>BytePlus</button>
+      <button type='button' data-family='Gemini' aria-pressed='false'>Gemini baselines</button>
+    </div>
+    <div class='filters' role='group' aria-label='Sort the results table'>
+      <span class='group-label'>Sort</span>
+      <button type='button' data-sort='quality' aria-pressed='true'>Blind score</button>
+      <button type='button' data-sort='reliability' aria-pressed='false'>Pass rate</button>
+      <button type='button' data-sort='speed' aria-pressed='false'>Build time</button>
+    </div>
+    <p class='mono muted' id='filter-note' aria-live='polite'>—</p>
+    <div class='scroll'>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th class='num'>All checks</th>
+            <th class='num'>Validation</th>
+            <th class='num'>Blind /25</th>
+            <th class='num'>Fid.</th>
+            <th class='num'>Persist.</th>
+            <th class='num'>Struct.</th>
+            <th class='num'>Design</th>
+            <th class='num'>Copy</th>
+            <th class='num'>Wins</th>
+            <th class='num'>Median</th>
+            <th class='num'>Range</th>
+            <th class='num'>Tokens / build</th>
+            <th class='num'>Cost / build</th>
+          </tr>
+        </thead>
+        <tbody id='results'></tbody>
+      </table>
+    </div>
+    <p class='muted'>All checks counts builds where every harness check passed. Validation counts builds where the pipeline's own validation passed; one build can pass validation and fail a check the eval adds, which happened once (DeepSeek V4.1 Flash, pasar-neon second run, an undefined <code>Flaneur</code>). Blind is the mean of the reviewer's five criteria, out of 25. Wins is the best total in one site-and-run group; 15 groups, ties count for both models. Times are wall clock for the whole turn, render included. Tokens are output then input, per build.</p>
+    <p class='muted'>DeepSeek V4.1 Flash leads on fidelity, design and copy. DeepSeek V4 Pro is slightly higher on persistence honesty (4.25 against 4.07) and structure (4.5 against 4.4), but its mean covers only its 12 completed builds, so its 3 timeouts are missing from the score.</p>
+    <p class='muted'>Cost is not a decision factor: BytePlus tokens are free under the partnership. LiteLLM still has no BytePlus price (issue 640), so BytePlus costs are estimates from the benchmark's price table and carry a <code>~</code>. At list prices the whole round came to about $14.</p>
+  </section>
+
+  <section>
+    <h2>Site by site <span class='mono muted'>validation passes out of 3</span></h2>
+    <div class='scroll'>
+      <table>
+        <thead id='grid-head'></thead>
+        <tbody id='grid'></tbody>
+      </table>
+    </div>
+    <p class='muted'>Each cell counts builds that passed validation, out of three runs on that site. The briefs are an orbital habitat, a solarpunk energy grid, a cyberpunk night market, a mecha hangar museum and a generation-ship seed lab; each names its collections and routes, and the harness checks them. DeepSeek V4.1 Flash shows 3/3 on pasar-neon here because validation passed; one of those three builds failed an eval-only lint check.</p>
+  </section>
+
+  <section>
+    <h2>Blind look <span class='mono muted'>same brief, same harness, names removed</span></h2>
+    <div id='sheets'></div>
+    <p class='muted'>Two briefs, first run, three models side by side. Every capture is a full page: scroll inside a column to see the rest, or open it at full size. Reviewers saw sanitized copies without model names.</p>
+  </section>
+
+  <section>
+    <h2>What failed <span class='mono muted' id='failure-note'>—</span></h2>
+    <div class='scroll'>
+      <table>
+        <thead>
+          <tr><th>Model</th><th class='num'>Failed</th><th>Causes</th><th class='num'>Invalid tool calls</th></tr>
+        </thead>
+        <tbody id='failures'></tbody>
+      </table>
+    </div>
+    <div class='panel'>
+      <div class='split'>
+        <div class='mini'>
+          <span class='label'>Fairness</span>
+          <p>62 failures were the model's own, 1 was harness-caused and 0 were the fixture's. The harness-caused one is a GLM 5.3 Flash run that hit the provider's per-minute token quota. Every collection name and route a check expects is named word for word in its brief.</p>
+        </div>
+        <div class='mini'>
+          <span class='label'>Invalid tool calls</span>
+          <p>Counted from run logs, not the eval summary, which only records the final turn state. DeepSeek V4 Pro's 11 are mostly 300 s provider silences. GLM 5.3 Flash's 25 include 16 write streams that were not valid JSON.</p>
+        </div>
+      </div>
+      <p class='muted'>Cause key: <strong>schema nested</strong> means the database schema sat inside <code>plan</code> and was dropped. <strong>No schema</strong> means nothing was declared. <strong>Missing collection</strong> means some expected collections were never declared. <strong>English names</strong> means the model declared collections under translated names. <strong>Broken write JSON</strong> means write arguments did not parse against the tool schema. <strong>Out of time</strong> means the turn's 900 s allowance ran out.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Code changes GLM and Seed need <span class='mono muted'>round 2 ran them with a local patch</span></h2>
+    <div class='callout bad'>
+      <p><strong>Round 2 did not run the merged pipeline.</strong> GLM and Seed ran with a local patch, applied for the benchmark only and not in the branch. Without it, the GLM and Seed results in this report would not exist: round 1 showed both families unable to finish a build at all.</p>
+    </div>
+    <div class='panel'>
+      <h3>GLM 5.2 and GLM 5.3 Flash</h3>
+      <p>Two changes, both needed before either model can hold the build slot.</p>
+      <ol>
+        <li><strong>A tool-argument parser change.</strong> With our <code>$ref</code>-based tool schema, GLM sends nested objects as JSON-encoded strings instead of objects. We proved this against ModelArk directly and through LiteLLM, so it is the model's shape, not our transport.</li>
+        <li><strong>An explicit output limit.</strong> The pipeline sends <code>max_tokens</code> for these models, set to the documented maximum, so ModelArk's 4096 default cannot truncate a write.</li>
+      </ol>
+      <h3>Seed 2.0 Pro and Seed 2.1 Turbo</h3>
+      <p>One change: the same explicit output limit. ModelArk defaults <code>max_tokens</code> to 4096 for every model except DeepSeek V4.1 Flash, and that default cut Seed's file writes off in round 1. The patch sets the model's own maximum.</p>
+      <h3>Gemini and both DeepSeek models</h3>
+      <p>No change. Their requests were untouched, so they ran the same pipeline as in production. Round 2 uses new briefs and the app-base template, so its numbers are not directly comparable with round 1's.</p>
+    </div>
+    <div class='panel'>
+      <h3>What the patch did not fix</h3>
+      <ul>
+        <li><strong>GLM 5.2 still fails at the write gate.</strong> Three of its runs sent <code>files</code> as one JSON string; the write gate rejected it with <code>Input should be a valid list</code>. The patch decodes JSON-encoded containers, but these payloads arrived double-encoded or with trailing text, and by then the turn had spent 900 to 1470 s and had no retry left.</li>
+        <li><strong>Seed's broken write JSON.</strong> Four Seed 2.0 Pro runs ended in <code>IncompleteJSONError: parse error: trailing garbage</code>; the patch does not touch invalid JSON.</li>
+        <li><strong>Volume and time.</strong> GLM 5.2 waits 1171 s at the median and writes for up to 1104 s, so it runs out of the 900 s turn even when its arguments are valid.</li>
+        <li><strong>Collection naming.</strong> Seed 2.0 Pro declared <code>frames</code>, <code>stalls</code> and <code>houses</code> where the briefs say <code>rangka</code>, <code>warung</code> and <code>rumah</code>. That is a reading error, not a parser one.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>What could not be tested</h2>
+    <div class='panel'>
+      <ul>
+        <li><strong>The patched path in production.</strong> The two code changes above are local. Nothing here proves them in the merged pipeline.</li>
+        <li><strong>Bill separation.</strong> The benchmark ran on a dedicated benchmark-only BytePlus API key. Whether ModelArk's usage data can tell that key's spend apart from the staging key's is not verified yet; we did not confirm it, so treat cost reporting as open.</li>
+        <li><strong>Production run history.</strong> Nobody has checked whether the Gemini nested-schema defect is already shipping apps without a database. The key finding is an inference until that check runs.</li>
+        <li><strong>Gemini with a fixed pipeline.</strong> Accepting the nested schema would probably recover 21 runs, but that variant was not built or measured.</li>
+        <li><strong>Turns after the build.</strong> Every run is a first build. Edit turns, follow-ups and long conversations are not measured.</li>
+        <li><strong>Journeys.</strong> The harness checks structure, collections and routes, not whether a checkout saves an order. Reviewers read the code for faked writes.</li>
+        <li><strong>Admin screens.</strong> The harness does not sign in, so admin pages were judged from source.</li>
+        <li><strong>Images.</strong> Every build got the same fixed photographs, so this measures image placement, not picture choice.</li>
+        <li><strong>Throughput.</strong> Two to four builds ran at once on one account. That is not a rate-limit test; one GLM 5.3 Flash run still hit the per-minute quota.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recommendation</h2>
+    <div class='callout ok'>
+      <p><strong>Put DeepSeek V4.1 Flash in the build slot.</strong> It is the only model that is both reliable and good: 13 of 15 builds passed every check (87%), and its blind mean of 22.5 of 25 is 2.3 points clear of the next model. It reached 25 of 25 once and 24 five times. It wins 13 of the 15 site-and-run groups, 11 of them outright. It needs no code change: its requests are unchanged from round 1.</p>
+      <p><strong>Yes, switch staging under BP-4.</strong> Run DeepSeek V4.1 Flash as staging's plan and write model, keep the existing fallback chain, and compare on staging's own traffic before production changes. Because V4.1 Flash needs no patch, the switch does not wait for the parser work.</p>
+      <p><strong>Land the two pipeline changes before GLM or Seed are tried again.</strong> The explicit output limit and the JSON-string decode are what let GLM and Seed finish a turn at all. They are small and model-specific: one table keyed by model id, one decode at the argument boundary. They are not part of this benchmark's merge request.</p>
+      <p><strong>Fix the nested schema and check production.</strong> Accept <code>database_schema</code> inside <code>plan</code>, or reject it with an error the model can act on. Either way, file a follow-up issue and read production's Gemini 3.7 run history to see how many shipped apps have no collection behind their data. This is the most urgent item on the page: it is a silent failure in the model we ship today.</p>
+      <p><strong>Leave GLM and Seed out of the slot.</strong> Seed 2.1 Turbo is the second most reliable model but scores 17.4 on quality and needed 6 repair rounds. GLM 5.3 Flash passed nothing.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Alternatives, and why they lost</h2>
+    <div class='panel'>
+      <div class='split'>
+        <div class='mini'>
+          <span class='label'>Seed 2.1 Turbo — 14 of 15, blind 17.4</span>
+          <p>The most reliable model on the page and the second fastest. It lost on the sites themselves: structure 3.07 of 5, six repair rounds, and one run at 999 s. Reliable output that reads like a template is not a reason to switch.</p>
+        </div>
+        <div class='mini'>
+          <span class='label'>DeepSeek V4 Pro — 10 of 15, blind 20.2</span>
+          <p>Higher than Flash on persistence honesty (4.25 against 4.07) and structure (4.5 against 4.4); Flash is ahead on fidelity, design and copy. It lost on time: a median build of 1067 s, four times Flash's 252 s, and 3 turns ran out of time. Its writes are 57k output tokens a build, so it is slower and dearer for a slightly worse site. Its mean also covers only its 12 completed builds, so the 3 timeouts are not in it.</p>
+        </div>
+        <div class='mini'>
+          <span class='label'>GLM 5.2 — 6 of 15, blind 18.5</span>
+          <p>Its best build scored 22 of 25 and three more scored 20, but a 1171 s median and three writes rejected as a JSON string make it unusable as the default. It needs both code changes plus a smaller plan.</p>
+        </div>
+        <div class='mini'>
+          <span class='label'>Seed 2.0 Pro — 7 of 15, blind 13.5</span>
+          <p>The fastest model at 180 s a build. It names collections in English, breaks its own write JSON in four runs, and scores 2.45 on structure. Speed did not translate into a working site.</p>
+        </div>
+        <div class='mini'>
+          <span class='label'>GLM 5.3 Flash — 0 of 15, blind 8.0</span>
+          <p>No site passed. Its plan alone takes 388 s at the median, and 8 runs died on write streams that were not valid JSON. Two builds reached the reviewer and scored 8 of 25.</p>
+        </div>
+        <div class='mini'>
+          <span class='label'>Gemini 3.8 Flash and 3.7 Flash — 4 and 3 of 15, blind 13.1 and 13.0</span>
+          <p>The current build models. Both lost to the nested-schema defect, not to design: design scores of 3.43 and 3.33 are respectable, but persistence honesty is 1.43 and 1.47. Fixing the pipeline would recover most of their failures, and that fix should ship whether or not the model changes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Method and limits</h2>
+    <div class='panel'>
+      <p>Eight models ran the production pipeline through the eval harness: the plan step and the write step used the model under test, while the safety classifier, the module picker, the design lookup and the image model stayed as production keeps them. Fallbacks were switched off, so a model that failed could not finish on another model's work. Repair rounds stayed on, as in production, and a turn had 900 s of wall clock.</p>
+      <p>Each build started from <code>app-base</code>, the template production uses since ADR-043, and ran in Docker with PocketBase live. Playwright then loaded every route, scrolled it, waited for images and screenshotted the full page. Five briefs times three repeats times eight models gives 120 turns on 13 and 14 November 2026, on one dedicated benchmark key, with two to four builds running at once.</p>
+      <p>Review used one blind reviewer per site and run: 15 reviewers, all Claude Opus 5.5, a model not under test. Round 1 used Claude Sonnet, which was not available for round 2, so the two rounds' scores are not directly comparable. Reviewers got sanitized copies with the model names removed and scored five criteria out of 5: fidelity to the brief, persistence honesty (does a save really save), structure, design and copy. Builds that rendered nothing were not reviewed, which is why 93 of 120 have a score.</p>
+      <p class='muted'>Limits: no edit turns, no journey tests, no admin sign-in, one fixed image set, 2 to 4 concurrent builds on one account, one reviewer per group, and a local patch for GLM and Seed. Reproduce with <code>uv run python scripts/benchmark/02_run.py</code>, then <code>03_score.py</code> and <code>04_review.py</code>.</p>
+    </div>
+  </section>
+
+  <section id='key-finding'>
+    <h2>Key finding: Gemini drops the database schema <span class='mono muted'>21 builds, no error</span></h2>
+    <div class='panel'>
+      <p>Gemini sends the schema one level too deep. <code>CreatePlanArgs</code> expects <code>database_schema</code> beside <code>plan</code>; Gemini puts it inside <code>plan</code>. The argument model ignores unknown fields, so the schema disappears without a warning, no <code>*_ai_msg_*.js</code> migration is written, and the collection the app queries never exists. The turn still ends <code>ok</code>.</p>
+      <pre><code>{ "plan": {
+    "editable_files": [...], "actions": [...],
+    "database_schema": { "tables": [ { "table_name": "jendela_orbit" } ] } } }</code></pre>
+      <p>The pattern is exact. All 7 Gemini builds that passed declared the schema at the top level and wrote a migration. All 21 collection failures had it nested and wrote none. DeepSeek V4.1 Flash passed all three orbit-nusa runs with the identical brief by declaring the schema at the top level.</p>
+      <p>The result is worse than a blank page. In three of the five briefs the app really does read and write the named collection, so every read and submit fails and the errors are swallowed into an empty list: the site looks empty but healthy. In two pasar-neon runs Gemini also mirrors the write into <code>localStorage</code> and returns success, so an order appears to be placed and nothing is stored.</p>
+      <div class='callout bad'>
+        <p><strong>Production runs Gemini 3.7 Flash on <code>app-base</code> for every app.</strong> The same tool schema and the same argument model are in that path, so production likely ships apps with no database today, and their data screens fail quietly. This is an inference from the run artifacts. We have not read production run history. Recommended follow-up: a separate issue that (1) accepts or explicitly rejects <code>plan.database_schema</code> and (2) counts affected apps in production run history.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Round 1 <span class='mono muted'>kept for reference</span></h2>
+    <div class='panel'>
+      <p>Round 1 ran seven models on five legacy-template briefs (coffee shop, batik store, salon booking, tech blog, event feedback), one run each, on 12 November 2026. Three models built a site. DeepSeek V4.1 Flash won the blind comparison on all five sites with 105 of 125, then Gemini 90 and DeepSeek V4 Pro 85. Four models never produced a site: GLM 5.2 and GLM 5.3 Flash sent the plan as a JSON string, and Seed 2.0 Pro and Seed 2.1 Turbo sent empty write arguments.</p>
+      <p><strong>Correction, 12 November 2026.</strong> Round 1's pass and first-pass columns mostly measured a harness bug, not the models. Twelve of the thirteen failed first validation passes, and both builds that never passed, were the same error: the legacy templates ship a PocketBase client that switches to <code>http://127.0.0.1:8090</code> when the page is served from <code>127.0.0.1</code>, and the harness serves every build that way without exposing that port. Only one first-pass failure was a model's own. On reliability the three models that built sites were tied.</p>
+      <p class='muted'>Round 2 is not a repeat of round 1. It uses <code>app-base</code> instead of the legacy templates, checks named collections and routes, runs three times per site, and ran GLM and Seed with the local patch. Read round 1 for the shape of the earlier failures, not for comparable numbers.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sources</h2>
+    <div class='panel'>
+      <ol>
+        <li>Issue 638 and MR !737, linked at the top of this page.</li>
+        <li>Round 2 result files: <code>scripts/benchmark/results/round-2/report.json</code> (per-model and per-site totals) and <code>results.csv</code> (one row per turn).</li>
+        <li>Blind scores: <code>review-scores.json</code> (93 rows, 8 model means). The letter-to-model key and image URLs are in <code>review-key.json</code>, published here now that scoring is done.</li>
+        <li>Failure analysis for all 120 runs: one line per failure with its cause and a fairness verdict, plus invalid-tool-call counts recovered from the run logs.</li>
+        <li>Briefs: <code>evals/fixtures/bench-{orbit-nusa,kampung-surya,pasar-neon,hanggar-rangka,biotek-kapal}.yaml</code>, all on <code>app-base</code>.</li>
+        <li>Images: full-page captures and contact sheets under <code>https://s3.jkt.dewavps.com/arcane/benchmark/</code>.</li>
+        <li>Local patch used for GLM and Seed in round 2: not in the branch; the changes are described above.</li>
+        <li>Open dependency: issue 640, LiteLLM has no BytePlus price, so BytePlus cost is an estimate.</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer>
+    <p>Raw rows: <code>scripts/benchmark/results/round-2/results.csv</code>. Each run's generated source, checks and screenshots live in its run directory and are linked from its eval-artifacts URL.</p>
+    <p>Round 2 published 14 November 2026. Round 1 (12 November 2026) is kept below it, with its correction. This page is updated by the dewabuilder benchmark run; every number comes from the round-2 result files listed above.</p>
+  </footer>
+</div>
+<script>
+/* Round 2 data. Every value below is copied from
+   scripts/benchmark/results/round-2/{report,review-scores}.json,
+   the failure analysis of the 120 runs, and the letter key. */
+const MODELS = [
+  { k: 'deepseek-v4-1-flash', name: 'DeepSeek V4.1 Flash', fam: 'BytePlus', runs: 15, all: 13, valid: 14, first: 11, repairs: 4, toolErrors: 1, med: 251.5, min: 161.0, max: 412.1, tin: 56003, tout: 48443, cost: 0.0669, blind: 22.5, bmin: 18, bmax: 25, crit: [4.4, 4.07, 4.4, 4.67, 5], wins: 13, sole: 11, shared: 2, reviewed: 15, grid: [3, 2, 3, 3, 3],
+    note: 'Best blind score, and 13 of 15 clean. Two misses: one nested schema and one undefined variable.' },
+  { k: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', fam: 'BytePlus', runs: 15, all: 10, valid: 10, first: 10, repairs: 0, toolErrors: 0, med: 1066.7, min: 371.3, max: 1276.4, tin: 29146, tout: 57115, cost: 0.2947, blind: 20.2, bmin: 16, bmax: 23, crit: [3.92, 4.25, 4.5, 3.75, 3.75], wins: 3, sole: 2, shared: 1, reviewed: 12, grid: [2, 1, 3, 1, 3],
+    note: 'Strong sites, but a 1067 s median build and 3 turns that ran out of time.' },
+  { k: 'glm-5-2', name: 'GLM 5.2', fam: 'BytePlus', runs: 15, all: 6, valid: 6, first: 6, repairs: 0, toolErrors: 0, med: 1171.2, min: 841.2, max: 1484.3, tin: 24131, tout: 45673, cost: 0.3192, blind: 18.5, bmin: 14, bmax: 22, crit: [3.7, 4.1, 4, 3.4, 3.3], wins: 0, sole: 0, shared: 0, reviewed: 10, grid: [3, 1, 1, 0, 1],
+    note: 'Plan and write are too large: 1171 s median, and 3 writes arrived as a JSON string.' },
+  { k: 'dola-seed-2-1-turbo', name: 'Seed 2.1 Turbo', fam: 'BytePlus', runs: 15, all: 14, valid: 14, first: 8, repairs: 6, toolErrors: 0, med: 367.3, min: 236.0, max: 999.1, tin: 72670, tout: 21615, cost: 0.0816, blind: 17.4, bmin: 12, bmax: 22, crit: [3.64, 3.57, 3.07, 3.64, 3.5], wins: 1, sole: 0, shared: 1, reviewed: 14, grid: [3, 3, 3, 3, 2],
+    note: 'The most reliable model, the weakest of the good ones: 6 repair rounds, blind 17.4.' },
+  { k: 'seed-2-0-pro', name: 'Seed 2.0 Pro', fam: 'BytePlus', runs: 15, all: 7, valid: 7, first: 5, repairs: 3, toolErrors: 0, med: 180.2, min: 127.1, max: 401.5, tin: 41279, tout: 7363, cost: 0.0581, blind: 13.5, bmin: 11, bmax: 17, crit: [3, 2.64, 2.45, 2.55, 2.91], wins: 0, sole: 0, shared: 0, reviewed: 11, grid: [2, 1, 0, 1, 3],
+    note: 'Fastest at 180 s, but names collections in English and 4 writes ended in broken JSON.' },
+  { k: 'baseline-gemini', name: 'Gemini 3.8 Flash', fam: 'Gemini', runs: 15, all: 4, valid: 4, first: 2, repairs: 3, toolErrors: 0, med: 231.8, min: 162.6, max: 938.5, tin: 55718, tout: 27293, cost: 0.1544, blind: 13.1, bmin: 6, bmax: 19, crit: [2.5, 1.43, 2.21, 3.43, 3.57], wins: 0, sole: 0, shared: 0, reviewed: 14, grid: [0, 2, 0, 1, 1],
+    note: 'Staging build model. 10 of its 11 misses are the nested database schema.' },
+  { k: 'baseline-gemini-prod', name: 'Gemini 3.7 Flash', fam: 'Gemini', runs: 15, all: 3, valid: 3, first: 2, repairs: 3, toolErrors: 0, med: 255.2, min: 167.9, max: 577.9, tin: 57979, tout: 30227, cost: 0.1568, blind: 13, bmin: 6, bmax: 18, crit: [2.4, 1.47, 2.13, 3.33, 3.67], wins: 0, sole: 0, shared: 0, reviewed: 15, grid: [1, 1, 0, 0, 1],
+    note: 'Production build model. 11 nested schemas and one run with no schema at all.' },
+  { k: 'glm-5-3-flash', name: 'GLM 5.3 Flash', fam: 'BytePlus', runs: 15, all: 0, valid: 0, first: 0, repairs: 0, toolErrors: 0, med: 1100.6, min: 640.0, max: 1591.4, tin: 4683, tout: 13478, cost: 0.0527, blind: 8, bmin: 8, bmax: 8, crit: [1, 3, 2, 1, 1], wins: 0, sole: 0, shared: 0, reviewed: 2, grid: [0, 0, 0, 0, 0],
+    note: 'No site passed. Its write stream is usually not valid JSON and its plan eats the turn.' }
+];
+
+const SITES = [
+  { k: 'orbit-nusa', short: 'orbit', label: 'Orbital habitat' },
+  { k: 'kampung-surya', short: 'solarpunk', label: 'Solarpunk grid' },
+  { k: 'pasar-neon', short: 'night market', label: 'Cyberpunk night market' },
+  { k: 'hanggar-rangka', short: 'mecha hangar', label: 'Mecha hangar museum' },
+  { k: 'biotek-kapal', short: 'seed lab', label: 'Generation-ship seed lab' }
+];
+
+const CAUSES = {
+  schema_misplaced: 'schema nested in plan',
+  no_schema: 'no schema declared',
+  missing_collection: 'a collection never declared',
+  wrong_collection_name: 'collections named in English',
+  broken_tool_json: 'write arguments not valid JSON',
+  timeout: 'ran out of the 900 s turn',
+  rate_limited: 'provider token quota (harness)',
+  no_tool_call: 'prose answer, no tool call',
+  build_or_runtime_error: 'generated code failed to build'
+};
+
+const FAILURES = {
+  'deepseek-v4-1-flash': { list: [['schema_misplaced', 1], ['build_or_runtime_error', 1]], calls: 2 },
+  'deepseek-v4-pro': { list: [['timeout', 3], ['missing_collection', 2]], calls: 11 },
+  'glm-5-2': { list: [['broken_tool_json', 3], ['missing_collection', 3], ['timeout', 2], ['build_or_runtime_error', 1]], calls: 8 },
+  'dola-seed-2-1-turbo': { list: [['timeout', 1]], calls: 7 },
+  'seed-2-0-pro': { list: [['wrong_collection_name', 4], ['broken_tool_json', 4]], calls: 13 },
+  'baseline-gemini': { list: [['schema_misplaced', 10], ['timeout', 1]], calls: 4 },
+  'baseline-gemini-prod': { list: [['schema_misplaced', 11], ['no_schema', 1]], calls: 3 },
+  'glm-5-3-flash': { list: [['broken_tool_json', 8], ['timeout', 3], ['build_or_runtime_error', 2], ['rate_limited', 1], ['no_tool_call', 1]], calls: 25 }
+};
+
+const SHOT_BASE = 'https://s3.jkt.dewavps.com/arcane/benchmark/review-shots/';
+const SHOT_ROWS = [
+  {
+    site: 'orbit-nusa', caption: 'Orbital habitat, first run',
+    letters: { D: 'deepseek-v4-1-flash', C: 'deepseek-v4-pro', F: 'baseline-gemini' }
+  },
+  {
+    site: 'pasar-neon', caption: 'Cyberpunk night market, first run',
+    letters: { C: 'deepseek-v4-1-flash', E: 'deepseek-v4-pro', B: 'baseline-gemini' }
+  }
+];
+
+const nameOf = (key) => {
+  const found = MODELS.find((m) => m.k === key);
+  return found ? found.name : key;
+};
+
+const state = { family: 'all', sort: 'quality' };
+
+const make = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+
+const fmtInt = (n) => Math.round(n).toLocaleString('en-GB');
+const fmtK = (n) => (n / 1000).toFixed(1) + 'k';
+const fmtSec = (n) => Math.round(n) + ' s';
+const winsText = (m) => m.wins === 0 ? '—' : String(m.wins) + (m.sole ? ' (' + m.sole + ' sole)' : ' (shared)');
+const costText = (m) => (m.fam === 'BytePlus' ? '~$' : '$') + m.cost.toFixed(3);
+const passClass = (pass, total) => {
+  const ratio = pass / total;
+  return ratio >= 0.8 ? 'cell-ok' : ratio >= 0.5 ? 'cell-warn' : 'cell-bad';
+};
+const blindClass = (score) => score >= 20 ? 'cell-ok' : score >= 15 ? 'cell-warn' : 'cell-bad';
+
+/* Summary cards. */
+const cards = document.getElementById('model-cards');
+MODELS.forEach((m) => {
+  const card = make('div', 'card');
+  const head = make('div', 'cardhead');
+  head.append(make('span', 'name', m.name), make('span', 'fam', m.fam));
+  card.append(head);
+  const value = make('span', 'value', m.blind.toFixed(1));
+  value.append(make('span', 'unit', ' / 25 blind'));
+  card.append(value);
+  const note = make('span', 'note');
+  note.append(make('strong', '', m.all + ' of ' + m.runs + ' clean'),
+    document.createTextNode(' · ' + fmtSec(m.med) + ' median · ' + m.reviewed + ' reviewed'));
+  card.append(note);
+  card.append(make('span', 'aside', m.note));
+  cards.append(card);
+});
+
+/* Stat cards. */
+[
+  ['Blind winner', '22.5', '/ 25', 'DeepSeek V4.1 Flash, best in 13 of 15 site-and-run groups'],
+  ['All checks passed', '57', '/ 120', '63 failed: 62 model, 1 provider quota, 0 fixture'],
+  ['Most reliable', '14', '/ 15', 'Seed 2.1 Turbo, at 17.4 / 25 blind'],
+  ['Fastest median', '180', 's', 'Seed 2.0 Pro, which passed 7 of 15']
+].forEach(([label, value, unit, note]) => {
+  const card = make('div', 'card');
+  card.append(make('span', 'label', label));
+  const v = make('span', 'value', value);
+  v.append(make('span', 'unit', ' ' + unit));
+  card.append(v, make('span', 'note', note));
+  document.getElementById('winners').append(card);
+});
+
+/* Results table. */
+const tableBody = document.getElementById('results');
+const filterNote = document.getElementById('filter-note');
+
+const sorted = () => {
+  const rows = MODELS.filter((m) => state.family === 'all' || m.fam === state.family);
+  const by = {
+    quality: (a, b) => b.blind - a.blind || b.all - a.all,
+    reliability: (a, b) => b.all - a.all || b.blind - a.blind,
+    speed: (a, b) => a.med - b.med
+  }[state.sort];
+  return rows.slice().sort(by);
+};
+
+const drawTable = () => {
+  const rows = sorted();
+  tableBody.replaceChildren();
+  rows.forEach((m) => {
+    const tr = make('tr');
+    tr.append(make('td', 'nowrap', m.name));
+    tr.append(make('td', 'num ' + passClass(m.all, m.runs), m.all + '/' + m.runs));
+    tr.append(make('td', 'num ' + passClass(m.valid, m.runs), m.valid + '/' + m.runs));
+    tr.append(make('td', 'num ' + blindClass(m.blind), m.blind.toFixed(1)));
+    m.crit.forEach((score) => tr.append(make('td', 'num', score.toFixed(2))));
+    tr.append(make('td', 'num', winsText(m)));
+    tr.append(make('td', 'num', fmtSec(m.med)));
+    tr.append(make('td', 'num', Math.round(m.min) + '–' + Math.round(m.max) + ' s'));
+    tr.append(make('td', 'num', fmtK(m.tout) + ' out · ' + fmtK(m.tin) + ' in'));
+    tr.append(make('td', 'num muted', costText(m)));
+    tableBody.append(tr);
+  });
+  const sortLabel = { quality: 'blind score', reliability: 'pass rate', speed: 'build time' }[state.sort];
+  filterNote.textContent = rows.length + (rows.length === 1 ? ' model shown' : ' models shown')
+    + ', sorted by ' + sortLabel + '.';
+};
+
+document.querySelectorAll('[data-family]').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.family = button.dataset.family;
+    document.querySelectorAll('[data-family]').forEach((other) => {
+      other.setAttribute('aria-pressed', String(other === button));
+    });
+    drawTable();
+  });
+});
+
+document.querySelectorAll('[data-sort]').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.sort = button.dataset.sort;
+    document.querySelectorAll('[data-sort]').forEach((other) => {
+      other.setAttribute('aria-pressed', String(other === button));
+    });
+    drawTable();
+  });
+});
+
+drawTable();
+
+/* Site grid. */
+const gridHead = make('tr');
+gridHead.append(make('th', '', 'Model'));
+SITES.forEach((site) => {
+  const th = make('th', 'num', site.short);
+  th.title = site.label;
+  gridHead.append(th);
+});
+gridHead.append(make('th', 'num', 'Total'));
+document.getElementById('grid-head').append(gridHead);
+
+MODELS.forEach((m) => {
+  const tr = make('tr');
+  tr.append(make('td', 'nowrap', m.name));
+  m.grid.forEach((pass) => {
+    tr.append(make('td', 'num ' + passClass(pass, 3), pass + '/3'));
+  });
+  tr.append(make('td', 'num ' + passClass(m.valid, m.runs), m.valid + '/' + m.runs));
+  document.getElementById('grid').append(tr);
+});
+
+/* Failures per model. */
+const failureBody = document.getElementById('failures');
+let failureTotal = 0;
+MODELS.forEach((m) => {
+  const record = FAILURES[m.k];
+  const failed = m.runs - m.all;
+  failureTotal += failed;
+  const tr = make('tr');
+  tr.append(make('td', 'nowrap', m.name));
+  const failedCell = make('td', 'num', failed === 0 ? '0' : String(failed));
+  failedCell.classList.add(failed === 0 ? 'cell-ok' : 'cell-bad');
+  tr.append(failedCell);
+  const causes = record.list.map(([key, count]) => CAUSES[key] + ' ' + count).join(' · ');
+  tr.append(make('td', 'wide', causes || '—'));
+  tr.append(make('td', 'num', String(record.calls)));
+  failureBody.append(tr);
+});
+document.getElementById('failure-note').textContent = failureTotal + ' failed builds of 120';
+
+/* Blind look. */
+const sheets = document.getElementById('sheets');
+SHOT_ROWS.forEach((row) => {
+  const block = make('div', 'site-shots');
+  block.append(make('h3', '', row.caption));
+  const line = make('div', 'shots');
+  Object.entries(row.letters).forEach(([letter, key]) => {
+    const url = SHOT_BASE + row.site + '/r0/' + letter + '.png';
+    const figure = make('figure');
+    const frame = make('div', 'shot-frame');
+    const link = make('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    const image = make('img');
+    image.src = url;
+    image.alt = row.caption + ', full page by ' + nameOf(key);
+    image.loading = 'lazy';
+    link.append(image);
+    frame.append(link);
+    const caption = make('figcaption');
+    caption.append(make('strong', '', nameOf(key)), document.createTextNode(' · build ' + letter));
+    figure.append(caption, frame);
+    line.append(figure);
+  });
+  block.append(line);
+  sheets.append(block);
+});
+
+document.title = 'ModelArk build benchmark, round 2';
+</script>

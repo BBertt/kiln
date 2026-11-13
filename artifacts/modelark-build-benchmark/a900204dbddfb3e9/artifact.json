@@ -1,0 +1,16 @@
+{
+  "slug": "modelark-build-benchmark",
+  "title": "BytePlus ModelArk build benchmark",
+  "framework": "html",
+  "metadata": {
+    "description": "Round 2: 8 models × 5 futuristic briefs × 3 runs on DewaBuilder's plan and write roles, with blind review and failure causes (issue 638).",
+    "tags": [
+      "benchmark",
+      "byteplus",
+      "modelark",
+      "dewabuilder"
+    ]
+  },
+  "revision": "a900204dbddfb3e9",
+  "updated_at": "2026-11-13T19:12:39.749Z"
+}
